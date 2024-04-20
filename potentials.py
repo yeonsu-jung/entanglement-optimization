@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
 from jax import lax
+from jax import jit
 
 # def fixbound(num):
 #     """ Ensure the number is within the bounds [0, 1]. """
@@ -183,7 +184,54 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     n4 = jnp.cross(r_iij, r_ij)
     n4 = n4/jnp.linalg.norm(n4)
 
-    return -1/4/jnp.pi*(jnp.arcsin(jnp.dot(n1,n2)) + jnp.arcsin(jnp.dot(n2,n3)) + jnp.arcsin(jnp.dot(n3,n4)) + jnp.arcsin(jnp.dot(n4,n1)))
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(jnp.dot(n1,n2)) + jnp.arcsin(jnp.dot(n2,n3)) + jnp.arcsin(jnp.dot(n3,n4)) + jnp.arcsin(jnp.dot(n4,n1)))
+
+# @jit
+def effective_potential_all(q_list):
+    # Convert list to a jax.numpy array if it's not already
+    q_array = jnp.array(q_list)
+    n = q_array.shape[0]
+
+    # Expand q_array to calculate pairwise differences
+    # q_array[i,:] has shape (1, coordinates), q_array has shape (n, coordinates)
+    # We use broadcasting to expand both arrays to (n, n, coordinates)
+    q_i = q_array[:, jnp.newaxis, :]  # shape (n, 1, coordinates)
+    q_j = q_array[jnp.newaxis, :, :]  # shape (1, n, coordinates)
+
+    # Calculate all pairwise vectors
+    q_pairs = jnp.concatenate([q_i, q_j], axis=-1)  # shape (n, n, 2 * coordinates)
+
+    # Apply the effective potential function to each pair, using a vectorized form
+    # Assuming effective_potential can be vectorized or replaced with a vectorized function
+    eff_pots = jnp.array([effective_potential(pair) for pair in q_pairs.reshape(-1, 2 * q_array.shape[1])])
+
+    # We need only upper triangle part excluding the diagonal, since i < j
+    mask = jnp.triu_indices(n, k=1)
+    eff_pot = jnp.sum(eff_pots.reshape(n, n)[mask])
+
+    return eff_pot
+
+    
+# def fast_effective_potential_all(w):
+#     def body(carry,w):
+#         conv = jnp.convolve(carry * w, kernel, mode='valid')
+#         out = jnp.zeros_like(w).at[1:-1].set(conv)
+#         return out, out
+    
+#     init = jnp.ones(w.shape[0])
+#     kernel = jnp.ones(3)
+#     return jnp.vstack([init, lax.scan(body, jnp.ones(w.shape[0]), w.T)[1]]).T
+
+def total_effective_potential(q_pairs):    
+    def body_fun(carry, q_pair):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + effective_potential(q_pair), None
+    
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    return total
+
 
 def effective_potential(q):
     x_i = q[0]
@@ -207,9 +255,9 @@ def effective_potential(q):
     p_ii = p_i + l*u_i
     p_jj = p_j + l*u_j
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
-    eff_pot = -1/dist + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    eff_pot = (dist-0.1)**2 + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
 
     return eff_pot
 
@@ -238,7 +286,9 @@ def simple_harmonic_line(q):
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
     # eff_pot = -1/dist + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
-    eff_pot = -1/(dist-1)
+    # eff_pot = 1./(1.-dist/0.01)
+    eff_pot = (dist-3)**2
+
     return eff_pot
 
 if __name__ == "__main__":
@@ -267,6 +317,8 @@ if __name__ == "__main__":
     dist = dist_lin_seg(p1s, p1e, p2s, p2e)
     print(dist)
     tmp = simple_harmonic_line(q0)
+
+
 
     print(tmp)
 
