@@ -72,14 +72,14 @@ def optimize_fire2(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
     dtmin = 0.02 * dt
     alpha0 = 0.1  # example starting value for alpha
     alpha = alpha0
-    Nmax = 10000  # maximum number of iterations
+    Nmax = 1000  # maximum number of iterations
     Ndelay = 10   # example delay for adjusting dt
     finc = 1.1    # factor to increase dt
     fdec = 0.5    # factor to decrease dt
     fa = 0.99     # factor to adjust alpha
 
     def body_fun(carry):
-        q, V, alpha, dt, Npos, error = carry
+        q, V, alpha, dt, Npos, error = carry        
         F = -df(q)
         P = jnp.sum(F * V)  # dissipated power
 
@@ -100,14 +100,22 @@ def optimize_fire2(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
         V = V + 0.5 * dt * F
         V = (1 - alpha) * V + alpha * F * jnp.linalg.norm(V) / jnp.linalg.norm(F)
         q = q + dt * V
+
+        # x = x.at[idx].set(y)
+        # q = q.at[3].set(jnp.mod(q[3], jnp.pi))
+        # q = q.at[4].set(jnp.mod(q[4], 2*jnp.pi))
+        # q = q.at[8].set(jnp.mod(q[8], jnp.pi))
+        # q = q.at[9].set(jnp.mod(q[9], 2*jnp.pi))
+        
         F = -df(q)
         V = V + 0.5 * dt * F
 
         error = jnp.max(jnp.abs(F))
+
         return q, V, alpha, dt, Npos, error
 
     def cond_fun(carry):
-        _, _, _, _, Npos, error = carry        
+        _, _, _, _, Npos, error = carry
         return (error > atol) & (Npos < Nmax)
 
     q = q0
@@ -124,9 +132,6 @@ def optimize_fire2(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
         carry_init
     )
 
-    if logoutput:
-        print(f(q), error)
-
     return q, f(q), Nmax
 
 # (q0, f, df, params, atol=1e-4, dt=0.002, logoutput=False, Nmax=10000):
@@ -137,8 +142,8 @@ def main():
     # df = lambda q, params: 2 * (q - r0)
 
     # f = compute_linking_number_vectorized
-    # f = effective_potential
-    f = simple_harmonic_line
+    f = effective_potential
+    # f = simple_harmonic_line
 
     rod_length = 1.0
     dist = 0.5
@@ -147,7 +152,7 @@ def main():
     df = jax.grad(f)
     atol = 1e-4
     dt = 0.002
-    logoutput = False
+    logoutput = True
 
     q, f_val, num_iterations = optimize_fire2(q0, f, df, atol, dt, logoutput)
 
@@ -178,6 +183,9 @@ def main():
     x22 = x2 + rod_length*jnp.sin(phi2)*jnp.cos(theta2)
     y22 = y2 + rod_length*jnp.sin(phi2)*jnp.sin(theta2)
     z22 = z2 + rod_length*jnp.cos(phi2)
+
+    dist = jnp.linalg.norm(jnp.array([x1, y1, z1]) - jnp.array([x2, y2, z2]))
+    print(f"Distance between the two rods: {dist:.2f}")
 
     # 3d plot
     fig = plt.figure()
