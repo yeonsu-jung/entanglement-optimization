@@ -4,6 +4,70 @@ import numpy as onp
 from potentials import compute_linking_number_vectorized, effective_potential, simple_harmonic_line
 from matplotlib import pyplot as plt
 
+def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0    
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    dtmax = 10*dt
+    dtmin = 0.02*dt
+    alpha = alpha0
+    Npos = 0
+
+    q = q0.copy()    
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = jnp.sum(F*V)
+        
+        if (P>0):
+            Npos = Npos + 1
+            if Npos>Ndelay:
+                dt = jnp.min(jnp.array([dt*finc,dtmax]))
+                alpha = alpha*fa
+        else:
+            Npos = 0
+            dt = jnp.max(jnp.array([dt*fdec,dtmin]))
+            alpha = alpha0
+            V = jnp.zeros(q.shape)        
+        
+        V = V + 0.5*dt*F
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        q = q + dt*V
+        F = -df(q)
+        V = V + 0.5*dt*F        
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,10) == 0:
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+        
+        if onp.isnan(F).any():            
+            print("NaN detected in variables")
+            
+        if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
+
+
 def optimize_fire(q0, f, df, params, atol=1e-4, dt=0.002, logoutput=False):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
@@ -67,12 +131,11 @@ import jax.numpy as jnp
 import jax
 import jax.numpy as jnp
 
-def optimize_fire2(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
+def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
     alpha0 = 0.1  # example starting value for alpha
-    alpha = alpha0
-    Nmax = 1000  # maximum number of iterations
+    alpha = alpha0    
     Ndelay = 10   # example delay for adjusting dt
     finc = 1.1    # factor to increase dt
     fdec = 0.5    # factor to decrease dt
@@ -132,7 +195,79 @@ def optimize_fire2(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
         carry_init
     )
 
-    return q, f(q), Nmax
+    return q, f(q), Npos, error
+
+def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0
+    Nmax = 10000000  # maximum number of iterations
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+
+    def body_fun(carry):
+        q, V, alpha, dt, Npos, error = carry        
+        F = -df(q)
+        P = jnp.sum(F * V)  # dissipated power
+
+        dt = jax.lax.cond(
+            P > 0,
+            lambda _: jnp.minimum(dt * finc, dtmax),
+            lambda _: jnp.maximum(dt * fdec, dtmin),
+            None
+        )
+        alpha = jax.lax.cond(
+            P > 0,
+            lambda _: alpha * fa,
+            lambda _: alpha0,
+            None
+        )
+        Npos = jax.lax.cond(P > 0, lambda _: Npos + 1, lambda _: 0, None)
+
+        V = V + 0.5 * dt * F
+        V = (1 - alpha) * V + alpha * F * jnp.linalg.norm(V) / jnp.linalg.norm(F)
+        q = q + dt * V
+        
+        F = -df(q)
+        V = V + 0.5 * dt * F
+
+        error = jnp.max(jnp.abs(F))
+        
+        # Check for NaNs in new positions and forces
+        if jnp.any(jnp.isnan(q)) or jnp.any(jnp.isnan(F)):
+            if logoutput:
+                print("NaN detected in variables")
+            return jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan  # Propagate NaNs
+        
+        return q, V, alpha, dt, Npos, error
+
+    def cond_fun(carry):
+        _, _, _, _, Npos, error = carry
+        return (error > atol) & (Npos < Nmax) & (~jnp.any(jnp.isnan(carry)))
+
+    q = q0
+    V = jnp.zeros_like(q0)
+    Npos = 0
+    error = 10*atol
+
+    carry_init = (q, V, alpha, dt, Npos, error)
+
+    q, V, alpha, dt, Npos, error = jax.lax.while_loop(
+        cond_fun,
+        body_fun,
+        carry_init
+    )
+
+    if jnp.any(jnp.isnan(carry_init)):
+        if logoutput:
+            print("NaN detected at initialization")
+        return jnp.nan, jnp.nan, jnp.nan, jnp.nan  # Return NaNs if initial values are problematic
+
+    return q, f(q), Npos, error
+
 
 # (q0, f, df, params, atol=1e-4, dt=0.002, logoutput=False, Nmax=10000):
 def main():
