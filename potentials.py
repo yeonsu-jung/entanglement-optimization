@@ -4,6 +4,8 @@ from jax import random
 from jax import lax
 from jax import jit
 
+import numpy as onp
+
 # def fixbound(num):
 #     """ Ensure the number is within the bounds [0, 1]. """
 #     # if num < 0:
@@ -12,50 +14,13 @@ from jax import jit
 #     #     return 1
 #     # return num
 #     return jnp.clip(num, 0, 1)
-
-
-# def dist_lin_seg(point1s, point1e, point2s, point2e):
-#     """ Calculate the shortest distance between two line segments. """
-#     d1 = point1e - point1s
-#     d2 = point2e - point2s
-#     d12 = point2s - point1s
-
-#     D1 = jnp.dot(d1, d1)
-#     D2 = jnp.dot(d2, d2)
-#     S1 = jnp.dot(d1, d12)
-#     S2 = jnp.dot(d2, d12)
-#     R = jnp.dot(d1, d2)
-
-#     den = D1 * D2 - R**2
-
-#     if D1 == 0 or D2 == 0:
-#         if D1 != 0:  # line1 is a segment and line2 is a point
-#             u = 0
-#             t = fixbound(S1 / D1)
-#         elif D2 != 0:  # line2 is a segment and line1 is a point
-#             t = 0
-#             u = fixbound(-S2 / D2)
-#         else:  # both segments are points
-#             t = u = 0
-#     elif den == 0:  # lines are parallel
-#         t = 0
-#         u = fixbound(-S2 / D2)
-#         uf = fixbound(u)
-#         if uf != u:
-#             t = fixbound((uf * R + S1) / D1)
-#             u = uf
-#     else:  # general case
-#         t = fixbound((S1 * D2 - S2 * R) / den)
-#         u = fixbound((t * R - S2) / D2)
-#         uf = fixbound(u)
-#         if uf != u:
-#             t = fixbound((uf * R + S1) / D1)
-#             u = uf
-
-#     # Compute distance
-#     dist = jnp.linalg.norm(d1 * t - d2 * u - d12)
-#     # vec = , (point1s + d1 * t, point2s + d2 * u)
-#     return dist
+def fixbound_nonjax(num):
+    """ Ensure the number is within the bounds [0, 1]. """
+    if num < 0:
+        return 0
+    elif num > 1:
+        return 1
+    return num
 
 def fixbound(num):
     """Ensure the number is within the bounds [0, 1]."""
@@ -145,7 +110,110 @@ def dist_lin_seg(point1s, point1e, point2s, point2e):
                         None)
     
     return dist
+
+def dist_point_seg(point0, point1s, point1e):
+    """Calculate the shortest distance between two line segments using JAX with cond."""
+    pma = point0 - point1s
+    
+    l = jnp.linalg.norm(point1e - point1s)
+    
+    n = point1e - point1s
+    n = n/jnp.linalg.norm(n)
+    
+    point1s + jnp.dot(pma,n)*n
+    
+    dist = jnp.linalg.norm(pma - jnp.dot(pma,n)*n)
+
+    # def case1(D1,D2,S1,S2,R):
+    #     u = 0.
+    #     t = fixbound(S1 / D1)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case2(D1,D2,S1,S2,R):
+    #     t = 0
+    #     u = fixbound(-S2 / D2)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case3(D1,D2,S1,S2,R):
+    #     t = 0.
+    #     u = 0.
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case4(D1,D2,S1,S2,R):
+    #     t = 0.
+    #     u = fixbound(-S2 / D2)
+    #     uf = fixbound(u)
+    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case5(D1,D2,S1,S2,R):
+    #     t = fixbound((S1 * D2 - S2 * R) / den)
+    #     u = fixbound((t * R - S2) / D2)
+    #     uf = fixbound(u)        
+    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # lax.cond((D1 == 0) & (D2 == 0) , lambda _: 0., lambda _: 0., None)
+
+    # dist = lax.cond((D1 != 0.) & (D2 == 0.),
+    #                     lambda _: case1(D1,D2,S1,S2,R),
+    #                     lambda _: 0.,
+    #                     None)
+    
+    # dist = lax.cond((D1 == 0.) & (D2 != 0.),
+    #                     lambda _: case2(D1,D2,S1,S2,R),
+    #                     lambda _: 0.,
+    #                     None)    
+    
+    return dist
+
 ################
+
+def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):    
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = onp.dot(d1, d1)
+    D2 = onp.dot(d2, d2)
+    S1 = onp.dot(d1, d12)
+    S2 = onp.dot(d2, d12)
+    R = onp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+
+    if D1 == 0 or D2 == 0:
+        if D1 != 0:  # line1 is a segment and line2 is a point
+            u = 0
+            t = fixbound_nonjax(S1 / D1)
+        elif D2 != 0:  # line2 is a segment and line1 is a point
+            t = 0
+            u = fixbound_nonjax(-S2 / D2)
+        else:  # both segments are points
+            t = u = 0
+    elif den == 0:  # lines are parallel
+        t = 0
+        u = fixbound_nonjax(-S2 / D2)
+        uf = fixbound_nonjax(u)
+        if uf != u:
+            t = fixbound_nonjax((uf * R + S1) / D1)
+            u = uf
+    else:  # general case
+        t = fixbound_nonjax((S1 * D2 - S2 * R) / den)
+        u = fixbound_nonjax((t * R - S2) / D2)
+        uf = fixbound_nonjax(u)
+        if uf != u:
+            t = fixbound_nonjax((uf * R + S1) / D1)
+            u = uf
+
+    # Compute distance
+    dist = onp.linalg.norm(d1 * t - d2 * u - d12)
+    # vec = , (point1s + d1 * t, point2s + d2 * u)
+    return dist
+    
+    
+    return dist
 
 def compute_linking_number_vectorized(q):
     x_i = q[0]
@@ -175,41 +243,22 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     r_iij = p_ii - p_j
     r_iijj = p_ii - p_jj
 
+    tol = 1e-6
     n1 = jnp.cross(r_ij, r_ijj)
-    n1 = n1/jnp.linalg.norm(n1)
+    n1 = n1/(jnp.linalg.norm(n1)+tol)
     n2 = jnp.cross(r_ijj, r_iijj)
-    n2 = n2/jnp.linalg.norm(n2)
+    n2 = n2/(jnp.linalg.norm(n2)+tol)
     n3 = jnp.cross(r_iijj, r_iij)
-    n3 = n3/jnp.linalg.norm(n3)
+    n3 = n3/(jnp.linalg.norm(n3)+tol)
     n4 = jnp.cross(r_iij, r_ij)
-    n4 = n4/jnp.linalg.norm(n4)
+    n4 = n4/(jnp.linalg.norm(n4)+tol)
+    
+    tol = 0.
 
-    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(jnp.dot(n1,n2)) + jnp.arcsin(jnp.dot(n2,n3)) + jnp.arcsin(jnp.dot(n3,n4)) + jnp.arcsin(jnp.dot(n4,n1)))
-
-# @jit
-def effective_potential_all(q_list):
-    # Convert list to a jax.numpy array if it's not already
-    q_array = jnp.array(q_list)
-    n = q_array.shape[0]
-
-    # Expand q_array to calculate pairwise differences
-    # q_array[i,:] has shape (1, coordinates), q_array has shape (n, coordinates)
-    # We use broadcasting to expand both arrays to (n, n, coordinates)
-    q_i = q_array[:, jnp.newaxis, :]  # shape (n, 1, coordinates)
-    q_j = q_array[jnp.newaxis, :, :]  # shape (1, n, coordinates)
-
-    # Calculate all pairwise vectors
-    q_pairs = jnp.concatenate([q_i, q_j], axis=-1)  # shape (n, n, 2 * coordinates)
-
-    # Apply the effective potential function to each pair, using a vectorized form
-    # Assuming effective_potential can be vectorized or replaced with a vectorized function
-    eff_pots = jnp.array([effective_potential(pair) for pair in q_pairs.reshape(-1, 2 * q_array.shape[1])])
-
-    # We need only upper triangle part excluding the diagonal, since i < j
-    mask = jnp.triu_indices(n, k=1)
-    eff_pot = jnp.sum(eff_pots.reshape(n, n)[mask])
-
-    return eff_pot
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
 
     
 # def fast_effective_potential_all(w):
@@ -222,16 +271,99 @@ def effective_potential_all(q_list):
 #     kernel = jnp.ones(3)
 #     return jnp.vstack([init, lax.scan(body, jnp.ones(w.shape[0]), w.T)[1]]).T
 
-def total_effective_potential(q_pairs):    
+# def total_effective_potential(q_pairs):    
+#     def body_fun(carry, q_pair):
+#         # Increment carry by the result of effective_potential applied to q_pair
+#         return carry + effective_potential(q_pair), None
+    
+#     # Perform scan; initial carry value is 0
+#     total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+#     return total
+def create_pairs(m):
+    N, M = m.shape
+    # Get the upper triangular indices excluding the diagonal
+    i, j = jnp.triu_indices(N, k=1)
+    # Retrieve rows for each index in the pairs
+    m_i = m[i]  # Shape will be (N(N-1)/2, M)
+    m_j = m[j]  # Shape will be (N(N-1)/2, M)
+    # Concatenate the rows from each pair horizontally
+    m_pairs = jnp.concatenate([m_i, m_j], axis=1)  # Resulting shape will be (N(N-1)/2, 2M)
+    return m_pairs
+
+@jit
+def total_effective_potential(q):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
     def body_fun(carry, q_pair):
         # Increment carry by the result of effective_potential applied to q_pair
-        return carry + effective_potential(q_pair), None
-    
+        return carry + collision_penalized_entanglement_potential(q_pair), None    
     # Perform scan; initial carry value is 0
     total, _ = lax.scan(body_fun, 0, q_pairs)
     
     return total
 
+def total_effective_potential_ref(q):
+    q = jnp.reshape(q, (-1, 5))
+    N = q.shape[0]
+    total = 0
+    for i in range(N):
+        for j in range(i+1,N):
+            total += collision_penalized_entanglement_potential(jnp.concatenate([q[i], q[j]]))
+            
+    return total
+
+@jit
+def pairwise_distance(q_pair):
+    x_i =     q_pair[0]
+    y_i =     q_pair[1]
+    z_i =     q_pair[2]
+    phi_i =   q_pair[3]
+    theta_i = q_pair[4]
+  
+    x_j =     q_pair[5]
+    y_j =     q_pair[6]
+    z_j =     q_pair[7]
+    phi_j =   q_pair[8]
+    theta_j = q_pair[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+    
+    return dist_lin_seg(p_i, p_ii, p_j, p_jj)
+
+@jit
+def all_pairwise_distances(q_pairs):
+    return vmap(pairwise_distance)(q_pairs)
+
+def entanglement_potential(q):
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+
+    return compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
 
 def effective_potential(q):
     x_i = q[0]
@@ -256,12 +388,155 @@ def effective_potential(q):
     p_jj = p_j + l*u_j
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    
+    collision_radius = 0.01
+    # dist_cont = lax.cond(dist < collision_radius,
+    #                      lambda _: 1./K*jnp.log(1+jnp.exp(K*(collision_radius-dist))),
+    #                      lambda _: 1./K*(dist-collision_radius)**2,
+    #                      None)
 
-    eff_pot = (dist-0.1)**2 + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    dist_cont = 1.e4*(dist-collision_radius)**2
+
+    eff_pot = dist_cont + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    # eff_pot = dist_cont
 
     return eff_pot
 
-def simple_harmonic_line(q):
+@jit
+def collision_penalized_entanglement_potential(q):
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    # p_i = jnp.array([x_i, y_i, z_i])
+    # p_j = jnp.array([x_j, y_j, z_j])
+    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    # l = 1
+    # p_ii = p_i + l*u_i
+    # p_jj = p_j + l*u_j
+    # dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    
+    # collision_radius = 0.001
+    # dist_cont = 1.*(dist-collision_radius)**2
+    # dist_cont = 0.
+    
+    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    return eff_pot
+
+def seg_seg_distance(q):
+    # assumming seg-seg contacts (not point-seg contacts)
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+    
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+    
+    d1 = l*u_i # p_ii - p_i
+    d2 = l*u_j # p_jj - p_j
+    d12 = p_j - p_i
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+    den = D1 * D2 - R**2    
+    t = fixbound((S1 * D2 - S2 * R) / den)
+    u = fixbound((t * R - S2) / D2)
+    uf = fixbound(u)
+    t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
+    return compute_distance(d1, d2, d12, t, u)
+    
+@jit
+def total_harmonic_line(q,params):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
+    def body_fun(carry, q_pair):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + simple_harmonic_line(q_pair,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    return total
+        
+@jit
+def simple_harmonic_line(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    
+    # dist_cont = lax.cond(dist < collision_radius,
+    #                      lambda _: 1./K*jnp.log(1+jnp.exp(K*(collision_radius-dist))),
+    #                      lambda _: 1./K*(dist-collision_radius)**2,
+    #                      None)
+    return amp*(dist-col_rad)**2
+
+@jit
+def total_gaussian_line(q,params):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
+    def body_fun(carry, q_pair):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + gaussian_line(q_pair,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    return total
+
+@jit
+def gaussian_line(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]
+    sigma = params["sigma"]
+    
     x_i = q[0]
     y_i = q[1]
     z_i = q[2]
@@ -284,12 +559,77 @@ def simple_harmonic_line(q):
     p_jj = p_j + l*u_j
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    
+    return -amp*jnp.exp(-((dist-col_rad)/sigma)**2)
 
-    # eff_pot = -1/dist + compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
-    # eff_pot = 1./(1.-dist/0.01)
-    eff_pot = (dist-3)**2
+def simple_harmonic_line_force(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
 
-    return eff_pot
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    return amp*(dist-col_rad)**2
+
+def total_harmonline_nonjax(q,params):
+    q = onp.reshape(q, (-1, 5))
+    
+    total = 0
+    for i in range(q.shape[0]):
+        for j in range(i+1,q.shape[0]):
+            total += simple_harmonic_line_nonjax(onp.concatenate([q[i], q[j]]), params)
+    
+    return total
+
+def simple_harmonic_line_nonjax(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = onp.array([x_i, y_i, z_i])
+    p_j = onp.array([x_j, y_j, z_j])
+    u_i = onp.array([onp.sin(phi_i)*onp.cos(theta_i), onp.sin(phi_i)*onp.sin(theta_i), onp.cos(phi_i)])
+    u_j = onp.array([onp.sin(phi_j)*onp.cos(theta_j), onp.sin(phi_j)*onp.sin(theta_j), onp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    
+    # dist_cont = lax.cond(dist < collision_radius,
+    #                      lambda _: 1./K*jnp.log(1+jnp.exp(K*(collision_radius-dist))),
+    #                      lambda _: 1./K*(dist-collision_radius)**2,
+    #                      None)
+    return amp*(dist-col_rad)**2
 
 if __name__ == "__main__":
     p1s = jnp.array([0, -10, 0])
