@@ -337,6 +337,10 @@ def entangle_and_relax():
     onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_relaxed_{dt_string}.txt",onp.array(q_rel))
     plt.savefig(f"/Users/yeonsu/Figures/entanglement_and_energy_optimized_N{num_rods}_{dt_string}.png",dpi=300)
     
+def second_relax():
+    
+    return 1
+    
 def inspect_packing(pth):
     # pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_21-04-2024_15-16-44.txt'
     q = onp.loadtxt(pth)
