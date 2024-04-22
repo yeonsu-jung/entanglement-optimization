@@ -43,7 +43,7 @@ def compute_distance(d1, d2, d12, t, u):
 
 
 ###########
-
+@jit
 def dist_lin_seg(point1s, point1e, point2s, point2e):
     """Calculate the shortest distance between two line segments using JAX with cond."""
     d1 = point1e - point1s
@@ -291,6 +291,12 @@ def create_pairs(m):
     m_pairs = jnp.concatenate([m_i, m_j], axis=1)  # Resulting shape will be (N(N-1)/2, 2M)
     return m_pairs
 
+def linear_to_triangular(N, i, j):
+    """Convert linear index to upper triangular index."""
+    # Get the upper triangular indices excluding the diagonal
+    i, j = jnp.triu_indices(N, k=1)
+    return i, j
+
 @jit
 def total_effective_potential(q):
     q = jnp.reshape(q, (-1, 5))
@@ -512,11 +518,13 @@ def simple_harmonic_line(q,params):
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
     
-    # dist_cont = lax.cond(dist < collision_radius,
-    #                      lambda _: 1./K*jnp.log(1+jnp.exp(K*(collision_radius-dist))),
-    #                      lambda _: 1./K*(dist-collision_radius)**2,
-    #                      None)
-    return amp*(dist-col_rad)**2
+    dist_cont = lax.cond(dist < col_rad,
+                         lambda _: amp*(dist-col_rad)**2,
+                         lambda _: 0.0001*amp*(dist-col_rad)**2,
+                         None)
+    return dist_cont
+
+
 
 @jit
 def total_gaussian_line(q,params):
