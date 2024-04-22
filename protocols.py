@@ -105,7 +105,72 @@ def maximally_entangled_rods(num_rods):
     onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_{dt_string}.txt",q_onp)
     
 
-def collision_relaxation(q_in,f_in,params,Nmax,atol,dt,atol_min=1,visualize=False):    
+def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False):    
+    
+    num_rods = q_in.shape[0]//5    
+        
+    q_pairs = create_pairs(jnp.reshape(q_in,(-1,5)))
+    print(q_pairs.shape)
+    
+    # params = {"col_rad": 0.05,
+    #           "amp": 0.01}
+    
+    # pass this params to the function and take grad
+    
+    q = q_in    
+    for k in range(N_outer):
+        params["amp"] = params["amp"]*1.3
+        f = lambda q: f_in(q,params)    
+        df = grad(f)
+        df0 = jnp.max(jnp.abs(df(q_in)))
+        print(f"Initial error: {df0}")
+        
+        q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
+        
+        if (error < atol_min):
+            break
+        # q, f_val, num_iterations, error = optimize_fire2(q, f, df, Nmax, atol, dt, False)
+        # atol = atol/10
+        print(f"Outer iteration: {k}")
+        print(f"f_val: {f_val:.2f}")
+        print(f"num_iterations: {num_iterations}")
+        print(f"error: {error}")
+        print(f"dt: {dt}")
+        atol = atol/1.3
+        dt = dt/1.3
+    
+     # print(f"q: {q_onp:.2f}")
+    fval0 = f(q_in)
+    print(f"f_val, initial: {fval0:.2f}")
+    print(f"f_val: {f_val:.2f}")
+    print(f"error: {error}") # which is maximum of gradient vector
+    print(f"num_iterations: {num_iterations}")
+    
+    # save data
+    q_onp = onp.array(q)
+    now = datetime.now()
+    dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
+    onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N30_{dt_string}.txt",q_onp)
+    
+    # from potentials import all_pairwise_distances
+    # q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    # print(all_pairwise_distances(q_pairs))
+    num_rods = q_onp.shape[0]//5
+    if visualize:
+        now = datetime.now()
+        dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
+    
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        plot_many_rods(jnp.reshape(q,(-1,5)))
+        plt.savefig(f"/Users/yeonsu/Figures/entanglement_and_energy_optimized_N{num_rods}_{dt_string}.png")
+
+    return q
+
+def collision_relaxation_fast(q_in,f_in,params,Nmax,atol,dt,atol_min=1,visualize=False):    
     
     num_rods = q_in.shape[0]//5    
         
@@ -322,7 +387,7 @@ def entangle_and_relax():
     
     q_ent = jnp.array(onp.loadtxt('/Users/yeonsu/Data/entangled_rods_N300_21-04-2024_15-32-32.txt'))
     
-    params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
+    params = {"col_rad": 0.005, "amp": 0.1, "sigma": 0.025}
     q_ent = jnp.array(q_ent,dtype=jnp.float64)
     q_rel = collision_relaxation(q_ent,total_harmonic_line,
                                  params,Nmax=1000,atol=1e-3,dt=1.e-3,atol_min=1e-5,
@@ -337,14 +402,49 @@ def entangle_and_relax():
     onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_relaxed_{dt_string}.txt",onp.array(q_rel))
     plt.savefig(f"/Users/yeonsu/Figures/entanglement_and_energy_optimized_N{num_rods}_{dt_string}.png",dpi=300)
     
-def second_relax():
+    q_pairs = create_pairs(jnp.reshape(q_rel,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
     
-    return 1
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.show()
     
-def inspect_packing(pth):
+def second_relax(q,params,N_outer,Nmax):
+    # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
+    f = lambda q: total_harmonic_line(q,params)
+    df = grad(f)    
+    df0 = jnp.max(jnp.abs(df(q)))
+    print(f"Initial error: {df0}")
+    
+    # q_rel = collision_relaxation(q_ent,total_harmonic_line,
+    #                              params,Nmax=1000,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+    #                              visualize=False)
+    
+    q = collision_relaxation(q,total_harmonic_line,
+                                 params,
+                                 N_outer=N_outer,
+                                 Nmax=Nmax,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+                                 visualize=False)
+    
+    # params = {"col_rad": 0.05, "amp": 0.1, "sigma": 0.025}
+    # f = lambda q: total_harmonic_line(q,params)
+    # df = grad(f)    
+    # df0 = jnp.max(jnp.abs(df(q)))
+    # print(f"Initial error: {df0}")
+    # q = collision_relaxation(q,total_harmonic_line,
+    #                              params,
+    #                              N_outer=10,
+    #                              Nmax=500,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+    #                              visualize=False)
+    
+    return q
+    
+def inspect_packing(q):
     # pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_21-04-2024_15-16-44.txt'
-    q = onp.loadtxt(pth)
-    q = jnp.array(q,dtype=jnp.float64)
+    # q = onp.loadtxt(pth)
+    # q = jnp.array(q,dtype=jnp.float64)
     q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
     d = pt.all_pairwise_distances(q_pairs)
     
@@ -357,7 +457,39 @@ def inspect_packing(pth):
     return 1
 
 if __name__ == "__main__":
-    # entangle_and_relax()
-    pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_21-04-2024_15-35-59.txt'
+    # entangle_and_relax()    
+    # pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_21-04-2024_15-35-59.txt'
+    pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_21-04-2024_23-38-05.txt'
+    # pth = '/Users/yeonsu/Data/entangled_rods_N100_21-04-2024_12-49-07.txt'
+    q = onp.loadtxt(pth)
+    q = jnp.array(q,dtype=jnp.float64)
     
-    inspect_packing(pth)
+    params = {"col_rad": 0.1, "amp": 1, "sigma": 0.025}
+    N_outer = 5
+    Nmax = 1000
+    # N300: Nmax = 200
+    q = second_relax(q,params,N_outer,Nmax)
+
+    num_rods = q.shape[0]//5
+    dt_string = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plot_many_rods(jnp.reshape(q,(-1,5)))
+    onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_relaxed_{dt_string}.txt",onp.array(q))
+    plt.savefig(f"/Users/yeonsu/Figures/entanglement_and_energy_optimized_N{num_rods}_{dt_string}.png",dpi=300)
+    
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+    
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.savefig(f"/Users/yeonsu/Figures/histogram_N{num_rods}_{dt_string}.png",dpi=300)
+    
+    
+    # inspect_packing(q)
