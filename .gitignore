@@ -2,3 +2,5 @@
 *.png
 __pycache__/*
 .vscode/*
+upload_data.sh
+up.sh
