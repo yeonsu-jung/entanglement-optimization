@@ -131,6 +131,7 @@ import jax.numpy as jnp
 import jax
 import jax.numpy as jnp
 
+# @jax.jit
 def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
@@ -148,30 +149,31 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
 
         dt = jax.lax.cond(
             P > 0,
-            lambda _: jnp.minimum(dt * finc, dtmax),
+            lambda _: jax.lax.cond(Npos > Ndelay,
+                                    lambda _: jnp.minimum(dt * finc, dtmax),
+                                    lambda _: dt,
+                                    None),                    
             lambda _: jnp.maximum(dt * fdec, dtmin),
             None
         )
+        
         alpha = jax.lax.cond(
             P > 0,
             lambda _: alpha * fa,
             lambda _: alpha0,
             None
         )
-        Npos = jax.lax.cond(P > 0, lambda _: Npos + 1, lambda _: 0, None)
+        Npos = jax.lax.cond(P > 0, lambda _: Npos + 1,
+                                lambda _: 0, None)
 
         V = V + 0.5 * dt * F
         V = (1 - alpha) * V + alpha * F * jnp.linalg.norm(V) / jnp.linalg.norm(F)
         q = q + dt * V
-
-        # x = x.at[idx].set(y)
-        # q = q.at[3].set(jnp.mod(q[3], jnp.pi))
-        # q = q.at[4].set(jnp.mod(q[4], 2*jnp.pi))
-        # q = q.at[8].set(jnp.mod(q[8], jnp.pi))
-        # q = q.at[9].set(jnp.mod(q[9], 2*jnp.pi))
         
         F = -df(q)
         V = V + 0.5 * dt * F
+        
+        Npos = Npos + 1
 
         error = jnp.max(jnp.abs(F))
 
@@ -189,11 +191,15 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     carry_init = (q, V, alpha, dt, Npos, error)
     # error_init = jnp.array(10 * atol)  # Initial error to start the loop
 
-    q, V, alpha, dt, Npos, error = jax.lax.while_loop(
-        cond_fun,
-        body_fun,
-        carry_init
-    )
+    # q, V, alpha, dt, Npos, error = jax.lax.while_loop(
+    #     cond_fun,
+    #     body_fun,
+    #     carry_init
+    # )
+    
+    q, V, alpha, dt, Npos, error = jax.lax.fori_loop(0, Nmax,
+                                                     lambda i, carry: body_fun(carry),
+                                                     carry_init)
 
     return q, f(q), Npos, error
 
