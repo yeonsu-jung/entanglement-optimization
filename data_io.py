@@ -3,6 +3,9 @@ import jax.numpy as jnp
 import numpy as np
 import datetime
 
+from visualizations import set_3d_plot, plot_many_rods
+from matplotlib import pyplot as plt
+
 def read_data(pth):
     q = loadtxt(pth)
     # q = jnp.array(q,dtype=jnp.float64)
@@ -67,8 +70,12 @@ def export_start_last_edges(data):
     newfile = f'/Users/yeonsu/Data/{dt_string}_last_edges_N{num_rods}.txt'
     savetxt(newfile, last_edges)
 
-if __name__ == '__main__':    
-    q = read_data('/Users/yeonsu/Data/entangled_rods_N300_relaxed_22-04-2024_00-36-18.txt')
+if __name__ == '__main__':
+    pth = '/Users/yeonsu/Data/entangled_rods_N100_relaxed_21-04-2024_01-10-46.txt'
+    q = read_data(pth)
     export_start_last_edges(q)
-    pass
     
+    set_3d_plot()
+    plot_many_rods(jnp.reshape(q,(-1,5)))
+    
+    plt.show()
