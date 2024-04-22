@@ -8,13 +8,30 @@ import numpy as onp
 from matplotlib import pyplot as plt
 import time
 
-def plot_many_rods(q):
+def set_3d_plot():
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    return fig,ax
+
+def plot_contacts(q,i,neighbors):
+    qs = jnp.reshape(q,(-1,5))
+    # 3d plots    
+    plot_many_rods(jnp.reshape(qs[i,:],(-1,5)),opt_dict={"color":'r','linewidth':2})
+    plot_many_rods(qs[neighbors,:])
+    
+    return 1
+
+def plot_many_rods(q,opt_dict={}):
     N = q.shape[0]
     for i in range(N):        
-        plot_rod(q[i,:])
+        plot_rod(q[i,:],opt_dict)
         
     return 1
-def plot_rod(q_single):
+def plot_rod(q_single,opt_dict):
     q_onp = onp.array(q_single)
     x1 = q_onp[0]
     y1 = q_onp[1]
@@ -26,7 +43,7 @@ def plot_rod(q_single):
     x11 = x1 + rod_length*jnp.sin(phi1)*jnp.cos(theta1)
     y11 = y1 + rod_length*jnp.sin(phi1)*jnp.sin(theta1)
     z11 = z1 + rod_length*jnp.cos(phi1)
-    plt.plot([x1, x11], [y1, y11], [z1, z11])
+    plt.plot([x1, x11], [y1, y11], [z1, z11],**opt_dict)
     
 def plot_rods(q):
     q_onp = onp.array(q)
