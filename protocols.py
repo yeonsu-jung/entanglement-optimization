@@ -14,7 +14,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import potentials as pt
-import os.path
+import os
     
 from visualizations import plot_many_rods    
 
