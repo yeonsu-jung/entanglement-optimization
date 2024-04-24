@@ -76,4 +76,20 @@ def plot_rods(q):
     ax.set_zlabel('Z')
     ax.plot([x1, x11], [y1, y11], [z1, z11])
     ax.plot([x2, x22], [y2, y22], [z2, z22])
-# (q0, f, df, params, atol=1e-4, dt=0.002, logoutput=False, Nmax=10000):
+    
+    
+def plot_curves(curve,params={},ax=None):    
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+    # curve is a numpy array (N,3)
+    ax.plot(curve[:,0],curve[:,1],curve[:,2],**params)
+    return 1
+
+def plot_many_curves(curves,params={},ax=None):
+    for curve in curves:
+        plot_curves(curve,params,ax)
+    return 1
