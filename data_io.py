@@ -6,6 +6,9 @@ import datetime
 from visualizations import set_3d_plot, plot_many_rods
 from matplotlib import pyplot as plt
 
+from utils import parse_id_string
+import glob
+
 def read_data(pth):
     q = loadtxt(pth)
     # q = jnp.array(q,dtype=jnp.float64)
@@ -69,13 +72,54 @@ def export_start_last_edges(data):
     
     newfile = f'/Users/yeonsu/Data/{dt_string}_last_edges_N{num_rods}.txt'
     savetxt(newfile, last_edges)
+    
+def import_from_dismech(pth,num_rods):
+    dta = loadtxt(pth,delimiter=',',dtype=np.float64)    
+    timepoints = dta[:,0]
+    spatial_data = dta[:,1:]    
+    num_vertices = spatial_data.shape[1]//(3*num_rods)
+    # print(spatial_data.shape[1])
+    # print(num_vertices)    
+    # print(spatial_data[0,0:10])    
+    
+    spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    # print(spatial_data[0,0,0,:])
+    # print(spatial_data[0,0,1,:])
+    
+    return spatial_data, timepoints
+    
 
 if __name__ == '__main__':
-    pth = '/Users/yeonsu/Data/entangled_rods_N100_relaxed_21-04-2024_01-10-46.txt'
-    q = read_data(pth)
-    export_start_last_edges(q)
+    # pth = '/Users/yeonsu/Data/from-cluster/20240422-161737_node_20240424-155848.csv'
+    upper_dir = '/Users/yeonsu/Data/from-cluster/'
+    pth = f'{upper_dir}20240422-161737_node_20240424-160715.csv'
+    id_string = (pth.split('/')[-1].split('.')[0]).split('_')[0]
     
-    set_3d_plot()
-    plot_many_rods(jnp.reshape(q,(-1,5)))
+    cache_dir = f'/Users/yeonsu/Data/cache/{id_string}'    
+    filename = glob.glob(f'{cache_dir}/*.txt')[0]    
+    print(filename)    
+    # check if the filename contains N and AR
+    if 'N' in filename:
+        splitted = parse_id_string(filename)
+        for s in splitted:
+            if 'N' in s:
+                num_rods = int(float(s[1:]))
+            if 'AR' in s:
+                AR = int(float(s[2:]))
+        
+        print(f"num_rods: {num_rods}")
+        print(f"AR: {AR}")
     
+        
+    spatial_data,timepoints = import_from_dismech(pth,num_rods)
+    
+    from visualizations import set_3d_plot, plot_many_curves
+    fig,ax=set_3d_plot()
+    params = {}
+    plot_many_curves(spatial_data[-1,:,:,:],params=params,ax=ax)
     plt.show()
+    
+    # set_3d_plot()
+    # plot_many_rods(jnp.reshape(q,(-1,5)))
+    
+    # plt.show()

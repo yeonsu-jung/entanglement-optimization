@@ -2,6 +2,11 @@ from numpy import loadtxt, savetxt
 import numpy as np
 from jax import numpy as jnp
 
+def parse_id_string(filename):
+    filepart = filename.split('/')[-1]
+    # remove .txt extension, and join the rest
+    filepart = '.'.join(filepart.split('.')[:-1])    
+    return filepart.split('_')
     
 if __name__ == '__main__':
     
