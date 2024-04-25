@@ -39,10 +39,7 @@ def find_contacts(q,rod_radius):
     print('Average number of contacts per rod: ', avg_num_contacts_per_rod)
     print('Avg. contact degrees: ', np.mean(contact_degrees))
     
-    fig,ax = set_3d_plot()
-    plot_contacts(q,0,neighbors[0])
-    
-    return 1
+    return contacts, neighbors, contact_degrees
 
     
 
