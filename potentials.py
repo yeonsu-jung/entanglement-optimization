@@ -291,6 +291,16 @@ def create_pairs(m):
     m_pairs = jnp.concatenate([m_i, m_j], axis=1)  # Resulting shape will be (N(N-1)/2, 2M)
     return m_pairs
 
+def create_pairs2(m,n):
+    M, _ = m.shape
+    N, _ = n.shape
+    
+    i, j = jnp.triu_indices(n=M, k=1, m=N)
+    m_i = m[i]
+    n_j = n[j]
+    
+    return jnp.concatenate([m_i, n_j], axis=1)
+
 def linear_to_triangular(N, i, j):
     """Convert linear index to upper triangular index."""
     # Get the upper triangular indices excluding the diagonal
@@ -348,6 +358,30 @@ def pairwise_distance(q_pair):
 @jit
 def all_pairwise_distances(q_pairs):
     return vmap(pairwise_distance)(q_pairs)
+
+@jit
+def distance_between_two_curves(r1, r2):
+    # r1 is 30, vector     
+    r1 = jnp.reshape(r1, (10, 3))
+    r2 = jnp.reshape(r2, (10, 3))    
+    e1 = jnp.concatenate([r1[0:-1,:],r1[1:,:]],axis=1)
+    e2 = jnp.hstack([r2[0:-1,:],r2[1:,:]])        
+    pairs = create_pairs2(e1,e2)    
+    d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
+    
+    return jnp.min(d)
+
+
+@jit
+def all_distnaces_between_curves(curves):
+    # curves is num_rods, num_vertices, 3 array
+    reshaped = curves.reshape(100,3*10)
+    
+    pairs = create_pairs2(reshaped,reshaped)
+    
+    d = vmap(distance_between_two_curves)(pairs[:,:30], pairs[:,30:])
+    return d
+    
 
 def entanglement_potential(q):
     x_i = q[0]
@@ -640,6 +674,7 @@ def simple_harmonic_line_nonjax(q,params):
     return amp*(dist-col_rad)**2
 
 if __name__ == "__main__":
+    
     p1s = jnp.array([0, -10, 0])
     p1e = jnp.array([0, 10, 0])
     p2s = jnp.array([0, -10, 5.2323423])
