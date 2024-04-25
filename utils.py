@@ -2,6 +2,15 @@ from numpy import loadtxt, savetxt
 import numpy as np
 from jax import numpy as jnp
 
+def timeit(func):
+    import time
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        print(f'Function {func.__name__} took {time.time()-start:.2f} seconds')
+        return result
+    return wrapper
+
 def parse_id_string(filename):
     filepart = filename.split('/')[-1]
     # remove .txt extension, and join the rest
