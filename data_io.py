@@ -82,17 +82,19 @@ def import_from_dismech(pth,num_rods):
     # print(num_vertices)    
     # print(spatial_data[0,0:10])    
     
-    spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
     # print(spatial_data[0,0,0,:])
     # print(spatial_data[0,0,1,:])
     
     return spatial_data, timepoints
     
+    
 
 if __name__ == '__main__':
     # pth = '/Users/yeonsu/Data/from-cluster/20240422-161737_node_20240424-155848.csv'
     upper_dir = '/Users/yeonsu/Data/from-cluster/'
-    pth = f'{upper_dir}20240422-161737_node_20240424-160715.csv'
+    pth = f'{upper_dir}20240422-161737_node_20240425-010509.csv'
+    
     id_string = (pth.split('/')[-1].split('.')[0]).split('_')[0]
     
     cache_dir = f'/Users/yeonsu/Data/cache/{id_string}'    
@@ -112,14 +114,56 @@ if __name__ == '__main__':
     
         
     spatial_data,timepoints = import_from_dismech(pth,num_rods)
+    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    
+    # from visualizations import set_3d_plot, plot_many_curves
+    # fig,ax=set_3d_plot()
+    # params = {}
+    # plot_many_curves(spatial_data[-1,:,:,:],params=params,ax=ax)
+    # plt.show()
+    
+    spatial_data = jnp.array(spatial_data)
+    from potentials import distance_between_two_curves, all_distnaces_between_curves
+    
+    num_vertices = spatial_data.shape[1]//(3*num_rods)
+    
+    import time
+    
+    start = time.time()
+    d = all_distnaces_between_curves(spatial_data[1,:])
+    now = time.time()
+    
+    print(d)
+    print(jnp.min(d))
+    print(f"Elapsed time: {now-start} seconds")
+    
+    nnz = jnp.count_nonzero(d<0.5)
+    print(nnz)
+    
+    fig = plt.figure()
+    plt.hist(d, bins=100)    
+    filename = f"/Users/yeonsu/Figures/{id_string}_histogram.png"
+    plt.savefig(filename)
+    # plt.show()
     
     from visualizations import set_3d_plot, plot_many_curves
+    import matplotlib.animation as animation
+    
+    print(f"num timepoints: {spatial_data.shape[0]}")
     fig,ax=set_3d_plot()
     params = {}
-    plot_many_curves(spatial_data[-1,:,:,:],params=params,ax=ax)
-    plt.show()
+    spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    plot_many_curves(spatial_data[0,:,:,:],params=params,ax=ax)
     
-    # set_3d_plot()
-    # plot_many_rods(jnp.reshape(q,(-1,5)))
+    def update(frame):
+        ax.clear()
+        print(f"frame: {frame}")        
+        plot_many_curves(spatial_data[frame,:,:,:],params=params,ax=ax)
+        return ax
+    
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=spatial_data.shape[0], interval=30)
+    
+    FFwriter = animation.FFMpegWriter(fps=10)
+    ani.save(f'/Users/yeonsu/Videos/{id_string}.mp4', writer = FFwriter)
     
     # plt.show()
