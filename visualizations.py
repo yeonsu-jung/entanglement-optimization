@@ -90,6 +90,8 @@ def plot_curves(curve,params={},ax=None):
     return 1
 
 def plot_many_curves(curves,params={},ax=None):
+    # curves.reshape((-1,3))    
     for curve in curves:
         plot_curves(curve,params,ax)
     return 1
+
