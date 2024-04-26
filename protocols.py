@@ -228,7 +228,7 @@ def inspect_packing(q):
     plt.hist(d,bins=100)
     plt.xlabel('Distance')
     plt.ylabel('Frequency')
-    plt.show()   
+    plt.show()
     
     return 1
 
@@ -287,6 +287,99 @@ def example_Apr22(num_rods,AR,dt_string,folder_name):
     plt.ylabel('Frequency')
     plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
     
+def example_Apr25(num_rods,dt_string,folder_name):
+    
+    # just for debugging phase
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    
+    # entangle
+    q = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1.e-1,dt=1.e-3,logoutput=False,visualize=False)
+    onp.savetxt(f"{folder_name}/EntangledPacking_N{num_rods}.txt",onp.array(q))
+
+    # visualization
+    num_rods = q.shape[0]//5
+    
+    from visualizations import set_3d_plot    
+    set_3d_plot()
+    plot_params = {"alpha": 1., "linewidth": 1}
+    plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+    plot_params = {"alpha": 0.5, "linewidth": 1}
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+    
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+    
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    
+def example_Apr25_relaxation(num_rods,AR,dt_string,folder_name):
+    
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    
+    if not os.path.exists(filename):
+        params = {"col_rad": 0.005, "amp": 0.1, "sigma": 0.025} # relaxation parameters
+        q,q0 = entangle_and_relax(num_rods, params)
+        onp.savetxt(filename,onp.array(q))
+        onp.savetxt(filename0,onp.array(q0))
+    else:
+        q = onp.loadtxt(filename)
+        q0 = onp.loadtxt(filename0)
+        q = jnp.array(q,dtype=jnp.float64)
+        
+    # just for debugging phase
+    
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 0.1, "sigma": 0.025}
+    N_outer = 50
+    Nmax = 1000
+    
+    # N300: Nmax = 200
+    q = relax_collision(q,params,N_outer,Nmax)
+
+    onp.savetxt(f"{folder_name}/EntRelPacking_N{num_rods}_AR{AR}.txt",onp.array(q))
+
+    # visualization
+    num_rods = q.shape[0]//5
+    
+    from visualizations import set_3d_plot    
+    set_3d_plot()
+    plot_params = {"alpha": 1., "linewidth": 1}
+    plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+    plot_params = {"alpha": 0.5, "linewidth": 1}
+    plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+    
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+    
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    
+    d = pt.all_pairwise_distances(q_pairs)
+    rod_radius = 1/AR/2
+    print(f"Minimum distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*rod_radius)}")
+    print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+    # filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+
+    # caching again
+    onp.savetxt(f"{cache_folder}/EntRelPacking_N{num_rods}.txt",onp.array(q))
+    
+    return 1
+    
 def archiving():
     # dt string in YYYY-MM-DD_HH-MM-SS
     dt_string = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -304,17 +397,22 @@ def archiving():
     
     return dt_string, folder_name
     
-def run_packing(num_rods=100,AR=50):
-    dt_string, folder_name = archiving()
-    example_Apr22(num_rods,AR,dt_string,folder_name)
+def run_packing(num_rods=100,AR=200):
+    # dt_string, folder_name = archiving()
+    # example_Apr22(num_rods,AR,dt_string,folder_name)
+    # example_Apr25(num_rods,dt_string,folder_name)
+    dt_string = '20240425-215943'
+    folder_name = '/Users/yeonsu/Data/cache/20240425-215943'
+    example_Apr25_relaxation(num_rods,AR,dt_string,folder_name)
     
 def load_data_from_cache(dt_string):    
     cache_dir = f'/Users/yeonsu/Data/cache/{dt_string}'
     
     # assert(len(glob.glob(f'{cache_dir}/*.txt')) == 1, "There should be only one txt file in the folder")    
     # # find .txt file in the folder, including N and number in the filename
-    filename = glob.glob(f'{cache_dir}/*.txt')[0]    
-    print(filename)    
+    # filename = glob.glob(f'{cache_dir}/*.txt')[0]
+    filename = [f for f in glob.glob(f'{cache_dir}/*.txt') if 'AR' in f][0]
+    print(filename)
     # check if the filename contains N and AR
     if 'N' in filename:
         splitted = parse_id_string(filename)
@@ -336,7 +434,7 @@ def inspect_run(dt_string):
     # assert(len(glob.glob(f'{cache_dir}/*.txt')) == 1, "There should be only one txt file in the folder")    
     # # find .txt file in the folder, including N and number in the filename
     filename = glob.glob(f'{cache_dir}/*.txt')[0]    
-    print(filename)    
+    print(filename)
     # check if the filename contains N and AR
     if 'N' in filename:
         splitted = parse_id_string(filename)
@@ -378,6 +476,61 @@ def inspect_run(dt_string):
     plot_contacts(q,0,neighbors[0])
     plt.show()
     
+def inspect_packing_from_cache(dt_string):
+    # num_rods = q.shape[0]//5    
+    data,num_rods,AR = load_data_from_cache(dt_string)
+    
+    from visualizations import set_3d_plot
+    set_3d_plot()
+    plot_many_rods(data.reshape(-1,5))
+    plt.show()
+    
+    data = data.reshape((-1,5))
+    new_data = onp.zeros((data.shape[0],6))
+    new_data[:,:3] = data[:,:3]
+    
+    N = data.shape[0]
+    for i in range(N):
+        new_data[i,3:6] = data[i,:3] + sph2cart(data[i,3],data[i,4])
+        
+    # export path
+    export_dir = f'/Users/yeonsu/Data/export/'
+    # os.makedirs(export_dir,exist_ok=False)
+    plot_edges(new_data)
+    
+    scale_factor = 100    
+    length = 1*scale_factor
+    center = onp.concatenate([onp.mean(new_data[:,:3],axis=0),onp.mean(new_data[:,:3],axis=0)])
+    new_data = (new_data-center)*scale_factor
+    plot_edges(new_data)
+    
+    newfile = f'{export_dir}/{dt_string}_edges_N{num_rods}_AR{AR}_length{length}.txt'
+    onp.savetxt(newfile, new_data)
+    
+    # from visualizations import set_3d_plot    
+    # set_3d_plot()
+    # plot_params = {"alpha": 1., "linewidth": 1}
+    # plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+    # plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+    
+    # q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    # d = pt.all_pairwise_distances(q_pairs)
+    
+    # fig = plt.figure()
+    # plt.hist(d,bins=100)
+    # plt.xlabel('Distance')
+    # plt.ylabel('Frequency')
+    # plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    
+    # d = pt.all_pairwise_distances(q_pairs)
+    # rod_radius = 1/AR/2
+    # print(f"Minimum distance: {jnp.min(d)}")
+    # print(f"Distance median: {jnp.median(d)}")
+    # print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*rod_radius)}")
+    # print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+    
+    
+    
 # TO DO: move this to visualizations module
 def plot_edges(edges):
     # edges are Nx6 matrix. first 3 columns are start points, last 3 columns are end points
@@ -390,9 +543,7 @@ def plot_edges(edges):
         ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],'b')
     plt.show()
     
-if __name__ == "__main__":
-    # run_packing(num_rods=100,AR=200)
-    
+def example1():
     dt_string = '20240422-161737'
     data,num_rods,AR = load_data_from_cache(dt_string)
     
@@ -423,8 +574,12 @@ if __name__ == "__main__":
     newfile = f'{export_dir}/{dt_string}_edges_N{num_rods}_AR{AR}_length{length}.txt'
     onp.savetxt(newfile, new_data)
     
-
+if __name__ == "__main__":
+    # run_packing(num_rods=100,AR=200)
     # export and upload
+    # run_packing(num_rods=100,AR=200)
+    
+    inspect_packing_from_cache('20240425-215943')
     
     
     
