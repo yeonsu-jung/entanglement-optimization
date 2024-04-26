@@ -95,3 +95,16 @@ def plot_many_curves(curves,params={},ax=None):
         plot_curves(curve,params,ax)
     return 1
 
+def plot_edges(edges,ax=None):
+    N = edges.shape[0]
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        
+    for i in range(N):
+        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]])    
+    
+
