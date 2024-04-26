@@ -274,9 +274,10 @@ def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
 
     return q, f(q), Npos, error
 
+# scipy.optimize.minimize_scalar(fun, bracket=None, bounds=None, args=(), method=None, tol=None, options=None)
 
 # (q0, f, df, params, atol=1e-4, dt=0.002, logoutput=False, Nmax=10000):
-def main():
+def example1():
     # q0 = jnp.array([1.0, 2.0, 3.0])
     # r0 = jnp.array([1.0, 2.0, 1.0])
     # f = lambda q, params: jnp.sum((q-r0 + 1) ** 2)
@@ -337,6 +338,13 @@ def main():
     ax.plot([x1, x11], [y1, y11], [z1, z11], 'b')
     ax.plot([x2, x22], [y2, y22], [z2, z22], 'r')
     plt.show()
+    
+def example2():
+    pass
+    
+def main():
+    example2()
+    
 
 if __name__ == "__main__":
     main()
