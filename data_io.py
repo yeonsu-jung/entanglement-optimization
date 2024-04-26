@@ -26,12 +26,6 @@ def reshape_txt(pth):
     savetxt(newfile, data)
     return 1    
 
-def sph2cart(theta,phi):
-    x = np.sin(phi)*np.cos(theta)
-    y = np.sin(phi)*np.sin(theta)
-    z = np.cos(phi)
-    return np.array([x,y,z]).transpose()
-
 def xyzform(filename):
     data = loadtxt(filename)
     data = data.reshape((-1,5))
@@ -50,7 +44,7 @@ def xyzform(filename):
     savetxt(newfile, new_data)
     return 1
     
-def export_start_last_edges(data):    
+def export_start_last_edges(data):
     data = data.reshape((-1,5))
     new_data = np.zeros((data.shape[0],6))
     new_data[:,:3] = data[:,:3]
@@ -89,11 +83,9 @@ def import_from_dismech(pth,num_rods):
     return spatial_data, timepoints
     
     
-
-if __name__ == '__main__':
-    # pth = '/Users/yeonsu/Data/from-cluster/20240422-161737_node_20240424-155848.csv'
+def example_import_and_plot():
     upper_dir = '/Users/yeonsu/Data/from-cluster/'
-    pth = f'{upper_dir}20240422-161737_node_20240425-010509.csv'
+    pth = f'{upper_dir}20240422-161737_node_20240425-181017.csv'
     
     id_string = (pth.split('/')[-1].split('.')[0]).split('_')[0]
     
@@ -165,5 +157,40 @@ if __name__ == '__main__':
     
     FFwriter = animation.FFMpegWriter(fps=10)
     ani.save(f'/Users/yeonsu/Videos/{id_string}.mp4', writer = FFwriter)
+  
+# moved to 
+# def q_to_x(q):
+#     # q = jnp.array(q)
+#     q = q.reshape((-1,5))
+#     x = jnp.zeros((q.shape[0],6))
+#     x = x.at[:,:3].set(q[:,:3])
+#     x = x.at[:,3:6].set(sph2cart(q[:,3],q[:,4]) + x[:,0:3])
+#     return x
+
+def export_from_q_to_x(pth):
+    q = loadtxt(pth)
+    q = jnp.array(q,dtype=jnp.float64)
+    print(q.shape)
     
-    # plt.show()
+    id_string = pth.split('/')[-2]
+    filepart = pth.split('/')[-1].split('.')[0]
+    num_rods = filepart.split('N')[1]
+    q_in_matrix = jnp.reshape(q,(-1,5))
+    
+    from transforms import q_to_x
+    x = q_to_x(q)
+    savetxt(f'/Users/yeonsu/Data/{id_string}_entangled_edges_N{num_rods}.txt',x)
+       
+    # sanity check
+    # d = jnp.linalg.norm(x[:,:3] - x[:,3:6],axis=1)
+    # print(d)
+    x = np.array(x)    
+    from visualizations import plot_edges, set_3d_plot
+    fig,ax=set_3d_plot()
+    plot_edges(x,ax)
+    plt.show()
+    return 1
+
+if __name__ == '__main__':
+    pth = '/Users/yeonsu/Data/cache/20240425-205356/EntangledPacking_N100.txt'
+    
