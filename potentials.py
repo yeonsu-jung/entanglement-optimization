@@ -260,6 +260,37 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
                                + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
 
+def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    r_ij = p_i - p_j
+    r_ijj = p_i - p_jj
+    r_iij = p_ii - p_j
+    r_iijj = p_ii - p_jj
+
+    tol = 1e-6
+    n1 = jnp.cross(r_ij, r_ijj)
+    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n2 = jnp.cross(r_ijj, r_iijj)
+    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n3 = jnp.cross(r_iijj, r_iij)
+    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n4 = jnp.cross(r_iij, r_ij)
+    n4 = n4/(jnp.linalg.norm(n4)+tol)
+    
+    tol = 0.
+
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+
     
 # def fast_effective_potential_all(w):
 #     def body(carry,w):
@@ -554,7 +585,7 @@ def simple_harmonic_line(q,params):
     
     dist_cont = lax.cond(dist < col_rad,
                          lambda _: amp*(dist-col_rad)**2,
-                         lambda _: 0.0001*amp*(dist-col_rad)**2,
+                         lambda _: 0.0000001*amp*(dist-col_rad)**2,
                          None)
     return dist_cont
 
