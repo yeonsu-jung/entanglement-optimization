@@ -5,7 +5,9 @@ from potentials import create_pairs, all_pairwise_distances
 from matplotlib import pyplot as plt
 
 from visualizations import plot_many_rods, plot_contacts, set_3d_plot
-from data_io import read_data
+from data_io import read_data, import_from_dismech
+
+from transforms import q_to_u, q_to_x
 
 jax.config.update("jax_enable_x64", True)
 
@@ -41,11 +43,51 @@ def find_contacts(q,rod_radius):
     
     return contacts, neighbors, contact_degrees
 
-    
-
-if __name__ == '__main__':
+def example_contacts():
     pth = '/Users/yeonsu/Data/entangled_rods_N300_relaxed_22-04-2024_00-36-18.txt'
     q = read_data(pth)    
     rod_radius = 0.08 # TO DO: read from file    
     contacts = find_contacts(q,rod_radius)
+        
+def calculate_oreintational_order(q):
+    x = q_to_x(q)
+    u = q_to_u(q)
+    num_rods = x.shape[0]
+    
+    print(u)
+    S = 1   
+    return S
+
+
+def main():
+    pth = '/Users/yeonsu/Data/from-cluster/20240425-215943_node_20240426-014535.csv'
+    filepart = pth.split('/')[-1].split('.')[0]    
+    num_rods = 100
+    curves, timepoints = import_from_dismech(pth,num_rods)
+    
+    last_curve = curves[-1,:]
+    last_curve = last_curve.reshape((-1,30))
+    
+    print(last_curve)
+    export_dir = '/Users/yeonsu/Data/export'
+    np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
+    
+    # np.savetxt('/Users/yeonsu/Data/export/last_curve.txt',last_curve)
+    
+    # curve = curves[0,:]
+    # num_vertices = curve.shape[0]//3//num_rods
+    
+    # print(num_vertices)
+    
+    # S = calculate_oreintational_order(q)
+    
+    return 1
+
+def find_curve_contact(all_nodes,num_rods,rod_radius):
+    
+    return 1
+
+
+if __name__ == '__main__':
+    main()
     
