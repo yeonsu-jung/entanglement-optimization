@@ -115,6 +115,37 @@ def find_curve_contact(all_nodes,num_rods,rod_radius):
     
     return 1
 
+def distance_check():
+    from data_io import import_from_dismech
+    from potentials import distance_between_two_curves, all_distnaces_between_curves    
+    
+    sim_id = '20240426-215217_node_20240427-014524'
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    pth = f'{root_dir}/{sim_id}.csv'
+    num_rods = 100
+    
+    spatial_data,timepoints = import_from_dismech(pth,num_rods)
+    spatial_data = jnp.array(spatial_data, dtype=jnp.float64)
+    
+    from potentials import distance_between_two_curves, all_distnaces_between_curves    
+    num_vertices = spatial_data.shape[1]//(3*num_rods)
+    
+    import time
+    
+    start = time.time()
+    d = all_distnaces_between_curves(spatial_data[-1,:])
+    now = time.time()
+    print(f'Elapsed time: {now-start}')
+    
+    rod_radius = 2
+    print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.5)}")
+    print(f"Min distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    
+    plt.hist(d,bins=100)
+    plt.show()
+    
+    return 1
 
 def main2():
     root_dir = '/Users/yeonsu/Data/from-cluster'
@@ -139,15 +170,15 @@ def main2():
     return 1
 
 def main3():
-    sim_id = '20240426-215217_node_20240427-002150'
+    sim_id = '20240426-215217_node_20240427-014524'
     root_dir = '/Users/yeonsu/Data/from-cluster'
     pth = f'{root_dir}/{sim_id}.csv'
     num_rods = 100
     
     from data_io import import_from_dismech
     nodes_over_time, timepoints = import_from_dismech(pth,num_rods)
-    print(nodes_over_time.shape)    
-    q1 = nodes_over_time[0,:]        
+    print(nodes_over_time.shape)
+    q1 = nodes_over_time[0,:]
     
     from visualizations import plot_many_curves,set_3d_plot
     fig = plt.figure()
@@ -166,11 +197,8 @@ def main3():
     # params = {'marker': '.-'}
     fig,ax = set_3d_plot()
     plot_many_curves(nodes_over_time[0,:],num_rods,ax)
-    plt.show()
-    
-    
+    plt.show()    
 
-if __name__ == '__main__':   
-    
+if __name__ == '__main__':
+    # distance_check()
     main3()
-    
