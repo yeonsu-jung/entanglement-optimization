@@ -206,8 +206,7 @@ def scale_and_export(pth):
     export_dir = f'/Users/yeonsu/Data/export/'
     # os.makedirs(export_dir,exist_ok=False)
     
-    
-    scale_factor = 100    
+    scale_factor = 100
     length = 1*scale_factor
     center = np.concatenate([np.mean(new_data[:,:3],axis=0),np.mean(new_data[:,:3],axis=0)])
     new_data = (new_data-center)*scale_factor
@@ -229,17 +228,15 @@ if __name__ == '__main__':
     sim_id = '20240426-215217_node_20240427-014524'
     root_dir = '/Users/yeonsu/Data/from-cluster'
     pth = f'{root_dir}/{sim_id}.csv'
-    num_rods = 100    
+    num_rods = 100
     
     export_nodes_at_final_time(pth)
     
-    from visualizations import plot_many_curves,set_3d_plot
-    
+    from visualizations import plot_many_curves,set_3d_plot    
     from data_io import import_from_dismech
     curves,timepoints = import_from_dismech(pth,num_rods)
     nodes_at_a_time = curves[-1,:]
     
     fig,ax = set_3d_plot()
     plot_many_curves(nodes_at_a_time,num_rods,ax)
-    plt.show()
-    
+    plt.show() 
