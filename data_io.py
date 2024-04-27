@@ -191,6 +191,55 @@ def export_from_q_to_x(pth):
     plt.show()
     return 1
 
+def scale_and_export(pth):
+    from data_io import import_from_dismech    
+    from transforms import sph2cart
+    data,num_rods,AR = import_from_dismech(pth)    
+    data = data.reshape((-1,5))
+    new_data = np.zeros((data.shape[0],6))
+    new_data[:,:3] = data[:,:3]    
+    N = data.shape[0]
+    for i in range(N):
+        new_data[i,3:6] = data[i,:3] + sph2cart(data[i,3],data[i,4])
+        
+    # export path
+    export_dir = f'/Users/yeonsu/Data/export/'
+    # os.makedirs(export_dir,exist_ok=False)
+    
+    
+    scale_factor = 100    
+    length = 1*scale_factor
+    center = np.concatenate([np.mean(new_data[:,:3],axis=0),np.mean(new_data[:,:3],axis=0)])
+    new_data = (new_data-center)*scale_factor
+    newfile = f'{export_dir}/{dt_string}_edges_N{num_rods}_AR{AR}_length{length}.txt'
+    np.savetxt(newfile, new_data)
+    
+def export_nodes_at_final_time(pth):    
+    filepart = pth.split('/')[-1].split('.')[0]    
+    num_rods = 100
+    curves, timepoints = import_from_dismech(pth,num_rods)    
+    last_curve = curves[-1,:]
+    last_curve = last_curve.reshape((-1,30))
+    export_dir = '/Users/yeonsu/Data/export'
+    np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
+    print(f"Exported {filepart}_last_nodes.txt")
+    return 1
+
 if __name__ == '__main__':
-    pth = '/Users/yeonsu/Data/cache/20240425-205356/EntangledPacking_N100.txt'
+    sim_id = '20240426-215217_node_20240427-014524'
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    pth = f'{root_dir}/{sim_id}.csv'
+    num_rods = 100    
+    
+    export_nodes_at_final_time(pth)
+    
+    from visualizations import plot_many_curves,set_3d_plot
+    
+    from data_io import import_from_dismech
+    curves,timepoints = import_from_dismech(pth,num_rods)
+    nodes_at_a_time = curves[-1,:]
+    
+    fig,ax = set_3d_plot()
+    plot_many_curves(nodes_at_a_time,num_rods,ax)
+    plt.show()
     
