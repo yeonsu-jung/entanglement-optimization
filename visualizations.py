@@ -78,21 +78,22 @@ def plot_rods(q):
     ax.plot([x2, x22], [y2, y22], [z2, z22])
     
     
-def plot_curves(curve,params={},ax=None):    
-    if ax is None:
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-    # curve is a numpy array (N,3)
-    ax.plot(curve[:,0],curve[:,1],curve[:,2],**params)
+def plot_curves(curve,ax,params={}):
+    ax.plot(curve[:,0],curve[:,1],curve[:,2],**params)    
     return 1
 
-def plot_many_curves(curves,params={},ax=None):
-    # curves.reshape((-1,3))    
-    for curve in curves:
-        plot_curves(curve,params,ax)
+def plot_many_curves(curves,num_rods,ax,params={}):
+    if curves.ndim == 1:
+        curves = curves.reshape(num_rods,-1,3)
+    elif curves.ndim == 3:
+        num_vertices = curves.shape[1]//3//num_rods    
+        curves = curves.reshape((num_rods,-1))
+    else:
+        print('Input must be 1d or 3d array')
+        return -1
+    
+    for i in range(num_rods):
+        plot_curves(curves[i,:],ax,params)
     return 1
 
 def plot_edges(edges,ax=None):
