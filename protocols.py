@@ -401,9 +401,15 @@ def run_packing(num_rods=100,AR=200):
     # dt_string, folder_name = archiving()
     # example_Apr22(num_rods,AR,dt_string,folder_name)
     # example_Apr25(num_rods,dt_string,folder_name)
-    dt_string = '20240425-215943'
-    folder_name = '/Users/yeonsu/Data/cache/20240425-215943'
+    
+    # dt_string = '20240425-215943'
+    # folder_name = '/Users/yeonsu/Data/cache/20240425-215943'
+    
+    dt_string = '20240426-215217'
+    folder_name = '/Users/yeonsu/Data/cache/20240426-215217'
+    
     example_Apr25_relaxation(num_rods,AR,dt_string,folder_name)
+    return dt_string
     
 def load_data_from_cache(dt_string):    
     cache_dir = f'/Users/yeonsu/Data/cache/{dt_string}'
@@ -577,9 +583,12 @@ def example1():
 if __name__ == "__main__":
     # run_packing(num_rods=100,AR=200)
     # export and upload
-    # run_packing(num_rods=100,AR=200)
     
-    inspect_packing_from_cache('20240425-215943')
+    # dt_string = run_packing(num_rods=100,AR=200) # with archiving
+    # for i in range(20):
+    #     run_packing(num_rods=100,AR=25)
+    
+    inspect_packing_from_cache('20240426-215217')
     
     
     
