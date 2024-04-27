@@ -11,6 +11,12 @@ from transforms import q_to_u, q_to_x
 
 jax.config.update("jax_enable_x64", True)
 
+def find_general_contacts(q,rod_radius):
+    # q is an one dimensional array, having multiple node points.
+    
+    return 1
+    
+
 def find_contacts(q,rod_radius):
     # q is an one dimensional array
     # qs are the degrees of freedom of the rods, qs = reshape(q,(-1,5))
@@ -60,7 +66,7 @@ def calculate_oreintational_order(q):
 
 
 def main():
-    pth = '/Users/yeonsu/Data/from-cluster/20240425-215943_node_20240426-014535.csv'
+    pth = '/Users/yeonsu/Data/from-cluster/20240425-215943_node_20240426-150758.csv'
     filepart = pth.split('/')[-1].split('.')[0]    
     num_rods = 100
     curves, timepoints = import_from_dismech(pth,num_rods)
@@ -72,13 +78,35 @@ def main():
     export_dir = '/Users/yeonsu/Data/export'
     np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
     
+    from visualizations import plot_many_curves
+    
+        
+    print(last_curve)
+    export_dir = '/Users/yeonsu/Data/export'
+    np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
+    
+    from visualizations import plot_many_curves    
+    
+    nodes_at_a_time = curves[-1,:]
+    print(nodes_at_a_time.shape)
+    num_vertices = curves.shape[1]//3//num_rods
+    
+    nodes_in_matrix = nodes_at_a_time.reshape((num_rods,-1,3))
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    plot_many_curves(nodes_in_matrix,ax)
+    plt.show()
+    
     # np.savetxt('/Users/yeonsu/Data/export/last_curve.txt',last_curve)
     
     # curve = curves[0,:]
-    # num_vertices = curve.shape[0]//3//num_rods
-    
-    # print(num_vertices)
-    
+    # num_vertices = curve.shape[0]//3//num_rods    
+    # print(num_vertices)    
     # S = calculate_oreintational_order(q)
     
     return 1
@@ -88,6 +116,61 @@ def find_curve_contact(all_nodes,num_rods,rod_radius):
     return 1
 
 
-if __name__ == '__main__':
-    main()
+def main2():
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    data_id = '20240425-215943_node_20240426-150758'
+    
+    from data_io import import_from_dismech
+    pth = f'{root_dir}/{data_id}.csv'
+    num_rods = 100
+    nodes_over_time, timepoints = import_from_dismech(pth,num_rods)
+    print(nodes_over_time.shape)
+    
+    nodes_at_a_time = nodes_over_time[0,:]
+    print(nodes_at_a_time.shape)
+    
+    num_vertices = nodes_over_time.shape[1]//3//num_rods
+    nodes_in_matrix = nodes_at_a_time.reshape((num_rods,-1))
+    
+    from visualizations import plot_many_curves
+    plot_many_curves(nodes_in_matrix)
+    
+    plt.show()
+    return 1
+
+def main3():
+    sim_id = '20240426-215217_node_20240427-002150'
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    pth = f'{root_dir}/{sim_id}.csv'
+    num_rods = 100
+    
+    from data_io import import_from_dismech
+    nodes_over_time, timepoints = import_from_dismech(pth,num_rods)
+    print(nodes_over_time.shape)    
+    q1 = nodes_over_time[0,:]        
+    
+    from visualizations import plot_many_curves,set_3d_plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    plot_many_curves(q1,num_rods,ax)
+    plt.show()    
+    
+    dist= np.linalg.norm(nodes_over_time - q1,axis=1)
+    plt.plot(timepoints,dist)
+    plt.show()
+    
+    # params = {'marker': '.-'}
+    fig,ax = set_3d_plot()
+    plot_many_curves(nodes_over_time[0,:],num_rods,ax)
+    plt.show()
+    
+    
+
+if __name__ == '__main__':   
+    
+    main3()
     
