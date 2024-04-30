@@ -211,9 +211,7 @@ def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):
     dist = onp.linalg.norm(d1 * t - d2 * u - d12)
     # vec = , (point1s + d1 * t, point2s + d2 * u)
     return dist
-    
-    
-    return dist
+
 
 def compute_linking_number_vectorized(q):
     x_i = q[0]
@@ -555,6 +553,60 @@ def total_harmonic_line(q,params):
     total, _ = lax.scan(body_fun, 0, q_pairs)
     
     return total
+
+@jit
+def total_harmonic_line_with_gravity_floor(q,params):    
+    total_ent = total_effective_potential(q)    
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)    
+    def body_fun(carry, q_pair):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + simple_harmonic_line(q_pair,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    # x_i = q[0]
+    # y_i = q[1]
+    z_i = q[:,2]
+    phi_i = q[:,3]
+    theta_i = q[:,4]
+    
+    # x_ii = x_i + jnp.sin(phi_i)*jnp.cos(theta_i)
+    # y_ii = y_i + jnp.sin(phi_i)*jnp.sin(theta_i)
+    zc = z_i + jnp.cos(phi_i)/2
+    ze = z_i + jnp.cos(phi_i)    
+    z_m = jnp.min(jnp.array([z_i,ze]),axis=0)    
+    grav_cont = jnp.sum(zc)    
+    
+    # for i in range(q.shape[0]):
+    #     if z_m[i] < -1:
+    #         floor_contact_cont += 1*(z_m[i])**2
+    #     if z_m[i] > -1:
+    #         floor_contact_cont -= 0.001*(z_m[i])**2
+            
+    # floor_contact_cont = 1*jnp.sum((z_m + 1)**2)
+    
+    # Perform scan; initial carry value is 0
+    total_floor_contact_potential, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    return 1.e-3*total_ent + total # + grav_cont + total_floor_contact_potential
+
+@jit
+def rod_floor_interaction(q):
+    rf_int = lax.cond(q < -1,
+                        lambda _: 1.*(q+1)**2,
+                        lambda _: -0.0000001*(q+1)**2,
+                        None)
+    return rf_int
+
+@jit
+def floor_potential(z_m):
+    def body_fun(carry, z):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + rod_floor_interaction(z), None
+    
+    total, _ = lax.scan(body_fun, 0, z_m)
+    return total
         
 @jit
 def simple_harmonic_line(q,params):
@@ -589,7 +641,8 @@ def simple_harmonic_line(q,params):
                          None)
     return dist_cont
 
-
+def gravity_potential(q,params):
+    return -9.8*q[2]
 
 @jit
 def total_gaussian_line(q,params):
@@ -705,36 +758,11 @@ def simple_harmonic_line_nonjax(q,params):
     return amp*(dist-col_rad)**2
 
 if __name__ == "__main__":
-    
-    p1s = jnp.array([0, -10, 0])
-    p1e = jnp.array([0, 10, 0])
-    p2s = jnp.array([0, -10, 5.2323423])
-    p2e = jnp.array([0, 10, 5.234234])
-
-    # dist = dist_lin_seg(p1s, p1e, p2s, p2e)
-    # print(dist)
-    p1s = jnp.array([-0.5, 0, 0])    
-    # sph to cart    
-    phi1 = jnp.pi/2
-    theta1 = 0
-    
-    p2s = jnp.array([0, -0.5, 1])
-    phi2 = jnp.pi/2
-    theta2 = jnp.pi/2
-
-    q0 = jnp.array([*p1s, phi1, theta1, *p2s, phi2, theta2])
-
-    p1e = p1s + jnp.array([jnp.sin(phi1)*jnp.cos(theta1), jnp.sin(phi1)*jnp.sin(theta1), jnp.cos(phi1)])
-    p2e = p2s + jnp.array([jnp.sin(phi2)*jnp.cos(theta2), jnp.sin(phi2)*jnp.sin(theta2), jnp.cos(phi2)])
-    
-    print(p1s,p1e,p2s,p2e)
-    dist = dist_lin_seg(p1s, p1e, p2s, p2e)
-    print(dist)
-    tmp = simple_harmonic_line(q0)
-
-
-
-    print(tmp)
+    pass
+    # tmp = rod_floor_interaction(-1)
+    # z_m = jnp.array([0,0,0,0,0,0,0,0,0,0])
+    # tmp = floor_potential(z_m)
+    # print(tmp)
 
     # visualize line
     # import matplotlib.pyplot as plt
@@ -748,5 +776,32 @@ if __name__ == "__main__":
     # plt.show()
 
     
+    
+    # p1s = jnp.array([0, -10, 0])
+    # p1e = jnp.array([0, 10, 0])
+    # p2s = jnp.array([0, -10, 5.2323423])
+    # p2e = jnp.array([0, 10, 5.234234])
+
+    # # dist = dist_lin_seg(p1s, p1e, p2s, p2e)
+    # # print(dist)
+    # p1s = jnp.array([-0.5, 0, 0])    
+    # # sph to cart    
+    # phi1 = jnp.pi/2
+    # theta1 = 0
+    
+    # p2s = jnp.array([0, -0.5, 1])
+    # phi2 = jnp.pi/2
+    # theta2 = jnp.pi/2
+
+    # q0 = jnp.array([*p1s, phi1, theta1, *p2s, phi2, theta2])
+
+    # p1e = p1s + jnp.array([jnp.sin(phi1)*jnp.cos(theta1), jnp.sin(phi1)*jnp.sin(theta1), jnp.cos(phi1)])
+    # p2e = p2s + jnp.array([jnp.sin(phi2)*jnp.cos(theta2), jnp.sin(phi2)*jnp.sin(theta2), jnp.cos(phi2)])
+    
+    # print(p1s,p1e,p2s,p2e)
+    # dist = dist_lin_seg(p1s, p1e, p2s, p2e)
+    # print(dist)
+    # tmp = simple_harmonic_line(q0)
+
 
     
