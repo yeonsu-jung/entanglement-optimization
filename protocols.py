@@ -3,13 +3,17 @@ from jax import grad, jit, vmap
 from jax import random
 from jax import lax
 from optimization import optimize_fire2,optimize_fire_debug,optimize_fire_nonjax
-from potentials import effective_potential,total_effective_potential,total_effective_potential_ref,pairwise_distance,create_pairs,collision_penalized_entanglement_potential,total_harmonline_nonjax,total_gaussian_line
+from potentials import effective_potential,total_effective_potential,total_effective_potential_ref,pairwise_distance,create_pairs,collision_penalized_entanglement_potential,total_harmonline_nonjax,total_gaussian_line, total_harmonic_line_with_gravity_floor
 import numpy as onp
 from matplotlib import pyplot as plt
 import time
 from datetime import datetime
 from potentials import total_harmonic_line,simple_harmonic_line
 
+from visualizations import set_3d_plot, plot_many_rods
+
+
+from transforms import q_to_x
 from utils import parse_id_string
 
 import jax
@@ -18,9 +22,8 @@ jax.config.update("jax_enable_x64", True)
 import potentials as pt
 
 import glob, os, shutil    
-from visualizations import plot_many_rods    
 
-def create_random_rods(num_rods):    
+def create_random_rods(num_rods):
     # create jnp random array
     key = random.key(0)
     p1s = random.uniform(key, (num_rods,3))
@@ -31,6 +34,59 @@ def create_random_rods(num_rods):
     q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)    
     q0 = q0.flatten()
     q0 = jnp.array(q0,dtype=jnp.float64)
+    return q0
+
+# @jit
+def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts):
+    
+    q = jnp.zeros((num_rods,5))
+    
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        while not created and attempts < max_attempts:
+            # Generate random center and radius
+            # key = random.key(0
+            # Generate random center and solid angle
+            # key = random.PRNGKey(0)
+            
+            # random key
+            key = random.PRNGKey(0)
+            x = random.uniform(key, (), minval=-10, maxval=10)
+            y = random.uniform(key, (), minval=-10, maxval=10)
+            z = random.uniform(key, (), minval=-10, maxval=10)
+            phi = random.uniform(key, (), minval=0, maxval=jnp.pi)
+            theta = random.uniform(key, (), minval=0, maxval=2*jnp.pi)
+            
+            intersect = False
+            
+            # Check for intersection with existing circles
+            for j in range(i):
+                x2, y2, z2, phi2,theta2 = q[j]
+                q_pair = jnp.array([q[i],q[j]])
+                
+                distance = 1;
+                
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+            
+            if not intersect:
+                print(jnp.array([x, y, z, phi, theta]))
+                q = q.at[i].set(jnp.array([x, y, z, phi, theta]))
+                created = True
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all circles without intersection")
+            return q[:i]  # Return only the circles that were placed successfully
+            
+    return q
+    
+    # circles = np.zeros((n, 4))
+    
+    
+    
     return q0
     
 def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,logoutput=False,visualize=False):
@@ -220,6 +276,25 @@ def relax_collision(q,params,N_outer,Nmax):
                                  visualize=False)
     
     return q
+
+def relax_collision_with_gravity(q,params,N_outer,Nmax):
+    # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
+    f = lambda q: total_harmonic_line(q,params)
+    df = grad(f)    
+    df0 = jnp.max(jnp.abs(df(q)))
+    print(f"Initial error: {df0}")
+    
+    # q_rel = collision_relaxation(q_ent,total_harmonic_line,
+    #                              params,Nmax=1000,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+    #                              visualize=False)
+    
+    q = collision_relaxation(q,total_harmonic_line_with_gravity_floor,
+                                 params,
+                                 N_outer=N_outer,
+                                 Nmax=Nmax,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+                                 visualize=False)
+    
+    return q
     
 def inspect_packing(q):
     q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
@@ -379,6 +454,77 @@ def example_Apr25_relaxation(num_rods,AR,dt_string,folder_name):
     onp.savetxt(f"{cache_folder}/EntRelPacking_N{num_rods}.txt",onp.array(q))
     
     return 1
+
+def example_Apr30_relaxation(num_rods,AR,dt_string,folder_name):
+    
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    
+    if 1: # not os.path.exists(filename):
+        params = {"col_rad": 0.005, "amp": 0.1, "sigma": 0.025} # relaxation parameters
+        # q,q0 = entangle_and_relax(num_rods, params)
+        # onp.savetxt(filename,onp.array(q))
+        q0 = create_random_rods(num_rods)
+        # set_3d_plot()
+        # plot_many_rods(jnp.reshape(q0,(-1,5)))
+        
+        onp.savetxt(filename0,onp.array(q0))        
+    else:
+        # q = onp.loadtxt(filename)
+        q0 = onp.loadtxt(filename0)
+        # q = jnp.array(q,dtype=jnp.float64)
+        
+    # just for debugging phase
+    
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 0.1, "sigma": 0.025}
+    N_outer = 2
+    Nmax = 500
+    
+    # N300: Nmax = 200
+    q = relax_collision_with_gravity(q0,params,N_outer,Nmax)
+
+    onp.savetxt(f"{folder_name}/EntRelPacking_N{num_rods}_AR{AR}.txt",onp.array(q))
+
+    # visualization
+    num_rods = q.shape[0]//5
+    
+    
+    fig,ax = set_3d_plot()
+    plot_params = {"alpha": 1., "linewidth": 1}
+    plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+    plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
+    plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+    ax.set_xlim([-1,2])
+    ax.set_ylim([-1,2])
+    ax.set_zlim([-1,2])
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+    plt.show()
+    
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+    
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.show()
+    # plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    
+    d = pt.all_pairwise_distances(q_pairs)
+    rod_radius = 1/AR/2
+    print(f"Minimum distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*rod_radius)}")
+    print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+    # filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+
+    # caching again
+    onp.savetxt(f"{cache_folder}/EntRelPacking_N{num_rods}.txt",onp.array(q))
+    
+    return 1
     
 def archiving():
     # dt string in YYYY-MM-DD_HH-MM-SS
@@ -405,8 +551,8 @@ def run_packing(num_rods=100,AR=200):
     # dt_string = '20240425-215943'
     # folder_name = '/Users/yeonsu/Data/cache/20240425-215943'
     
-    dt_string = '20240426-215217'
-    folder_name = '/Users/yeonsu/Data/cache/20240426-215217'
+    # dt_string = '20240426-215217'
+    # folder_name = '/Users/yeonsu/Data/cache/20240426-215217'
     
     example_Apr25_relaxation(num_rods,AR,dt_string,folder_name)
     return dt_string
@@ -581,14 +727,47 @@ def example1():
     onp.savetxt(newfile, new_data)
     
 if __name__ == "__main__":
+    
     # run_packing(num_rods=100,AR=200)
     # export and upload
+    
+    dt_string, folder_name = archiving()  
+    # dt_string = '20240430-161457'
+    # folder_name = f'/Users/yeonsu/Data/cache/{dt_string}'
+    
+    num_rods = 100
+    AR = 200
+    example_Apr30_relaxation(num_rods,AR,dt_string,folder_name)
     
     # dt_string = run_packing(num_rods=100,AR=200) # with archiving
     # for i in range(20):
     #     run_packing(num_rods=100,AR=25)
     
-    inspect_packing_from_cache('20240426-215217')
+    # inspect_packing_from_cache('20240426-215217')
+    
+    # num_rods = 300
+    # rod_diameter = 0.01
+    # max_attempts = 1000
+    # q = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts)
+    
+    # from visualizations import plot_many_rods, set_3d_plot
+    # fig,ax= set_3d_plot()
+    # plot_many_rods(q)
+    
+    
+    
+    # q = create_random_rods(num_rods)
+    
+    # x = q_to_x(q)
+    # x = 100*x
+    # onp.savetxt(f'/Users/yeonsu/Data/export/randomEdges_N{num_rods}.txt',x)
+    
+    # # from data_io import export_from_q_to_x
+    # # export_from_q_to_x
+    # print(x.shape)
+    # print(q.shape)
+    
+    
     
     
     
