@@ -3,7 +3,7 @@ from jax import grad, jit, vmap
 from jax import random
 from jax import lax
 from optimization import optimize_fire2,optimize_fire_debug,optimize_fire_nonjax
-from potentials import effective_potential,total_effective_potential,total_effective_potential_ref,pairwise_distance,create_pairs,collision_penalized_entanglement_potential,total_harmonline_nonjax,total_gaussian_line, total_harmonic_line_with_gravity_floor
+from potentials import effective_potential,total_effective_potential,total_effective_potential_ref,pairwise_distance,create_pairs,collision_penalized_entanglement_potential,total_harmonline_nonjax,total_gaussian_line, total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook
 import numpy as onp
 from matplotlib import pyplot as plt
 import time
@@ -26,12 +26,18 @@ import glob, os, shutil
 def create_random_rods(num_rods):
     # create jnp random array
     key = random.key(0)
-    p1s = random.uniform(key, (num_rods,3))
+    p1s = random.uniform(key, (num_rods,3), minval=-0.5, maxval=0.5)
     key = random.key(1)
     phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
     key = random.key(2)
     theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
-    q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)    
+    q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)
+    
+    x0 = q_to_x(q0)
+    center = jnp.mean(x0[:,:3],axis=0)
+    # q0[:,:3] = q0[:,:3] - center    
+    q0 = q0.at[:,:3].set(q0[:,:3] - center)
+    
     q0 = q0.flatten()
     q0 = jnp.array(q0,dtype=jnp.float64)
     return q0
@@ -91,7 +97,7 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts):
     
 def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,logoutput=False,visualize=False):
     # f = total_effective_potential # bad name...    
-    q0 = create_random_rods(num_rods)    
+    q0 = create_random_rods(num_rods)
     df = grad(f)
     
     df0 = df(q0)
@@ -266,6 +272,25 @@ def relax_collision(q,params,N_outer,Nmax):
     print(f"Initial error: {df0}")
     
     q = collision_relaxation(q,total_harmonic_line,
+                                 params,
+                                 N_outer=N_outer,
+                                 Nmax=Nmax,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+                                 visualize=False)
+    
+    return q
+
+def relax_collision_with_hook(q,params,N_outer,Nmax):
+    # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
+    f = lambda q: total_harmonic_line_with_hook(q,params)
+    df = grad(f)    
+    df0 = jnp.max(jnp.abs(df(q)))
+    print(f"Initial error: {df0}")
+    
+    # hook structure, keep y zero, keep theta zero
+    half_side = 0.05
+    h1 = jnp.array([-half_side,0,+half_side,0,0])
+    
+    q = collision_relaxation(q,total_harmonic_line_with_hook,
                                  params,
                                  N_outer=N_outer,
                                  Nmax=Nmax,atol=1e-3,dt=1.e-3,atol_min=1e-5,
@@ -456,7 +481,7 @@ def example_Apr25_relaxation(num_rods,AR,dt_string,folder_name):
 def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
-    filename = f"{cache_folder}/EntRelPacking_N{num_rods}_AR{AR}.txt"
+    filename = f"{cache_folder}/EntangledPacking_N{num_rods}_AR{AR}.txt"
     
     if not os.path.exists(filename):
         # q0 = create_random_rods(num_rods)                     
@@ -474,16 +499,14 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
     else:        
         q0 = onp.loadtxt(filename)
     
-    filename = f"{cache_folder}/{dt_string}/EntRelPacking_N{num_rods}_AR{AR}.txt"
+    filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking_N{num_rods}_AR{AR}.txt"
     
     col_rad = 1./AR/2.
     params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}    
-    q = relax_collision(q0,params,N_outer,Nmax)
+    q = relax_collision_with_hook(q0,params,N_outer,Nmax)
         
     num_rods = q.shape[0]//5
-    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
-    d = pt.all_pairwise_distances(q_pairs)
-        
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))            
     d = pt.all_pairwise_distances(q_pairs)
     # print bunch of messages
     print(f"Minimum distance: {jnp.min(d)}")
@@ -506,7 +529,20 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
         # ax.set_ylim([-1,2])
         # ax.set_zlim([-1,2])
         # viewing angle
-        ax.view_init(elev=0, azim=0)
+        ax.view_init(elev=0, azim=90)
+        
+        half_side = 0.05
+        h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+        h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+        h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+        h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+        h5 = jnp.array([0,0,half_side,0,0,10*half_side])
+        
+        # from visualizations import set_3d_plot, plot_edges
+        # set_3d_plot()
+        plot_edges(jnp.array([h1,h2,h3,h4,h5]),ax=ax)
+        plt.axis('equal')
+    
         plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
         
         fig = plt.figure()
@@ -675,16 +711,16 @@ def inspect_packing_from_cache(dt_string):
     
     
 # TO DO: move this to visualizations module
-def plot_edges(edges):
+def plot_edges(edges,ax=None):
     # edges are Nx6 matrix. first 3 columns are start points, last 3 columns are end points
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
     for i in range(edges.shape[0]):
-        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],'b')
-    plt.show()
+        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],'b')    
     
 def example1():
     dt_string = '20240422-161737'
@@ -718,10 +754,11 @@ def example1():
     onp.savetxt(newfile, new_data)
     
 if __name__ == "__main__":
+    
     num_rods = 100
     AR = 200
     
-    N_outer = 2
+    N_outer = 10
     Nmax = 500
     
     data_folder = '/Users/yeonsu/Data/'
