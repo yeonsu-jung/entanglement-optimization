@@ -284,6 +284,8 @@ def relax_collision_with_gravity(q,params,N_outer,Nmax):
     df0 = jnp.max(jnp.abs(df(q)))
     print(f"Initial error: {df0}")
     
+    
+    # f = lambda q: total_harmonic_line_with_gravity_floor(q,params)
     # q_rel = collision_relaxation(q_ent,total_harmonic_line,
     #                              params,Nmax=1000,atol=1e-3,dt=1.e-3,atol_min=1e-5,
     #                              visualize=False)
@@ -459,70 +461,58 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,folder_name):
     
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
-    filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
-    filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    filename = f"{cache_folder}/{dt_string}/EntRelPacking_N{num_rods}_AR{AR}.txt"
+    # filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
     
-    if 1: # not os.path.exists(filename):
-        params = {"col_rad": 0.005, "amp": 0.1, "sigma": 0.025} # relaxation parameters
-        # q,q0 = entangle_and_relax(num_rods, params)
-        # onp.savetxt(filename,onp.array(q))
+    if not os.path.exists(filename):        
         q0 = create_random_rods(num_rods)
-        # set_3d_plot()
-        # plot_many_rods(jnp.reshape(q0,(-1,5)))
-        
-        onp.savetxt(filename0,onp.array(q0))        
-    else:
-        # q = onp.loadtxt(filename)
-        q0 = onp.loadtxt(filename0)
-        # q = jnp.array(q,dtype=jnp.float64)
-        
-    # just for debugging phase
+        onp.savetxt(filename,onp.array(q0))
+    else:        
+        q0 = onp.loadtxt(filename)    
     
     col_rad = 1./AR/2.
-    params = {"col_rad": col_rad, "amp": 0.1, "sigma": 0.025}
-    N_outer = 2
-    Nmax = 500
-    
-    # N300: Nmax = 200
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
+    N_outer = 10
+    Nmax = 500    
     q = relax_collision_with_gravity(q0,params,N_outer,Nmax)
-
-    onp.savetxt(f"{folder_name}/EntRelPacking_N{num_rods}_AR{AR}.txt",onp.array(q))
-
-    # visualization
+        
     num_rods = q.shape[0]//5
     
+    visualize = 0
+    if visualize:
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+        plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
+        plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+        ax.set_xlim([-1,2])
+        ax.set_ylim([-1,2])
+        ax.set_zlim([-1,2])
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+        plt.show()
+        
+        q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+        d = pt.all_pairwise_distances(q_pairs)
+        
+        fig = plt.figure()
+        plt.hist(d,bins=100)
+        plt.xlabel('Distance')
+        plt.ylabel('Frequency')
+        plt.show()
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+        
+    d = pt.all_pairwise_distances(q_pairs)    
+        
     
-    fig,ax = set_3d_plot()
-    plot_params = {"alpha": 1., "linewidth": 1}
-    plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
-    plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
-    plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
-    ax.set_xlim([-1,2])
-    ax.set_ylim([-1,2])
-    ax.set_zlim([-1,2])
-    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
-    plt.show()
-    
-    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
-    d = pt.all_pairwise_distances(q_pairs)
-    
-    fig = plt.figure()
-    plt.hist(d,bins=100)
-    plt.xlabel('Distance')
-    plt.ylabel('Frequency')
-    plt.show()
-    # plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
-    
-    d = pt.all_pairwise_distances(q_pairs)
-    rod_radius = 1/AR/2
+    # print bunch of messages
     print(f"Minimum distance: {jnp.min(d)}")
     print(f"Distance median: {jnp.median(d)}")
-    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*rod_radius)}")
+    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad])}")
+    print(f"rod radius: {col_rad}")
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
     print(f"Total number of rod pairs: {q_pairs.shape[0]}")
-    # filename = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
-
-    # caching again
-    onp.savetxt(f"{cache_folder}/EntRelPacking_N{num_rods}.txt",onp.array(q))
+    
+    onp.savetxt(filename,onp.array(q))
     
     return 1
     
@@ -734,6 +724,8 @@ if __name__ == "__main__":
     dt_string, folder_name = archiving()  
     # dt_string = '20240430-161457'
     # folder_name = f'/Users/yeonsu/Data/cache/{dt_string}'
+    
+    '20240430-195832'
     
     num_rods = 100
     AR = 200
