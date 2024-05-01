@@ -404,7 +404,7 @@ def distance_between_two_curves(r1, r2):
 @jit
 def all_distnaces_between_curves(curves):
     # curves is num_rods, num_vertices, 3 array
-    reshaped = curves.reshape(100,3*10)
+    reshaped = curves.reshape(300,3*10)
     
     pairs = create_pairs2(reshaped,reshaped)
     
@@ -555,6 +555,82 @@ def total_harmonic_line(q,params):
     return total
 
 @jit
+def simple_harmonic_line_xyz(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]    
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    x_jj = q[8]
+    y_jj = q[9]
+    z_jj = q[10]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = jnp.array([x_jj, y_jj, z_jj])
+
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    
+    dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
+                         lambda _: amp*(dist-col_rad*2)**2,
+                         lambda _: -1.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+                         None)
+    return dist_cont
+
+@jit
+def total_harmonic_line_with_hook(q,params):
+    
+    q = jnp.reshape(q, (-1, 5))
+    
+    pairwise_sum = total_harmonic_line(q,params)
+    
+    half_side = 0.05
+    h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+    h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+    h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+    h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+    h5 = jnp.array([0,0,half_side,0,0,5*half_side])
+        
+    q = jnp.reshape(q, (-1, 5))    
+    N = q.shape[0]
+    
+    # repeat h1, h2, h3, h4, h5 N times
+    h1 = jnp.tile(h1, (N,1))
+    h2 = jnp.tile(h2, (N,1))
+    h3 = jnp.tile(h3, (N,1))
+    h4 = jnp.tile(h4, (N,1))
+    h5 = jnp.tile(h5, (N,1))
+    
+    qh1 = jnp.concatenate([q,h1],axis=1)
+    qh2 = jnp.concatenate([q,h2],axis=1)
+    qh3 = jnp.concatenate([q,h3],axis=1)
+    qh4 = jnp.concatenate([q,h4],axis=1)
+    qh5 = jnp.concatenate([q,h5],axis=1)
+    
+    total_qh = jnp.concatenate([qh1,qh2,qh3,qh4,qh5],axis=0)
+    
+    params["col_rad"] = params["col_rad"]/2+params["col_rad"]*0.1
+    def body_fun(carry, qh):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + simple_harmonic_line_xyz(qh,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, total_qh)
+    
+    return total + pairwise_sum
+
+@jit
 def total_harmonic_line_with_gravity_floor(q,params):    
     total_ent = total_effective_potential(q)    
     q = jnp.reshape(q, (-1, 5))
@@ -587,9 +663,9 @@ def total_harmonic_line_with_gravity_floor(q,params):
     # floor_contact_cont = 1*jnp.sum((z_m + 1)**2)
     
     # Perform scan; initial carry value is 0
-    total_floor_contact_potential, _ = lax.scan(body_fun, 0, q_pairs)
+    # total_floor_contact_potential, _ = lax.scan(body_fun, 0, q_pairs)
     
-    return 1.e-3*total_ent + total # + grav_cont + total_floor_contact_potential
+    return 1e-3*total_ent + total # + grav_cont + total_floor_contact_potential
 
 @jit
 def rod_floor_interaction(q):
@@ -611,7 +687,7 @@ def floor_potential(z_m):
 @jit
 def simple_harmonic_line(q,params):
     col_rad = params["col_rad"]
-    amp = params["amp"]
+    amp = params["amp"]    
     x_i = q[0]
     y_i = q[1]
     z_i = q[2]
@@ -635,9 +711,9 @@ def simple_harmonic_line(q,params):
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
     
-    dist_cont = lax.cond(dist < col_rad,
-                         lambda _: amp*(dist-col_rad)**2,
-                         lambda _: 0.0000001*amp*(dist-col_rad)**2,
+    dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
+                         lambda _: amp*(dist-col_rad*2)**2,
+                         lambda _: -1.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
                          None)
     return dist_cont
 
@@ -713,7 +789,7 @@ def simple_harmonic_line_force(q,params):
     p_jj = p_j + l*u_j
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
-    return amp*(dist-col_rad)**2
+    return amp*(dist-col_rad)**10
 
 def total_harmonline_nonjax(q,params):
     q = onp.reshape(q, (-1, 5))
@@ -749,7 +825,7 @@ def simple_harmonic_line_nonjax(q,params):
     p_ii = p_i + l*u_i
     p_jj = p_j + l*u_j
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
     # dist_cont = lax.cond(dist < collision_radius,
     #                      lambda _: 1./K*jnp.log(1+jnp.exp(K*(collision_radius-dist))),
