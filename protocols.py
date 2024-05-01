@@ -265,10 +265,6 @@ def relax_collision(q,params,N_outer,Nmax):
     df0 = jnp.max(jnp.abs(df(q)))
     print(f"Initial error: {df0}")
     
-    # q_rel = collision_relaxation(q_ent,total_harmonic_line,
-    #                              params,Nmax=1000,atol=1e-3,dt=1.e-3,atol_min=1e-5,
-    #                              visualize=False)
-    
     q = collision_relaxation(q,total_harmonic_line,
                                  params,
                                  N_outer=N_outer,
@@ -457,62 +453,67 @@ def example_Apr25_relaxation(num_rods,AR,dt_string,folder_name):
     
     return 1
 
-def example_Apr30_relaxation(num_rods,AR,dt_string,folder_name):
-    
+def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
-    filename = f"{cache_folder}/{dt_string}/EntRelPacking_N{num_rods}_AR{AR}.txt"
-    # filename0 = f"{cache_folder}/EntRelPacking_N{num_rods}.txt"
+    filename = f"{cache_folder}/EntRelPacking_N{num_rods}_AR{AR}.txt"
     
-    if not os.path.exists(filename):        
-        q0 = create_random_rods(num_rods)
-        onp.savetxt(filename,onp.array(q0))
-    else:        
-        q0 = onp.loadtxt(filename)    
-    
-    col_rad = 1./AR/2.
-    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
-    N_outer = 10
-    Nmax = 500    
-    q = relax_collision_with_gravity(q0,params,N_outer,Nmax)
+    if not os.path.exists(filename):
+        # q0 = create_random_rods(num_rods)                     
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)
         
-    num_rods = q.shape[0]//5
-    
-    visualize = 0
-    if visualize:
         fig,ax = set_3d_plot()
         plot_params = {"alpha": 1., "linewidth": 1}
-        plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
-        plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
         plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
         ax.set_xlim([-1,2])
         ax.set_ylim([-1,2])
         ax.set_zlim([-1,2])
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
-        plt.show()
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
         
-        q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
-        d = pt.all_pairwise_distances(q_pairs)
-        
-        fig = plt.figure()
-        plt.hist(d,bins=100)
-        plt.xlabel('Distance')
-        plt.ylabel('Frequency')
-        plt.show()
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
-        
-    d = pt.all_pairwise_distances(q_pairs)    
-        
+        onp.savetxt(filename,onp.array(q0))
+    else:        
+        q0 = onp.loadtxt(filename)
     
+    filename = f"{cache_folder}/{dt_string}/EntRelPacking_N{num_rods}_AR{AR}.txt"
+    
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}    
+    q = relax_collision(q0,params,N_outer,Nmax)
+        
+    num_rods = q.shape[0]//5
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+        
+    d = pt.all_pairwise_distances(q_pairs)
     # print bunch of messages
     print(f"Minimum distance: {jnp.min(d)}")
     print(f"Distance median: {jnp.median(d)}")
-    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad])}")
+    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
     print(f"rod radius: {col_rad}")
     print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
     print(f"Total number of rod pairs: {q_pairs.shape[0]}")
-    
+        
     onp.savetxt(filename,onp.array(q))
+    
+    visualize = 1
+    if visualize:
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)
+        # plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
+        # plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+        # ax.set_xlim([-1,2])
+        # ax.set_ylim([-1,2])
+        # ax.set_zlim([-1,2])
+        # viewing angle
+        ax.view_init(elev=0, azim=0)
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+        
+        fig = plt.figure()
+        plt.hist(d[d<2*col_rad*2],bins=100)
+        plt.xlabel('Distance')
+        plt.ylabel('Frequency')
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
     
     return 1
     
@@ -717,19 +718,29 @@ def example1():
     onp.savetxt(newfile, new_data)
     
 if __name__ == "__main__":
-    
-    # run_packing(num_rods=100,AR=200)
-    # export and upload
-    
-    dt_string, folder_name = archiving()  
-    # dt_string = '20240430-161457'
-    # folder_name = f'/Users/yeonsu/Data/cache/{dt_string}'
-    
-    '20240430-195832'
-    
     num_rods = 100
     AR = 200
-    example_Apr30_relaxation(num_rods,AR,dt_string,folder_name)
+    
+    N_outer = 2
+    Nmax = 500
+    
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    
+    dt_string, folder_name = archiving()
+    num_rods = 100
+    AR = 200
+    
+    # dt_string = '20240430-195832'    
+    # for textfiles in glob.glob(f'{cache_folder}/{dt_string}/*.txt'):
+    #     splitted = textfiles.split('/')[-1].split('.')[0].split('_')
+    #     num_rods = int([x for x in splitted if 'N' in x][0].split('N')[1])
+    #     AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])
+    
+    print(f"num_rods: {num_rods}")
+    print(f"AR: {AR}")
+    
+    example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
     
     # dt_string = run_packing(num_rods=100,AR=200) # with archiving
     # for i in range(20):
