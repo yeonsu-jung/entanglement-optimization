@@ -16,6 +16,8 @@ from visualizations import set_3d_plot, plot_many_rods
 from transforms import q_to_x
 from utils import parse_id_string
 
+import sys
+
 import jax
 jax.config.update("jax_enable_x64", True)
 
@@ -543,7 +545,7 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
         plot_edges(jnp.array([h1,h2,h3,h4,h5]),ax=ax)
         plt.axis('equal')
     
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}.png",dpi=300)
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
         
         fig = plt.figure()
         plt.hist(d[d<2*col_rad*2],bins=100)
@@ -569,22 +571,8 @@ def archiving():
             shutil.copy2(file, folder_name)
     
     return dt_string, folder_name
-    
-def run_packing(num_rods=100,AR=200):
-    # dt_string, folder_name = archiving()
-    # example_Apr22(num_rods,AR,dt_string,folder_name)
-    # example_Apr25(num_rods,dt_string,folder_name)
-    
-    # dt_string = '20240425-215943'
-    # folder_name = '/Users/yeonsu/Data/cache/20240425-215943'
-    
-    # dt_string = '20240426-215217'
-    # folder_name = '/Users/yeonsu/Data/cache/20240426-215217'
-    
-    example_Apr25_relaxation(num_rods,AR,dt_string,folder_name)
-    return dt_string
-    
-def load_data_from_cache(dt_string):    
+       
+def load_data_from_cache(dt_string):
     cache_dir = f'/Users/yeonsu/Data/cache/{dt_string}'
     
     # assert(len(glob.glob(f'{cache_dir}/*.txt')) == 1, "There should be only one txt file in the folder")    
@@ -753,8 +741,7 @@ def example1():
     newfile = f'{export_dir}/{dt_string}_edges_N{num_rods}_AR{AR}_length{length}.txt'
     onp.savetxt(newfile, new_data)
     
-if __name__ == "__main__":
-    
+def protocol_for_N100_AR200():
     num_rods = 100
     AR = 200
     
@@ -768,46 +755,61 @@ if __name__ == "__main__":
     num_rods = 100
     AR = 200
     
-    # dt_string = '20240430-195832'    
-    # for textfiles in glob.glob(f'{cache_folder}/{dt_string}/*.txt'):
-    #     splitted = textfiles.split('/')[-1].split('.')[0].split('_')
-    #     num_rods = int([x for x in splitted if 'N' in x][0].split('N')[1])
-    #     AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])
+    dt_string = '20240430-195832'    
+    for textfiles in glob.glob(f'{cache_folder}/{dt_string}/*.txt'):
+        splitted = textfiles.split('/')[-1].split('.')[0].split('_')
+        num_rods = int([x for x in splitted if 'N' in x][0].split('N')[1])
+        AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])
     
     print(f"num_rods: {num_rods}")
     print(f"AR: {AR}")
     
     example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
     
-    # dt_string = run_packing(num_rods=100,AR=200) # with archiving
-    # for i in range(20):
-    #     run_packing(num_rods=100,AR=25)
+    export_scaled_packing(cache_folder,dt_string)
     
-    # inspect_packing_from_cache('20240426-215217')
-    
-    # num_rods = 300
-    # rod_diameter = 0.01
-    # max_attempts = 1000
-    # q = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts)
-    
-    # from visualizations import plot_many_rods, set_3d_plot
-    # fig,ax= set_3d_plot()
-    # plot_many_rods(q)
+def protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax):
     
     
+    example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
     
-    # q = create_random_rods(num_rods)
+    export_scaled_packing(cache_folder,dt_string)
     
-    # x = q_to_x(q)
-    # x = 100*x
-    # onp.savetxt(f'/Users/yeonsu/Data/export/randomEdges_N{num_rods}.txt',x)
+def export_scaled_packing(cache_folder,dt_string):
     
-    # # from data_io import export_from_q_to_x
-    # # export_from_q_to_x
-    # print(x.shape)
-    # print(q.shape)
+    for textfiles in glob.glob(f'{cache_folder}/{dt_string}/*.txt'):
+        splitted = textfiles.split('/')[-1].split('.')[0].split('_')
+        num_rods = int([x for x in splitted if 'N' in x][0].split('N')[1])
+        AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])    
     
+    filename = glob.glob(f'{cache_folder}/{dt_string}/*.txt')[0]
+    print(filename)
     
+    q = onp.loadtxt(filename)
+    x = q_to_x(q)
+    x = x - onp.mean(x,axis=0)
+    x = 100*x
+    onp.savetxt(f'/Users/yeonsu/Data/export/EntangledRelaxedPackingXYZ_N{num_rods}_AR{AR}.txt',x)
     
+if __name__ == "__main__":
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
     
+    num_rods = 300
+    AR = 200
+    N_outer = 10
+    Nmax = 500
     
+    if sys.argv[1] == 'new':
+        dt_string, folder_name = archiving()
+    else:
+        dt_string = sys.argv[1]
+        
+        for textfiles in glob.glob(f'{cache_folder}/{dt_string}/*.txt'):
+            splitted = textfiles.split('/')[-1].split('.')[0].split('_')
+            num_rods = int([x for x in splitted if 'N' in x][0].split('N')[1])
+            AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])    
+        print(f"num_rods: {num_rods}")
+        print(f"AR: {AR}")
+    
+    protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax)
