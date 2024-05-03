@@ -9,6 +9,10 @@ from data_io import read_data, import_from_dismech
 
 from transforms import q_to_u, q_to_x
 
+from potentials import all_distances_between_curves,distance_between_two_curves
+from visualizations import set_3d_plot, plot_many_curves
+import matplotlib.animation as animation
+
 jax.config.update("jax_enable_x64", True)
 
 def find_general_contacts(q,rod_radius):
@@ -147,6 +151,38 @@ def distance_check():
     
     return 1
 
+def length_of_polygonal_curve(nodes):
+    tan = nodes[1:,:] - nodes[:-1,:]
+    length = np.sum(np.linalg.norm(tan,axis=1))
+    return length
+
+def curvature_of_polygonal_curve(nodes):
+    tan2 = nodes[2:,:] - nodes[1:-1,:]    
+    tan1 = nodes[1:-1,:] - nodes[:-2,:]
+    
+    nom = np.linalg.norm(2*np.cross(tan1,tan2,axis=1),axis=1)
+    den = np.sum(tan1*tan2,axis=1)
+    curvature = np.sum(nom/den)
+    return curvature
+
+def curvature_check(dof_at_a_time,num_rods):
+    nodes_for_single_curve = dof_at_a_time.reshape((num_rods,-1,3))
+    curvature_list = []
+    for i in range(num_rods):
+        curvature = curvature_of_polygonal_curve(nodes_for_single_curve[i,:])
+        curvature_list.append(curvature)
+    return curvature_list
+
+def length_check(dof_at_a_time,num_rods):
+    nodes_for_single_curve = dof_at_a_time.reshape((num_rods,-1,3))
+    length_list = []
+    for i in range(num_rods):
+        length = length_of_polygonal_curve(nodes_for_single_curve[i,:])
+        length_list.append(length)
+        
+    length_list = np.array(length_list)
+    return length_list
+
 def main2():
     root_dir = '/Users/yeonsu/Data/from-cluster'
     data_id = '20240425-215943_node_20240426-150758'
@@ -170,7 +206,7 @@ def main2():
     return 1
 
 def main3():
-    sim_id = '20240426-215217_node_20240427-014524'
+    sim_id = '20240426-215217_node_20240429-221150'
     root_dir = '/Users/yeonsu/Data/from-cluster'
     pth = f'{root_dir}/{sim_id}.csv'
     num_rods = 100
@@ -198,7 +234,303 @@ def main3():
     fig,ax = set_3d_plot()
     plot_many_curves(nodes_over_time[0,:],num_rods,ax)
     plt.show()    
+    
+def check_curvature():
+    # check curvature
+    num_rods = 100
+    num_timepoints = nodes_over_time.shape[0]
+    curvature_over_time = []
+    total_curvature_over_time = []
+    selected_timepoints = []    
+    avg_length_over_time = []
+    
+    for i in range(0,num_timepoints,100):
+        curvature_over_time.append(curvature_check(nodes_over_time[i,:],num_rods))
+        total_curvature_over_time.append(np.sum(curvature_over_time[-1]))
+        selected_timepoints.append(timepoints[i])
+        
+        avg_length_over_time.append(np.mean(length_check(nodes_over_time[i,:],num_rods)))
+        
+        print(f"Iteration: {i}/{num_timepoints}")
+    
+    total_curvature_over_time = np.array(total_curvature_over_time)
+    selected_timepoints = np.array(selected_timepoints)
+    
+    plt.plot(selected_timepoints,total_curvature_over_time)
+    plt.xlabel('Simulation time')
+    plt.ylabel('Total curvature')
+    plt.show()
+    return 1
+
+def check_length():
+    print(avg_length_over_time)
+    avg_length_over_time = np.array(avg_length_over_time)
+    plt.plot(selected_timepoints,avg_length_over_time)
+    plt.xlabel('Simulation time')
+    plt.ylabel('Average length')
+    
+def postprocess():
+    sim_id = 'EntangledRelaxedPackingXYZ_node_20240502-220459'
+    
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    pth = f'{root_dir}/{sim_id}.csv'
+    num_rods = 100
+    
+    from data_io import import_from_dismech, import_from_dismech_hook
+    nodes_over_time, timepoints = import_from_dismech_hook(pth,num_rods,start_col = 1,max_rows = 1000000,row_skip=10)
+    
+    print(f"Shape of nodes_over_time: {nodes_over_time.shape}")
+    print(f"Final time point: {timepoints[-1]} sec")
+    idx = -1
+    
+    from visualizations import plot_many_curves,set_3d_plot
+    fig,ax = set_3d_plot()
+    plot_many_curves(nodes_over_time[idx,:],num_rods,ax)       
+    
+    # export last dofs
+    export_dir = '/Users/yeonsu/Data/export'
+    data_to_export = np.reshape(nodes_over_time[idx,:],(-1,30))
+    np.savetxt(f'{export_dir}/{sim_id}_last_nodes.txt',data_to_export)    
+    plt.show()
+    
+    
+    # q_pairs = create_pairs(jnp.reshape(nodes_over_time[idx,:],(-1,5)))    
+    from potentials import create_pairs2, all_distnaces_between_curves2
+    
+    curves = nodes_over_time[idx,:]
+    
+    reshaped = curves.reshape(-1,3*10)
+    pairs = create_pairs2(reshaped,reshaped)
+    pairs1 = pairs[:,:30]
+    pairs2 = pairs[:,30:]
+    
+    d = all_distnaces_between_curves2(pairs1,pairs2)
+    
+    rod_radius = 2
+    print(f"Min distance: {jnp.min(d)}")
+    print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.001)}")
+    
+    fig,ax=set_3d_plot()
+    params = {}
+    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    
+    plot_many_curves(nodes_over_time[0,:],num_rods,params=params,ax=ax)
+    
+    def update(frame):
+        ax.clear()
+        print(f"frame: {frame}")        
+        plot_many_curves(nodes_over_time[frame,:],num_rods,params=params,ax=ax)
+        # plt.axis([-100,100,-100,100,-100,100])
+        # axis for 3D plot
+        # ax.set_xlim(-100,100)
+        # ax.set_ylim(-100,100)
+        # ax.set_zlim(-100,100)
+        return ax
+    
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],10), interval=30, )
+    
+    FFwriter = animation.FFMpegWriter(fps=10)
+    ani.save(f'/Users/yeonsu/Videos/{sim_id}.mp4', writer = FFwriter)
+    
+def sanity_check_distance():
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-0042_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-004257.csv'
+    dta = np.loadtxt(pth,delimiter=',')
+    
+    q = dta[7:]
+    q_mat = q.reshape(-1,30)
+    print(q_mat[0,:])
+    
+    from visualizations import plot_many_curves,set_3d_plot
+    
+    fig,ax = set_3d_plot()
+    params = {'marker':'o'}
+    plot_many_curves(q,100,ax,params=params)
+    plt.show()    
+    
+    d = all_distnaces_between_curves(q)    
+    print(f"Min distance: {jnp.min(d)}")
+    
+def inspect_edge_level():
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-1542_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-154355.csv'
+    dta = np.loadtxt(pth,delimiter=',')
+    nodes = dta[1:]
+    nodes_mat = nodes.reshape(-1,30)
+    
+    print(nodes_mat.shape)
+    
+    r1 = nodes_mat[248,:]
+    r2 = nodes_mat[265,:]
+    
+    print(r1.shape)
+    
+    print(nodes_mat[250,:])
+    
+    e1 = r1.reshape(-1,3)[3,:]
+    e11 = r1.reshape(-1,3)[4,:]
+    
+    e2 = r2.reshape(-1,3)[2,:]
+    e22 = r2.reshape(-1,3)[3,:]
+    
+    d_e = dist_lin_seg(e1,e11,e2,e22)
+    print(d_e)
+    
+def x_to_epairs(x,num_rods):
+    # x: (num_rods*num_vertices*3,) array
+    
+    x_mat = x.reshape(num_rods,-1,3)
+    num_vertices = x_mat.shape[1]
+
+    e = jnp.zeros((num_rods,(num_vertices-1)*6))
+    
+    for i in range(num_rods):
+        x_i = x_mat[i,:,:]
+        e_i = jnp.concatenate([x_i[1:,:], x_i[:-1,:]],axis=1).flatten()
+        e = e.at[i,:].set(e_i)
+        
+    return e
+
+def x_to_rpairs(x,num_rods):
+    # x: (num_rods*num_vertices*3,) array
+    
+    x_mat = x.reshape(num_rods,-1,3)
+    num_vertices = x_mat.shape[1]
+
+    r = jnp.zeros((num_rods,num_vertices*3))
+    
+    for i in range(num_rods):
+        x_i = x[i,:]        
+        r = r.at[i,:].set(x_i)
+        
+    return r
+    
+def self_avoiding_pairs(e_i,e_j):
+    # e_i, e_j: (num_rods,num_edges*6) array
+    e_i_mat = e_i.reshape(-1,6)
+    e_j_mat = e_j.reshape(-1,6)
+    
+    pairs = jnp.concatenate([e_i_mat,e_j_mat],axis=1)
+    
+    return pairs
+
+from jax import jit
+@jit
+def distances_between_curve_edges(pairs):
+    from jax import vmap
+    d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
+    return d
+
+def dstances_between_curves(curve_pair):
+    curve_pair[:54],curve_pair[54:]
+    
+    
+    d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
 
 if __name__ == '__main__':
-    # distance_check()
-    main3()
+    from potentials import dist_lin_seg
+    from data_io import import_from_dismech_hook    
+    from potentials import create_pairs2, all_distances_between_curves2, distance_between_two_curves
+    
+    num_rods = 300    
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-1542_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-154355.csv'    
+    dta = np.loadtxt(pth,delimiter=',')
+    nodes = dta[1:]
+    nodes_mat = nodes.reshape(-1,30)
+    
+    e = x_to_epairs(nodes_mat,num_rods)
+    r = x_to_rpairs(nodes_mat,num_rods)
+    
+    i, j = jnp.triu_indices(num_rods, k=1)
+    r_i = r[i]  # Shape will be (N(N-1)/2, M)
+    r_j = r[j]  # Shape will be (N(N-1)/2, M)
+    
+    curve_pairs = jnp.concatenate([r_i,r_j],axis=1)
+    half_size = curve_pairs.shape[1]//2
+    pairs1 = curve_pairs[:,:half_size]
+    pairs2 = curve_pairs[:,half_size:]
+    
+    d = all_distances_between_curves2(pairs1,pairs2)
+    print(jnp.min(d))
+    
+    
+    num_edges = e.shape[1]//6
+    
+    # jnp.indices((num_edges,num_edges))
+    
+    
+    
+    # edge pairs are product
+    
+    left_edges = curve_pairs[:,:half_size].reshape(-1,6)
+    right_edges = curve_pairs[:,half_size:].reshape(-1,6)
+    print(left_edges.shape)
+    
+    pairs_in_shape = jnp.concatenate([pairs[:,:half_size].reshape(-1,6),pairs[:,half_size:].reshape(-1,6)],axis=1)    
+    
+    d = distances_between_curve_edges(pairs)
+    print(jnp.min(d))
+    
+    sim_id = 'EntangledRelaxedPackingXYZ_node_20240503-092609'
+    root_dir = '/Users/yeonsu/Data/from-cluster'
+    pth = f'{root_dir}/{sim_id}.csv'
+    
+    num_rods = 300
+    AR = 200
+    
+    from data_io import import_from_dismech, import_from_dismech_hook
+    nodes_over_time, timepoints = import_from_dismech_hook(pth,num_rods,start_col = 22,max_rows = 1000000,row_skip=1)
+    
+    print(f"Shape of nodes_over_time: {nodes_over_time.shape}")
+    print(f"Final time point: {timepoints[-1]} sec")
+    idx = -1
+    
+    from visualizations import plot_many_curves,set_3d_plot
+    fig,ax = set_3d_plot()
+    plot_many_curves(nodes_over_time[idx,:],num_rods,ax)       
+    
+    # export last dofs
+    export_dir = '/Users/yeonsu/Data/export'
+    data_to_export = np.reshape(nodes_over_time[idx,:],(-1,30))
+    np.savetxt(f'{export_dir}/{sim_id}_last_nodes.txt',data_to_export)    
+    plt.show()
+    
+    
+    # q_pairs = create_pairs(jnp.reshape(nodes_over_time[idx,:],(-1,5)))    
+    from potentials import create_pairs2, all_distnaces_between_curves2
+    
+    curves = nodes_over_time[0,:]
+    
+    reshaped = curves.reshape(-1,3*10)
+    pairs = create_pairs2(reshaped,reshaped)
+    pairs1 = pairs[:,:30]
+    pairs2 = pairs[:,30:]
+    
+    d = all_distnaces_between_curves2(pairs1,pairs2)
+    
+    rod_radius = 1/AR/2*100
+    print(f"Min distance: {jnp.min(d)}")
+    print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.001)}")
+    
+    fig,ax=set_3d_plot()
+    params = {}
+    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    
+    plot_many_curves(nodes_over_time[0,:],num_rods,params=params,ax=ax)
+    
+    def update(frame):
+        ax.clear()
+        print(f"frame: {frame}")        
+        plot_many_curves(nodes_over_time[frame,:],num_rods,params=params,ax=ax)
+        # plt.axis([-100,100,-100,100,-100,100])
+        # axis for 3D plot
+        ax.set_xlim(-100,100)
+        ax.set_ylim(-100,100)
+        ax.set_zlim(-100,100)
+        ax.view_init(elev=0, azim=90)
+        return ax
+    
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],10), interval=30, )
+    
+    FFwriter = animation.FFMpegWriter(fps=10)
+    ani.save(f'/Users/yeonsu/Videos/{sim_id}.mp4', writer = FFwriter)
+    
+    
