@@ -10,6 +10,8 @@ import time
 from datetime import datetime
 from potentials import total_harmonic_line,simple_harmonic_line
 
+from potentials import create_pairs, all_pairwise_distances_xyz
+
 from visualizations import set_3d_plot, plot_many_rods
 
 
@@ -289,7 +291,7 @@ def relax_collision_with_hook(q,params,N_outer,Nmax):
     print(f"Initial error: {df0}")
     
     # hook structure, keep y zero, keep theta zero
-    half_side = 0.05
+    half_side = 0.25
     h1 = jnp.array([-half_side,0,+half_side,0,0])
     
     q = collision_relaxation(q,total_harmonic_line_with_hook,
@@ -505,7 +507,8 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
     
     col_rad = 1./AR/2.
     params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}    
-    q = relax_collision_with_hook(q0,params,N_outer,Nmax)
+    # q = relax_collision_with_hook(q0,params,N_outer,Nmax)
+    q = relax_collision(q0,params,N_outer,Nmax)
         
     num_rods = q.shape[0]//5
     q_pairs = create_pairs(jnp.reshape(q,(-1,5)))            
@@ -533,7 +536,67 @@ def example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
         # viewing angle
         ax.view_init(elev=0, azim=90)
         
-        half_side = 0.05
+        half_side = 0.25
+        h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+        h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+        h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+        h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+        h5 = jnp.array([0,0,half_side,0,0,10*half_side])
+        
+        # from visualizations import set_3d_plot, plot_edges
+        # set_3d_plot()
+        plot_edges(jnp.array([h1,h2,h3,h4,h5]),ax=ax)
+        plt.axis('equal')
+    
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
+        
+        fig = plt.figure()
+        plt.hist(d[d<2*col_rad*2],bins=100)
+        plt.xlabel('Distance')
+        plt.ylabel('Frequency')
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    
+    return 1
+
+def example_May1_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntangledPacking_N{num_rods}_AR{AR}.txt"    
+    if not os.path.exists(filename):
+        # q0 = create_random_rods(num_rods)                     
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)        
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+        ax.set_xlim([-1,2])
+        ax.set_ylim([-1,2])
+        ax.set_zlim([-1,2])
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)        
+        onp.savetxt(filename,onp.array(q0))
+    else:        
+        q0 = onp.loadtxt(filename)
+    
+    filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking_N{num_rods}_AR{AR}.txt"    
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}    
+    q = relax_collision(q0,params,N_outer,Nmax)
+    # q = relax_collision_with_hook(q0,params,N_outer,Nmax)
+        
+    num_rods = q.shape[0]//5
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))            
+    d = pt.all_pairwise_distances(q_pairs)    
+    
+    print_distance_info(d,col_rad)
+    onp.savetxt(filename,onp.array(q,dtype=onp.float64))
+    
+    visualize = 1
+    if visualize:
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q,(-1,5)),plot_params)        
+        ax.view_init(elev=0, azim=90)
+        
+        half_side = 0.25
         h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
         h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
         h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
@@ -699,7 +762,7 @@ def inspect_packing_from_cache(dt_string):
     
     
 # TO DO: move this to visualizations module
-def plot_edges(edges,ax=None):
+def plot_edges(edges,ax=None,plot_params={"color":"b","linewidth":1}):
     # edges are Nx6 matrix. first 3 columns are start points, last 3 columns are end points
     if ax is None:
         fig = plt.figure()
@@ -708,7 +771,7 @@ def plot_edges(edges,ax=None):
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
     for i in range(edges.shape[0]):
-        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],'b')    
+        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],**plot_params)
     
 def example1():
     dt_string = '20240422-161737'
@@ -764,15 +827,23 @@ def protocol_for_N100_AR200():
     print(f"num_rods: {num_rods}")
     print(f"AR: {AR}")
     
-    example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
+    # example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
+    example_May1_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
     
     export_scaled_packing(cache_folder,dt_string)
     
+def print_distance_info(d,col_rad):
+    
+    print(f"rod diameter: {col_rad*2}")
+    print(f"Minimum distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")    
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
+    
+
 def protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax):
-    
-    
-    example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
-    
+    # example_Apr30_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
+    example_May1_relaxation(num_rods,AR,dt_string,N_outer,Nmax)
     export_scaled_packing(cache_folder,dt_string)
     
 def export_scaled_packing(cache_folder,dt_string):
@@ -787,21 +858,184 @@ def export_scaled_packing(cache_folder,dt_string):
     
     q = onp.loadtxt(filename)
     x = q_to_x(q)
-    x = x - onp.mean(x,axis=0)
-    x = 100*x
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2
+    print_distance_info(d,col_rad)
+    
     onp.savetxt(f'/Users/yeonsu/Data/export/EntangledRelaxedPackingXYZ_N{num_rods}_AR{AR}.txt',x)
     
-if __name__ == "__main__":
+    # 20240502-122122
+    from visualizations import plot_edges
+    plot_edges(x)
+    plt.show()
+    
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])
+    x = 100.*x    
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2.*100
+    print_distance_info(d,col_rad)
+    
+    fig,ax = set_3d_plot()
+    plot_edges(x,ax=ax)
+    
+    
+    half_side = 25
+    h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+    h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+    h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+    h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+    h5 = jnp.array([0,0,half_side,0,0,10*half_side])
+    
+    # from visualizations import set_3d_plot, plot_edges
+    # set_3d_plot()
+    plot_edges(jnp.array([h1,h2,h3,h4,h5]),ax=ax,params={"color":"k", "alpha": 0.5, "linewidth": 2.5})
+    plt.axis('equal')
+    
+    
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    
+    plot_edges(x)
+    plt.show()
+    
+    onp.savetxt(f'/Users/yeonsu/Data/export/EntangledRelaxedPackingXYZ_N{num_rods}_AR{AR}.txt',x)
+    
+def inspect_():    
+    # pth = '/Users/yeonsu/Data/export/EntangledRelaxedPackingXYZ_N100_AR200.0.txt'
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/data/PHYSICAL_EntangledRelaxedPackingXYZ_N100_AR200.0.txt'
+    data = onp.loadtxt(pth, skiprows=0)
+    data = jnp.array(data, dtype=jnp.float64)
+
+    # from visualizations import plot_edges
+    # plot_edges(data)
+    
+    pairs = create_pairs(data)
+    print(pairs[:,:6].shape)
+
+    d = all_pairwise_distances_xyz(pairs)
+    print(d.shape)
+    
+    col_rad = 1./200/2.*100
+    print(f"Minimum distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
+    print(f"rod radius: {col_rad}")
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
+    print(f"Total number of rod pairs: {pairs.shape[0]}")
+    
+def check_sanity_q_to_x(q):
+    num_rods = q.shape[0]//5
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))            
+    d = pt.all_pairwise_distances(q_pairs)
+    # print bunch of messages
+    
+    print_distance_info(d,col_rad)
+        
+    x = q_to_x(q)
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2
+    print_distance_info(d,col_rad)
+    
+    # plot_params = {"color":"k", "alpha": 0.5, "linewidth": 0.5}
+    # plot_edges(x,ax=ax,plot_params=plot_params)
+    
+    return 0
+
+def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax):
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntangledPackingHook_N{num_rods}_AR{AR}.txt"
+    
+    if not os.path.exists(filename):        
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)        
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+        ax.set_xlim([-1,2])
+        ax.set_ylim([-1,2])
+        ax.set_zlim([-1,2])
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)        
+        onp.savetxt(filename,onp.array(q0))
+    else:        
+        q0 = onp.loadtxt(filename)
+    
+    filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking_N{num_rods}_AR{AR}.txt"
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
+    q = relax_collision_with_hook(q0,params,N_outer,Nmax)
+        
+    num_rods = q.shape[0]//5
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))            
+    d = pt.all_pairwise_distances(q_pairs)
+    print_distance_info(d,col_rad)
+    onp.savetxt(filename,onp.array(q,dtype=onp.float64))
+    
+    x = q_to_x(q)
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2
+    print_distance_info(d,col_rad)
+    
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])
+    
+    scale_factor = 100.
+    x = scale_factor*x
+    
+    onp.savetxt(f'/Users/yeonsu/Data/export/EntangledRelaxedPackingHookScaled_N{num_rods}_AR{AR}_Scale{scale_factor}.txt',x)
+    
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2.*100
+    print_distance_info(d,col_rad)
+    
+    from visualizations import plot_edges    
+    
+    fig,ax = set_3d_plot()
+    plot_edges(x,ax=ax)    
+    half_side = 25
+    h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+    h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+    h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+    h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+    h5 = jnp.array([0,0,half_side,0,0,10*half_side])    
+    
+    plot_edges(jnp.array([h1,h2,h3,h4,h5]),ax=ax,params={"color":"k", "alpha": 0.5, "linewidth": 2.5})
+    plt.axis('equal')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
+        
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    return 0
+    
+    
+if __name__ == "__main__":        
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    # dt_string = '20240502-104016'
+    # export_scaled_packing(cache_folder,dt_string)
     
     num_rods = 300
     AR = 200
-    N_outer = 10
+    N_outer = 20
     Nmax = 500
     
     if sys.argv[1] == 'new':
         dt_string, folder_name = archiving()
+        create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax)
     else:
         dt_string = sys.argv[1]
         
@@ -811,5 +1045,6 @@ if __name__ == "__main__":
             AR = float([x for x in splitted if 'AR' in x][0].split('AR')[1])    
         print(f"num_rods: {num_rods}")
         print(f"AR: {AR}")
+        
+        export_scaled_packing(cache_folder,dt_string)
     
-    protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax)
