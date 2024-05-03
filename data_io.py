@@ -67,10 +67,25 @@ def export_start_last_edges(data):
     newfile = f'/Users/yeonsu/Data/{dt_string}_last_edges_N{num_rods}.txt'
     savetxt(newfile, last_edges)
     
-def import_from_dismech(pth,num_rods):
-    dta = loadtxt(pth,delimiter=',',dtype=np.float64)    
+def import_from_dismech(pth,num_rods):    
+    dta = loadtxt(pth,delimiter=',',dtype=np.float64)
     timepoints = dta[:,0]
-    spatial_data = dta[:,1:]    
+    spatial_data = dta[:,1:]
+    num_vertices = spatial_data.shape[1]//(3*num_rods)
+    # print(spatial_data.shape[1])
+    # print(num_vertices)    
+    # print(spatial_data[0,0:10])    
+    
+    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
+    # print(spatial_data[0,0,0,:])
+    # print(spatial_data[0,0,1,:])
+    
+    return spatial_data, timepoints
+
+def import_from_dismech_hook(pth,num_rods,start_col = 1,max_rows = 1000, row_skip = 100):
+    dta = loadtxt(pth,delimiter=',',dtype=np.float64, max_rows=max_rows)
+    timepoints = dta[::row_skip,0]
+    spatial_data = dta[::row_skip,start_col:]
     num_vertices = spatial_data.shape[1]//(3*num_rods)
     # print(spatial_data.shape[1])
     # print(num_vertices)    
@@ -224,8 +239,11 @@ def export_nodes_at_final_time(pth):
     print(f"Exported {filepart}_last_nodes.txt")
     return 1
 
+
+
 if __name__ == '__main__':
-    sim_id = '20240426-215217_node_20240427-014524'
+    # sim_id = '20240426-215217_node_20240427-014524'
+    sim_id = '20240426-215217_node_20240427-160317'    
     root_dir = '/Users/yeonsu/Data/from-cluster'
     pth = f'{root_dir}/{sim_id}.csv'
     num_rods = 100
