@@ -57,57 +57,105 @@ def dist_lin_seg(point1s, point1e, point2s, point2e):
     R = jnp.dot(d1, d2)
 
     den = D1 * D2 - R**2
-
-    def case1(D1,D2,S1,S2,R):
-        u = 0.
-        t = fixbound(S1 / D1)
-        return compute_distance(d1, d2, d12, t, u)
     
-    def case2(D1,D2,S1,S2,R):
-        t = 0
-        u = fixbound(-S2 / D2)
-        return compute_distance(d1, d2, d12, t, u)
+    def case1():
+        (t,u) = lax.cond( D1 != 0. , 
+                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: lax.cond(D2 != 0.,
+                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,0.),
+                             None),
+                    None)        
+        return (t,u)
     
-    def case3(D1,D2,S1,S2,R):
+    def case2_1():
         t = 0.
-        u = 0.
-        return compute_distance(d1, d2, d12, t, u)
-    
-    def case4(D1,D2,S1,S2,R):
-        t = 0.
-        u = fixbound(-S2 / D2)
+        u = -S2/D2
         uf = fixbound(u)
-        t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
-        return compute_distance(d1, d2, d12, t, u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)
     
-    def case5(D1,D2,S1,S2,R):
+    def case2_2():
         t = fixbound((S1 * D2 - S2 * R) / den)
-        u = fixbound((t * R - S2) / D2)
-        uf = fixbound(u)        
-        t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
-        return compute_distance(d1, d2, d12, t, u)
+        u = (t * R - S2) / D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)        
     
-    # lax.cond((D1 == 0) & (D2 == 0) , lambda _: 0., lambda _: 0., None)
+    def case2():
+        (t,u) = lax.cond( den == 0. , 
+                    lambda _: case2_1(),                    
+                    lambda _: case2_2(),
+                    None)        
+        return (t,u)
+    
+    (t,u) = lax.cond((D1 == 0.) & (D2 == 0.),
+                        lambda _: case1(),
+                        lambda _: case2(),
+                        None)
+    
+    dist = jnp.linalg.norm(d1 * t - d2 * u - d12)
+    
+    # def case1(D1,D2,S1,S2,R):
+    #     u = 0.
+    #     t = fixbound(S1 / D1)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case2(D1,D2,S1,S2,R):
+    #     t = 0
+    #     u = fixbound(-S2 / D2)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case3(D1,D2,S1,S2,R):
+    #     t = 0.
+    #     u = 0.
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case4(D1,D2,S1,S2,R):
+    #     t = 0.
+    #     u = -S2 / D2
+    #     uf = fixbound(u)
+    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # def case5(D1,D2,S1,S2,R):
+    #     t = fixbound((S1 * D2 - S2 * R) / den)
+    #     u = (t * R - S2) / D2
+    #     uf = fixbound(u)        
+    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
+    #     return compute_distance(d1, d2, d12, t, u)
+    
+    # # lax.cond((D1 == 0) & (D2 == 0) , lambda _: 0., lambda _: 0., None)
 
-    dist = lax.cond((D1 != 0.) & (D2 == 0.),
-                        lambda _: case1(D1,D2,S1,S2,R),
-                        lambda _: 0.,
-                        None)
+    # dist = lax.cond((D1 != 0.) & (D2 == 0.),
+    #                     lambda _: case1(D1,D2,S1,S2,R),
+    #                     lambda _: 0.,
+    #                     None)
     
-    dist = lax.cond((D1 == 0.) & (D2 != 0.),
-                        lambda _: case2(D1,D2,S1,S2,R),
-                        lambda _: 0.,
-                        None)
+    # dist = lax.cond((D1 == 0.) & (D2 != 0.),
+    #                     lambda _: case2(D1,D2,S1,S2,R),
+    #                     lambda _: 0.,
+    #                     None)
     
-    dist = lax.cond((D1 == 0.) & (D2 == 0.),
-                        lambda _: case3(D1,D2,S1,S2,R),
-                        lambda _: 0.,
-                        None)
+    # dist = lax.cond((D1 == 0.) & (D2 == 0.),
+    #                     lambda _: case3(D1,D2,S1,S2,R),
+    #                     lambda _: 0.,
+    #                     None)
     
-    dist = lax.cond((D1 != 0.) & (D2 != 0.) & (den == 0.), # parallel
-                        lambda _: case4(D1,D2,S1,S2,R),
-                        lambda _: case5(D1,D2,S1,S2,R),
-                        None)
+    # dist = lax.cond((D1 != 0.) & (D2 != 0.) & (den == 0.), # parallel
+    #                     lambda _: case4(D1,D2,S1,S2,R),
+    #                     lambda _: case5(D1,D2,S1,S2,R),
+    #                     None)
     
     return dist
 
@@ -389,26 +437,57 @@ def all_pairwise_distances(q_pairs):
     return vmap(pairwise_distance)(q_pairs)
 
 @jit
+def pairwise_distance_xyz(q_pair):
+    p_i = jnp.array([q_pair[0], q_pair[1], q_pair[2]])
+    p_j = jnp.array([q_pair[6], q_pair[7], q_pair[8]])
+    p_ii = jnp.array([q_pair[3], q_pair[4], q_pair[5]])
+    p_jj = jnp.array([q_pair[9], q_pair[10], q_pair[11]])
+    return dist_lin_seg(p_i, p_ii, p_j, p_jj)
+
+@jit
+def all_pairwise_distances_xyz(q_pairs):
+    return vmap(pairwise_distance_xyz)(q_pairs)
+
+def create_pair3(m,n):
+    M, _ = m.shape
+    N, _ = n.shape
+    assert(M == N)
+    
+    i, j = jnp.indices((M,N))
+    i = i.flatten()
+    j = j.flatten()
+    
+    m_i = m[i]
+    n_j = n[j]
+    
+    return jnp.concatenate([m_i, n_j], axis=1)
+
+@jit
 def distance_between_two_curves(r1, r2):
     # r1 is 30, vector     
     r1 = jnp.reshape(r1, (10, 3))
-    r2 = jnp.reshape(r2, (10, 3))    
+    r2 = jnp.reshape(r2, (10, 3))
     e1 = jnp.concatenate([r1[0:-1,:],r1[1:,:]],axis=1)
-    e2 = jnp.hstack([r2[0:-1,:],r2[1:,:]])        
-    pairs = create_pairs2(e1,e2)    
+    e2 = jnp.hstack([r2[0:-1,:],r2[1:,:]])
+    pairs = create_pair3(e1,e2)
+    
     d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
     
     return jnp.min(d)
 
 
 @jit
-def all_distnaces_between_curves(curves):
+def all_distances_between_curves(curves):
     # curves is num_rods, num_vertices, 3 array
-    reshaped = curves.reshape(300,3*10)
-    
+    reshaped = curves.reshape(100,3*10)
     pairs = create_pairs2(reshaped,reshaped)
-    
     d = vmap(distance_between_two_curves)(pairs[:,:30], pairs[:,30:])
+    return d
+
+@jit
+def all_distances_between_curves2(pairs1,pairs2):
+    # d = vmap(distance_between_two_curves)(pairs[:,:30], pairs[:,30:])
+    d = vmap(distance_between_two_curves)(pairs1, pairs2)
     return d
     
 
@@ -581,19 +660,20 @@ def simple_harmonic_line_xyz(q,params):
     p_ii = p_i + l*u_i
     p_jj = jnp.array([x_jj, y_jj, z_jj])
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    
     
     dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
                          lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -1.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+                         lambda _: -1.e-4*amp*(dist-col_rad*2)**2, # decrease to get more contacts
                          None)
+    
+    
     return dist_cont
 
 @jit
 def total_harmonic_line_with_hook(q,params):
-    
     q = jnp.reshape(q, (-1, 5))
-    
     pairwise_sum = total_harmonic_line(q,params)
     
     half_side = 0.05
@@ -621,9 +701,10 @@ def total_harmonic_line_with_hook(q,params):
     
     total_qh = jnp.concatenate([qh1,qh2,qh3,qh4,qh5],axis=0)
     
-    params["col_rad"] = params["col_rad"]/2+params["col_rad"]*0.1
+    params["col_rad"] = params["col_rad"]/2+params["col_rad"]*0.00001
+    
+    # TO DO: only contacting rods........
     def body_fun(carry, qh):
-        # Increment carry by the result of effective_potential applied to q_pair
         return carry + simple_harmonic_line_xyz(qh,params), None
     # Perform scan; initial carry value is 0
     total, _ = lax.scan(body_fun, 0, total_qh)
@@ -631,10 +712,10 @@ def total_harmonic_line_with_hook(q,params):
     return total + pairwise_sum
 
 @jit
-def total_harmonic_line_with_gravity_floor(q,params):    
-    total_ent = total_effective_potential(q)    
+def total_harmonic_line_with_gravity_floor(q,params):
+    total_ent = total_effective_potential(q)
     q = jnp.reshape(q, (-1, 5))
-    q_pairs = create_pairs(q)    
+    q_pairs = create_pairs(q)
     def body_fun(carry, q_pair):
         # Increment carry by the result of effective_potential applied to q_pair
         return carry + simple_harmonic_line(q_pair,params), None
@@ -650,9 +731,9 @@ def total_harmonic_line_with_gravity_floor(q,params):
     # x_ii = x_i + jnp.sin(phi_i)*jnp.cos(theta_i)
     # y_ii = y_i + jnp.sin(phi_i)*jnp.sin(theta_i)
     zc = z_i + jnp.cos(phi_i)/2
-    ze = z_i + jnp.cos(phi_i)    
-    z_m = jnp.min(jnp.array([z_i,ze]),axis=0)    
-    grav_cont = jnp.sum(zc)    
+    ze = z_i + jnp.cos(phi_i)
+    z_m = jnp.min(jnp.array([z_i,ze]),axis=0)
+    grav_cont = jnp.sum(zc)
     
     # for i in range(q.shape[0]):
     #     if z_m[i] < -1:
@@ -709,7 +790,7 @@ def simple_harmonic_line(q,params):
     p_ii = p_i + l*u_i
     p_jj = p_j + l*u_j
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)    
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
     dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
                          lambda _: amp*(dist-col_rad*2)**2,
