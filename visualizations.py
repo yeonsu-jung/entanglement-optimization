@@ -96,7 +96,7 @@ def plot_many_curves(curves,num_rods,ax,params={}):
         plot_curves(curves[i,:],ax,params)
     return 1
 
-def plot_edges(edges,ax=None):
+def plot_edges(edges,ax=None,params={}):
     N = edges.shape[0]
     if ax is None:
         fig = plt.figure()
@@ -106,6 +106,6 @@ def plot_edges(edges,ax=None):
         ax.set_zlabel('Z')
         
     for i in range(N):
-        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]])    
+        ax.plot([edges[i,0],edges[i,3]],[edges[i,1],edges[i,4]],[edges[i,2],edges[i,5]],**params)    
     
 
