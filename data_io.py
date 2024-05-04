@@ -87,15 +87,8 @@ def import_from_dismech_hook(pth,num_rods,start_col = 1,max_rows = 1000, row_ski
     timepoints = dta[::row_skip,0]
     spatial_data = dta[::row_skip,start_col:]
     num_vertices = spatial_data.shape[1]//(3*num_rods)
-    # print(spatial_data.shape[1])
-    # print(num_vertices)    
-    # print(spatial_data[0,0:10])    
     
-    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
-    # print(spatial_data[0,0,0,:])
-    # print(spatial_data[0,0,1,:])
-    
-    return spatial_data, timepoints
+    return spatial_data, timepoints, num_vertices
     
     
 def example_import_and_plot():
