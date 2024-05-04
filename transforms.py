@@ -5,10 +5,10 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 def sph2cart(phi,theta):
-    x = np.sin(phi)*np.cos(theta)
-    y = np.sin(phi)*np.sin(theta)
-    z = np.cos(phi)
-    return np.array([x,y,z]).transpose()
+    x = jnp.sin(phi)*jnp.cos(theta)
+    y = jnp.sin(phi)*jnp.sin(theta)
+    z = jnp.cos(phi)
+    return jnp.array([x,y,z]).transpose()
 
 def q_to_x(q):
     # q = jnp.array(q)
@@ -18,9 +18,44 @@ def q_to_x(q):
     x = x.at[:,3:6].set(sph2cart(q[:,3],q[:,4]) + x[:,0:3])
     return x
 
+# jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+
 def q_to_u(q):
     # q = jnp.array(q)
     q = q.reshape((-1,5))
     # u = jnp.zeros((q.shape[0],3))
     u = sph2cart(q[:,3],q[:,4])
     return u
+
+def x_to_epairs(x,num_rods):
+    # x: (num_rods*num_vertices*3,) array
+    
+    x_mat = x.reshape(num_rods,-1,3)
+    num_vertices = x_mat.shape[1]
+
+    e = jnp.zeros((num_rods,(num_vertices-1)*6))
+    
+    for i in range(num_rods):
+        x_i = x_mat[i,:,:]
+        e_i = jnp.concatenate([x_i[1:,:], x_i[:-1,:]],axis=1).flatten()
+        e = e.at[i,:].set(e_i)
+        
+    return e
+
+def x_to_rpairs(x,num_rods):
+    # x: (num_rods*num_vertices*3,) array
+    
+    x_mat = x.reshape(num_rods,-1,3)
+    num_vertices = x_mat.shape[1]
+
+    r = jnp.zeros((num_rods,num_vertices*3))
+    
+    for i in range(num_rods):
+        x_i = x[i,:]
+        r = r.at[i,:].set(x_i)
+        
+    return r
+
+def vert_to_edge(vert):
+    edge = np.hstack([vert[1:,:],vert[:-1,:]])
+    return edge
