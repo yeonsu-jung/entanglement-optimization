@@ -4,16 +4,11 @@ from jax import random
 from jax import lax
 from jax import jit
 
+import jax.numpy as jnp
+from jax import jit, lax
+
 import numpy as onp
 
-# def fixbound(num):
-#     """ Ensure the number is within the bounds [0, 1]. """
-#     # if num < 0:
-#     #     return 0
-#     # elif num > 1:
-#     #     return 1
-#     # return num
-#     return jnp.clip(num, 0, 1)
 def fixbound_nonjax(num):
     """ Ensure the number is within the bounds [0, 1]. """
     if num < 0:
@@ -29,18 +24,6 @@ def fixbound(num):
 def compute_distance(d1, d2, d12, t, u):
     """Compute the distance for given parameters t and u."""
     return jnp.linalg.norm(d1 * t - d2 * u - d12)
-
-import jax.numpy as jnp
-from jax import jit, lax
-
-def fixbound(num):
-    """Ensure the number is within the bounds [0, 1]."""
-    return jnp.clip(num, 0, 1)
-
-def compute_distance(d1, d2, d12, t, u):
-    """Compute the distance for given parameters t and u."""
-    return jnp.linalg.norm(d1 * t - d2 * u - d12)
-
 
 ###########
 @jit
@@ -636,7 +619,7 @@ def total_harmonic_line(q,params):
 @jit
 def simple_harmonic_line_xyz(q,params):
     col_rad = params["col_rad"]
-    amp = params["amp"]    
+    amp = params["amp"]
     x_i = q[0]
     y_i = q[1]
     z_i = q[2]
@@ -915,50 +898,5 @@ def simple_harmonic_line_nonjax(q,params):
     return amp*(dist-col_rad)**2
 
 if __name__ == "__main__":
-    pass
-    # tmp = rod_floor_interaction(-1)
-    # z_m = jnp.array([0,0,0,0,0,0,0,0,0,0])
-    # tmp = floor_potential(z_m)
-    # print(tmp)
-
-    # visualize line
-    # import matplotlib.pyplot as plt
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.plot([p1s[0], p1e[0]], [p1s[1], p1e[1]], [p1s[2], p1e[2]], 'r')
-    # ax.plot([p2s[0], p2e[0]], [p2s[1], p2e[1]], [p2s[2], p2e[2]], 'b')
-    # ax.set_xlabel('X')
-    # ax.set_ylabel('Y')
-    # ax.set_zlabel('Z')
-    # plt.show()
-
-    
-    
-    # p1s = jnp.array([0, -10, 0])
-    # p1e = jnp.array([0, 10, 0])
-    # p2s = jnp.array([0, -10, 5.2323423])
-    # p2e = jnp.array([0, 10, 5.234234])
-
-    # # dist = dist_lin_seg(p1s, p1e, p2s, p2e)
-    # # print(dist)
-    # p1s = jnp.array([-0.5, 0, 0])    
-    # # sph to cart    
-    # phi1 = jnp.pi/2
-    # theta1 = 0
-    
-    # p2s = jnp.array([0, -0.5, 1])
-    # phi2 = jnp.pi/2
-    # theta2 = jnp.pi/2
-
-    # q0 = jnp.array([*p1s, phi1, theta1, *p2s, phi2, theta2])
-
-    # p1e = p1s + jnp.array([jnp.sin(phi1)*jnp.cos(theta1), jnp.sin(phi1)*jnp.sin(theta1), jnp.cos(phi1)])
-    # p2e = p2s + jnp.array([jnp.sin(phi2)*jnp.cos(theta2), jnp.sin(phi2)*jnp.sin(theta2), jnp.cos(phi2)])
-    
-    # print(p1s,p1e,p2s,p2e)
-    # dist = dist_lin_seg(p1s, p1e, p2s, p2e)
-    # print(dist)
-    # tmp = simple_harmonic_line(q0)
-
-
+    print(f"Hellow World!")
     
