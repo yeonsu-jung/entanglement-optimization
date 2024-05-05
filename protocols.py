@@ -834,19 +834,21 @@ def protocol_for_N100_AR200():
     
 def print_distance_info(d,col_rad,packing_id):
     
-    print(f"rod diameter: {col_rad*2}")
+    print(f"rod radius: {col_rad}")
+    print(f"rod diameter: {2*col_rad}")
     print(f"Minimum distance: {jnp.min(d)}")
     print(f"Distance median: {jnp.median(d)}")
-    print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")    
-    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
+    # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")    
+    # print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
     
     # log in a file
     with open(f'/Users/yeonsu/Data/export/{packing_id}_distance_info.txt','w') as f:
-        f.write(f"rod diameter: {col_rad*2}\n")
+        f.write(f"rod radius: {col_rad}\n")
+        f.write(f"rod diameter: {2*col_rad}\n")
         f.write(f"Minimum distance: {jnp.min(d)}\n")
         f.write(f"Distance median: {jnp.median(d)}\n")
-        f.write(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}\n")
-        f.write(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}\n")
+        # f.write(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}\n")
+        # f.write(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}\n")
     
 
 def protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax):
@@ -1001,8 +1003,7 @@ def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_fac
     filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking-N{num_rods}-AR{AR}.txt"
     col_rad = 1./AR/2.
     params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
-    
-    
+        
     q = relax_collision_with_hook(q0,params,N_outer,Nmax)        
     x = q_to_x(q)
     
@@ -1021,7 +1022,7 @@ def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_fac
     
     fig,ax = set_3d_plot()
     plot_edges(x,ax=ax)    
-    half_side = 25
+    half_side = 50
     h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
     h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
     h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
@@ -1038,6 +1039,56 @@ def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_fac
     plt.ylabel('Frequency')
     plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
     return 0
+
+def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    filename = f"{cache_folder}/EntangledPackingHook_N{num_rods}_AR{AR}.txt"
+    
+    if not os.path.exists(filename):
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)        
+        fig,ax = set_3d_plot()
+        plot_params = {"alpha": 1., "linewidth": 1}
+        plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+        ax.set_xlim([-1,2])
+        ax.set_ylim([-1,2])
+        ax.set_zlim([-1,2])
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)        
+        onp.savetxt(filename,onp.array(q0))
+    else:        
+        q0 = onp.loadtxt(filename)
+    
+    filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking-N{num_rods}-AR{AR}.txt"
+    col_rad = 1./AR/2.
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
+        
+    q = relax_collision(q0,params,N_outer,Nmax)
+    x = q_to_x(q)
+    
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])    
+    x = scale_factor*x    
+    packing_id = f'EntangledRelaxedPackingHook-N{num_rods}-AR{AR}-Scale{scale_factor}'
+    onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+    
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    col_rad = 1./AR/2.*scale_factor
+    print_distance_info(d,col_rad,packing_id)
+    
+    from visualizations import plot_edges        
+    fig,ax = set_3d_plot()
+    plot_edges(x,ax=ax)
+    plt.axis('equal')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
+        
+    fig = plt.figure()
+    plt.hist(d,bins=100)
+    plt.xlabel('Distance')
+    plt.ylabel('Frequency')
+    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
+    return 0
+
 def create_packing():
     
     data_folder = '/Users/yeonsu/Data/'
@@ -1081,19 +1132,42 @@ def create_multiple_packings():
         for AR in [20,50,100,200,500,1000]:
             dt_string, folder_name = archiving()
             create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
-
+   
+def two_rings():
+    # a,b,c = two_rings()    
+    # filename = f"two_rings.txt"
+    # filepath = f"{export_folder}/{filename}"
+    # data_out = onp.array([a.flatten(),b.flatten(),c.flatten()])
+    # print(data_out)
+    # onp.savetxt(filepath,data_out)
+    
+    s = onp.linspace(0, 2*onp.pi,10)
+    a = onp.array([onp.cos(s), onp.sin(s), onp.zeros_like(s)]).T
+    b = onp.array([onp.cos(s)+3./2., onp.zeros_like(s), onp.sin(s)]).T
+    c = onp.array([onp.cos(s)-3./2., onp.zeros_like(s), onp.sin(s)]).T        
+    
+    fig,ax = set_3d_plot()
+    plt.plot(a[:,0],a[:,1],a[:,2])
+    plt.plot(b[:,0],b[:,1],b[:,2])
+    plt.plot(c[:,0],c[:,1],c[:,2])
+    
+    return a,b,c
     
 if __name__ == "__main__":
-    
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
+    export_folder = f"{data_folder}/export"
         
-    N_outer = 20
+    N_outer = 5
     Nmax = 500
-    scale_factor = 100
+    scale_factor = 1
         
-    num_rods = 100
-    AR = 100
+    # num_rods = 100
+    # AR = 20
     
-    dt_string, folder_name = archiving()
-    create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+    for num_rods in [100,200,300]:
+        for AR in [20,50,100,200,500,1000]:
+            dt_string, folder_name = archiving()
+            create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+    
+    
