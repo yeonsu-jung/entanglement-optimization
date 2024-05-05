@@ -487,7 +487,7 @@ def inspect_packing(pth):
     d_e = dist_lin_seg(e1,e11,e2,e22)
     print(d_e)
 
-def inspect_dismech_nodes(pth,start_column=1,max_rows=100000,row_skip=1):
+def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1):
     sim_id,num_rods,rod_radius,AR,rod_length = parse_filename(pth)    
     nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,num_rods,start_col = start_column, max_rows = max_rows, row_skip=row_skip)    
     dta = np.loadtxt(pth,delimiter=',',max_rows=1)
@@ -496,7 +496,7 @@ def inspect_dismech_nodes(pth,start_column=1,max_rows=100000,row_skip=1):
     print(f"Number of vertices: {num_vertices}")
     
     # visualize last frame
-    idx = 0
+    idx = -1
     fig,ax = set_3d_plot()
     plot_many_curves(nodes_over_time[idx,:],num_rods,ax)
     plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
@@ -525,25 +525,31 @@ def inspect_dismech_nodes(pth,start_column=1,max_rows=100000,row_skip=1):
     print(f"Min distance: {jnp.min(d)}")
     print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.05)}")
     
+    # save animation
+    create_animation(sim_id,nodes_over_time,zoom)
+    
+def create_animation(sim_id,nodes_over_time,zoom):
     fig,ax=set_3d_plot()
     params = {}    
     plot_many_curves(nodes_over_time[0,:],num_rods,params=params,ax=ax)
-    
+    plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
     def update(frame):
         ax.clear()
-        print(f"frame: {frame}")        
+        print(f"frame: {frame}")
         plot_many_curves(nodes_over_time[frame,:],num_rods,params=params,ax=ax)
+        plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
+        # plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
         # plt.axis([-100,100,-100,100,-100,100])
         # axis for 3D plot
-        ax.set_xlim(-100,100)
-        ax.set_ylim(-100,100)
-        ax.set_zlim(-100,100)
+        ax.set_xlim(-rod_length/zoom,rod_length/zoom)
+        ax.set_ylim(-rod_length/zoom,rod_length/zoom)
+        ax.set_zlim(-rod_length/zoom,rod_length/zoom)
         # ax.view_init(elev=0, azim=90)
         return ax
     
     ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],10), interval=30, )    
     FFwriter = animation.FFMpegWriter(fps=10)
-    ani.save(f'/Users/yeonsu/Videos/{sim_id}.mp4', writer = FFwriter)
+    ani.save(f'/Users/yeonsu/Videos/{sim_id}_zoom{zoom}.mp4', writer = FFwriter)
     
 def parse_filename(pth):
     sim_id = pth.split('/')[-1].split('.csv')[0]
@@ -562,7 +568,8 @@ if __name__ == '__main__':
     # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHookScaled_N100_r2.500000_node_20240503-213112.csv'
     # pth = sys.argv[1]
     
-    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240504-1100_RUN_N300_AR1000_mu1/log_files/EntangledRelaxedPackingHookScaled-N300-AR1000-Scale100_node_20240504-110003.csv'
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240505-0109_RUN_mu0_viscosity1_amp1/log_files/EntangledRelaxedPackingHook-N100-AR100-Scale1_node_20240505-010941.csv'
+    
     
     sim_id,num_rods,rod_radius,AR,rod_length = parse_filename(pth)
     print(f"Simulation ID: {sim_id}")
@@ -572,12 +579,13 @@ if __name__ == '__main__':
     print(f"Aspect ratio: {AR}")
     
     dta = np.loadtxt(pth,delimiter=',')
-        
-    start_column=22
+    start_column=1
     max_rows=100000
     row_skip=1
+    
+    zoom = 0.5
     
     if len(dta.shape) == 1:
         inspect_packing(pth)
     elif len(dta.shape) == 2:
-        inspect_dismech_nodes(pth,start_column=start_column,max_rows=max_rows,row_skip=row_skip)
+        inspect_dismech_nodes(pth,zoom,start_column=start_column,max_rows=max_rows,row_skip=row_skip)
