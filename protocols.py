@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 from jax import grad,random
 from optimization import optimize_fire2, optimize_fire_nonjax
-from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line 
+from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances
 import numpy as onp
 from matplotlib import pyplot as plt
 
@@ -16,8 +16,62 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import potentials as pt
+import glob, os, shutil
 
-import glob, os, shutil    
+import numba
+
+@numba.jit(nopython=True)
+def fixbound_nonjax(num):
+    """ Ensure the number is within the bounds [0, 1]. """
+    if num < 0:
+        return 0
+    elif num > 1:
+        return 1
+    return num
+
+@numba.jit(nopython=True)
+def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):    
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = onp.dot(d1, d1)
+    D2 = onp.dot(d2, d2)
+    S1 = onp.dot(d1, d12)
+    S2 = onp.dot(d2, d12)
+    R = onp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+
+    if D1 == 0 or D2 == 0:
+        if D1 != 0:  # line1 is a segment and line2 is a point
+            u = 0
+            t = fixbound_nonjax(S1 / D1)
+        elif D2 != 0:  # line2 is a segment and line1 is a point
+            t = 0
+            u = fixbound_nonjax(-S2 / D2)
+        else:  # both segments are points
+            t = u = 0
+    elif den == 0:  # lines are parallel
+        t = 0
+        u = -S2 / D2
+        uf = fixbound_nonjax(u)
+        if uf != u:
+            t = fixbound_nonjax((uf * R + S1) / D1)
+            u = uf
+    else:  # general case
+        t = fixbound_nonjax((S1 * D2 - S2 * R) / den)
+        u = (t * R - S2) / D2
+        uf = fixbound_nonjax(u)
+        if uf != u:
+            t = fixbound_nonjax((uf * R + S1) / D1)
+            u = uf
+
+    # Compute distance
+    dist = onp.linalg.norm(d1 * t - d2 * u - d12)
+    # vec = , (point1s + d1 * t, point2s + d2 * u)
+    return dist
 
 def create_random_rods(num_rods):
     # create jnp random array
@@ -38,51 +92,51 @@ def create_random_rods(num_rods):
     q0 = jnp.array(q0,dtype=jnp.float64)
     return q0
 
-# @jit
-def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts):
+
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000):
+    print('create_nonintersecting_random_rods')    
     
-    q = jnp.zeros((num_rods,5))
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
     
     for i in range(num_rods):
         created = False
         attempts = 0
+        
         while not created and attempts < max_attempts:
-            # Generate random center and radius
-            # key = random.key(0
-            # Generate random center and solid angle
-            # key = random.PRNGKey(0)
-            
-            # random key
-            key = random.PRNGKey(0)
-            x = random.uniform(key, (), minval=-10, maxval=10)
-            y = random.uniform(key, (), minval=-10, maxval=10)
-            z = random.uniform(key, (), minval=-10, maxval=10)
-            phi = random.uniform(key, (), minval=0, maxval=jnp.pi)
-            theta = random.uniform(key, (), minval=0, maxval=2*jnp.pi)
+            x = onp.random.uniform(-1, 1)
+            y = onp.random.uniform(-1, 1)
+            z = onp.random.uniform(-1, 1)
+            phi = onp.random.uniform(0, onp.pi)
+            theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + 1 * onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
             
-            # Check for intersection with existing circles
             for j in range(i):
-                x2, y2, z2, phi2,theta2 = q[j]
-                q_pair = jnp.array([q[i],q[j]])
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + 1 * onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
                 
-                distance = 1;
-                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
                 if distance < rod_diameter:
                     intersect = True
                     break
             
             if not intersect:
-                print(jnp.array([x, y, z, phi, theta]))
-                q = q.at[i].set(jnp.array([x, y, z, phi, theta]))
+                q[i] = onp.array([x, y, z, phi, theta])
                 created = True
+                
             attempts += 1
 
         if attempts == max_attempts:
-            print("Failed to place all circles without intersection")
-            return q[:i]  # Return only the circles that were placed successfully
-            
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+    
     return q
     
     # circles = np.zeros((n, 4))
@@ -1066,7 +1120,7 @@ def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
     col_rad = 1./AR/2.*scale_factor
     print_distance_info(d,col_rad,packing_id)
     
-    from visualizations import plot_edges        
+    from visualizations import plot_edges
     fig,ax = set_3d_plot()
     plot_edges(x,ax=ax)
     plt.axis('equal')
@@ -1142,8 +1196,8 @@ def two_rings():
     plt.plot(c[:,0],c[:,1],c[:,2])
     
     return a,b,c
-    
-if __name__ == "__main__":
+
+def generate_batch():
     packing_batch_id = sys.argv[1]
     print(f"Creating a set of packings for batch: {packing_batch_id}")
     
@@ -1162,3 +1216,47 @@ if __name__ == "__main__":
         for AR in [20,50,100,200,500,1000]:
             dt_string, folder_name = archiving()
             create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+            
+def test_create_random_rods():
+    # pth = '/Users/yeonsu/Data/cache/EntangledPackingHook_N300_AR200.txt'    
+    # from protocols import create_random_rods
+    
+    # num_rods = 300    
+    # scale_factor = 1
+    
+    # q0 = create_random_rods(num_rods)    
+    # plot_many_rods(q0.reshape(-1,5))
+    # plt.savefig(f"/Users/yeonsu/Figures/RandomPacking-N{num_rods}-Scale{scale_factor}.png")
+    
+    # x = q_to_x(q0)    
+    # center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    # x = x - jnp.array([*center,*center])    
+    # x = scale_factor*x
+    # packing_id = f'RandomPacking-N{num_rods}-Scale{scale_factor}'
+    # np.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+    
+if __name__ == "__main__":
+    num_rods = 1600
+    AR = 200
+    scale_factor = 1
+    rod_diameter = scale_factor/AR
+    max_attempts = 10000
+    print(f"Rod diameter: {rod_diameter}")
+
+    # length is fixed 1
+    
+    q = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=max_attempts)
+    
+    plot_many_rods(q.reshape(-1,5))    
+    plt.savefig(f"/Users/yeonsu/Figures/RandomNonintersectingPacking-N{num_rods}-AR{AR}-Scale{scale_factor}.png",dpi=300)
+    
+    pairs = create_pairs(q.reshape(-1,5))
+    d = all_pairwise_distances(pairs)
+    print(onp.min(d))
+    
+    x = q_to_x(q)
+    center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+    x = x - jnp.array([*center,*center])    
+    x = scale_factor*x
+    packing_id = f'RandomNonintersectingPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
+    onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
