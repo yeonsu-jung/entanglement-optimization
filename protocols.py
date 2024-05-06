@@ -1,25 +1,17 @@
 import jax.numpy as jnp
-from jax import grad, jit, vmap
-from jax import random
-from jax import lax
-from optimization import optimize_fire2,optimize_fire_debug,optimize_fire_nonjax
-from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2
+from jax import grad,random
+from optimization import optimize_fire2, optimize_fire_nonjax
+from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line 
 import numpy as onp
 from matplotlib import pyplot as plt
+
 import time
 from datetime import datetime
-from potentials import total_harmonic_line,simple_harmonic_line
-
-from potentials import create_pairs, all_pairwise_distances_xyz
-
 from visualizations import set_3d_plot, plot_many_rods
-from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs
-
-from transforms import q_to_x
+from transforms import q_to_x, x_to_rpairs, x_to_epairs
 from utils import parse_id_string
 
 import sys
-
 import jax
 jax.config.update("jax_enable_x64", True)
 
@@ -832,23 +824,19 @@ def protocol_for_N100_AR200():
     
     export_scaled_packing(cache_folder,dt_string)
     
-def print_distance_info(d,col_rad,packing_id):
+def print_distance_info(d,col_rad,packing_id,export_folder):
     
     print(f"rod radius: {col_rad}")
     print(f"rod diameter: {2*col_rad}")
     print(f"Minimum distance: {jnp.min(d)}")
-    print(f"Distance median: {jnp.median(d)}")
-    # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")    
-    # print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
+    print(f"Distance median: {jnp.median(d)}")    
     
     # log in a file
-    with open(f'/Users/yeonsu/Data/export/{packing_id}_distance_info.txt','w') as f:
+    with open(f'{export_folder}/{packing_id}_distance_info.txt','w') as f:
         f.write(f"rod radius: {col_rad}\n")
         f.write(f"rod diameter: {2*col_rad}\n")
         f.write(f"Minimum distance: {jnp.min(d)}\n")
-        f.write(f"Distance median: {jnp.median(d)}\n")
-        # f.write(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}\n")
-        # f.write(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}\n")
+        f.write(f"Distance median: {jnp.median(d)}\n")        
     
 
 def protocol_for_N100_AR25(num_rods,AR,dt_string,N_outer,Nmax):
@@ -1040,20 +1028,22 @@ def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_fac
     plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
     return 0
 
+
 def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
-    filename = f"{cache_folder}/EntangledPackingHook_N{num_rods}_AR{AR}.txt"
+    filename = f"{cache_folder}/EntangledPacking_N{num_rods}_AR{AR}.txt"
     
     if not os.path.exists(filename):
-        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)        
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)
+        
         fig,ax = set_3d_plot()
         plot_params = {"alpha": 1., "linewidth": 1}
         plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
         ax.set_xlim([-1,2])
         ax.set_ylim([-1,2])
         ax.set_zlim([-1,2])
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)        
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
         onp.savetxt(filename,onp.array(q0))
     else:        
         q0 = onp.loadtxt(filename)
@@ -1068,7 +1058,7 @@ def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
     center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
     x = x - jnp.array([*center,*center])    
     x = scale_factor*x    
-    packing_id = f'EntangledRelaxedPackingHook-N{num_rods}-AR{AR}-Scale{scale_factor}'
+    packing_id = f'EntangledRelaxedPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
     onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
     
     pairs = create_pairs(x)
@@ -1154,11 +1144,14 @@ def two_rings():
     return a,b,c
     
 if __name__ == "__main__":
+    packing_batch_id = sys.argv[1]
+    print(f"Creating a set of packings for batch: {packing_batch_id}")
+    
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
-    export_folder = f"{data_folder}/export"
+    export_folder = f"{data_folder}/export/{packing_batch_id}"
         
-    N_outer = 5
+    N_outer = 20
     Nmax = 500
     scale_factor = 1
         
@@ -1169,5 +1162,3 @@ if __name__ == "__main__":
         for AR in [20,50,100,200,500,1000]:
             dt_string, folder_name = archiving()
             create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
-    
-    
