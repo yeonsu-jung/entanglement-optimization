@@ -13,6 +13,7 @@ from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs,vert_to_edge
 import matplotlib.animation as animation
 import sys
 import os
+import time
 
 import glob
 
@@ -501,15 +502,34 @@ def analyze_single_data(pth):
         inspect_packing(pth)
     elif len(dta.shape) == 2:
         inspect_dismech_nodes(pth,zoom,start_column=start_column,max_rows=max_rows,row_skip=row_skip)
+        
+def calculate_rod_correlation(nodes_at_a_time,num_rods,num_vertices):
+    # nodes_at_a_time
+    # given a set of nodes, calculate the correlation between rods
+    # nodes_at_a_time: (num_rods*num_vertices*3,) array
+    
+    # TO DO: which is better; reshape or indexing?
+    nodes_matrix = nodes_at_a_time.reshape(num_rods,num_vertices,3)
+    
+    # definition of correlation: 
+    
+    rod_correlation = 1;
+    return rod_correlation
     
 def main():
-    pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/DataFromCluster/20240505-1516/**/*.csv'        
+    analyze_single_data('/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240506-0055_RUN_test-jesse/log_files/EntangledRelaxedPackingHook-N300-AR200-Scale1-mu3.00-visc0.00-amp0.10_node_20240506-005545.csv')
     
-    for fname in glob.glob(pth):
-        sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(fname)
-        print(f"Analyzing: {sim_id}")
-        analyze_single_data(fname)
-        break
+    # pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/DataFromCluster/20240505-1516/**/*.csv'        
+    
+    # t_start = time.time()
+    # for fname in glob.glob(pth):
+    #     sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(fname)
+    #     print(f"Analyzing: {sim_id}")
+    #     print(f"Elapsed time for single analysis: {time.time() - t_start}")
+    #     analyze_single_data(fname)
+        
+    # t_elapsed = time.time() - t_start
+    # print(f"Elapsed time: {t_elapsed}")
     
     # orientational order
     return 1
