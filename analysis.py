@@ -1,33 +1,25 @@
 import numpy as np
 import jax.numpy as jnp
 import jax
-from potentials import create_pairs, all_pairwise_distances
+
+from jax import jit
+from potentials import create_pairs, all_pairwise_distances, dist_lin_seg, all_distances_between_curves2
 from matplotlib import pyplot as plt
 
-from visualizations import plot_many_rods, plot_contacts, set_3d_plot, plot_edges
-
-from potentials import all_distances_between_curves2
-from data_io import read_data, import_from_dismech
-
+from visualizations import set_3d_plot, plot_edges, plot_many_curves
+from data_io import read_data, import_from_dismech, import_from_dismech_hook
 from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs,vert_to_edge
 
-from potentials import all_distances_between_curves,distance_between_two_curves
-from visualizations import set_3d_plot, plot_many_curves
 import matplotlib.animation as animation
-
-from potentials import dist_lin_seg
-from data_io import import_from_dismech_hook    
-from potentials import create_pairs2, all_distances_between_curves2, distance_between_two_curves
-from data_io import import_from_dismech, import_from_dismech_hook
-from visualizations import plot_many_curves,set_3d_plot
-
 import sys
+import os
+
+import glob
 
 jax.config.update("jax_enable_x64", True)
 
 def find_general_contacts(q,rod_radius):
-    # q is an one dimensional array, having multiple node points.
-    
+    # q is an one dimensional array, having multiple node points.    
     return 1
     
 
@@ -77,57 +69,6 @@ def calculate_oreintational_order(q):
     print(u)
     S = 1   
     return S
-
-
-def main():
-    pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHookScaled-N300-AR100-Scale100.txt_N100_r0.500000_node_20240504-001334.csv'
-    filepart = pth.split('/')[-1].split('.')[0]
-    num_rods = 100
-    curves, timepoints = import_from_dismech(pth,num_rods)
-    
-    last_curve = curves[-1,:]
-    last_curve = last_curve.reshape((-1,30))
-    
-    print(last_curve)
-    export_dir = '/Users/yeonsu/Data/export'
-    np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
-    
-    from visualizations import plot_many_curves
-    
-        
-    print(last_curve)
-    export_dir = '/Users/yeonsu/Data/export'
-    np.savetxt(f'{export_dir}/{filepart}_last_nodes.txt',last_curve)
-    
-    from visualizations import plot_many_curves    
-    
-    nodes_at_a_time = curves[-1,:]
-    print(nodes_at_a_time.shape)
-    num_vertices = curves.shape[1]//3//num_rods
-    
-    nodes_in_matrix = nodes_at_a_time.reshape((num_rods,-1,3))
-    
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    
-    plot_many_curves(nodes_in_matrix,ax)
-    plt.show()
-    
-    # np.savetxt('/Users/yeonsu/Data/export/last_curve.txt',last_curve)
-    
-    # curve = curves[0,:]
-    # num_vertices = curve.shape[0]//3//num_rods    
-    # print(num_vertices)    
-    # S = calculate_oreintational_order(q)
-    
-    return 1
-
-def find_curve_contact(all_nodes,num_rods,rod_radius):
-    
-    return 1
 
 def distance_check():
     from data_io import import_from_dismech
@@ -245,10 +186,10 @@ def main3():
     plot_many_curves(nodes_over_time[0,:],num_rods,ax)
     plt.show()    
     
-def check_curvature():
+def check_curvature(nodes_over_time,timepoints):
     # check curvature
     num_rods = 100
-    num_timepoints = nodes_over_time.shape[0]
+    num_timepoints = nodes_over_time.shape[0]    
     curvature_over_time = []
     total_curvature_over_time = []
     selected_timepoints = []    
@@ -257,10 +198,8 @@ def check_curvature():
     for i in range(0,num_timepoints,100):
         curvature_over_time.append(curvature_check(nodes_over_time[i,:],num_rods))
         total_curvature_over_time.append(np.sum(curvature_over_time[-1]))
-        selected_timepoints.append(timepoints[i])
-        
-        avg_length_over_time.append(np.mean(length_check(nodes_over_time[i,:],num_rods)))
-        
+        selected_timepoints.append(timepoints[i])        
+        avg_length_over_time.append(np.mean(length_check(nodes_over_time[i,:],num_rods)))        
         print(f"Iteration: {i}/{num_timepoints}")
     
     total_curvature_over_time = np.array(total_curvature_over_time)
@@ -272,8 +211,7 @@ def check_curvature():
     plt.show()
     return 1
 
-def check_length():
-    print(avg_length_over_time)
+def check_length(selected_timepoints,avg_length_over_time):    
     avg_length_over_time = np.array(avg_length_over_time)
     plt.plot(selected_timepoints,avg_length_over_time)
     plt.xlabel('Simulation time')
@@ -342,24 +280,6 @@ def postprocess():
     FFwriter = animation.FFMpegWriter(fps=10)
     ani.save(f'/Users/yeonsu/Videos/{sim_id}.mp4', writer = FFwriter)
     
-def sanity_check_distance():
-    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-0042_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-004257.csv'
-    dta = np.loadtxt(pth,delimiter=',')
-    
-    q = dta[7:]
-    q_mat = q.reshape(-1,30)
-    print(q_mat[0,:])
-    
-    from visualizations import plot_many_curves,set_3d_plot
-    
-    fig,ax = set_3d_plot()
-    params = {'marker':'o'}
-    plot_many_curves(q,100,ax,params=params)
-    plt.show()    
-    
-    d = all_distnaces_between_curves(q)    
-    print(f"Min distance: {jnp.min(d)}")
-    
 def inspect_edge_level():
     pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-1542_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-154355.csv'
     dta = np.loadtxt(pth,delimiter=',')
@@ -394,18 +314,11 @@ def self_avoiding_pairs(e_i,e_j):
     
     return pairs
 
-from jax import jit
 @jit
 def distances_between_curve_edges(pairs):
     from jax import vmap
     d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
     return d
-
-def dstances_between_curves(curve_pair):
-    curve_pair[:54],curve_pair[54:]
-    
-    
-    d = vmap(dist_lin_seg)(pairs[:,0:3], pairs[:,3:6], pairs[:,6:9], pairs[:,9:12])
     
 def debugging_distance():
     num_rods = 300    
@@ -429,24 +342,7 @@ def debugging_distance():
     
     d = all_distances_between_curves2(pairs1,pairs2)
     print(jnp.min(d))
-    
-    
-    num_edges = e.shape[1]//6
-    
-    # jnp.indices((num_edges,num_edges))
-    
-    
-    
-    # edge pairs are product
-    
-    left_edges = curve_pairs[:,:half_size].reshape(-1,6)
-    right_edges = curve_pairs[:,half_size:].reshape(-1,6)
-    print(left_edges.shape)
-    
-    pairs_in_shape = jnp.concatenate([pairs[:,:half_size].reshape(-1,6),pairs[:,half_size:].reshape(-1,6)],axis=1)    
-    
-    d = distances_between_curve_edges(pairs)
-    print(jnp.min(d))
+    return 0
 
 def inspect_packing(pth):
     dta = np.loadtxt(pth,delimiter=',')
@@ -486,11 +382,28 @@ def inspect_packing(pth):
     
     d_e = dist_lin_seg(e1,e11,e2,e22)
     print(d_e)
+    
+def create_curve_pairs(curves):
+        # every edge in a curve will be paired with every edge in another curve
+        # each edge in a curve will not be paired with another edge in the same curve
+        num_rods = curves.shape[0]
+        r = x_to_rpairs(curves,num_rods)
+        i, j = jnp.triu_indices(num_rods, k=1)
+        r_i = r[i]  # Shape will be (N(N-1)/2, M)
+        r_j = r[j]  # Shape will be (N(N-1)/2, M)
+    
+        curve_pairs = jnp.concatenate([r_i,r_j],axis=1)
+        half_size = curve_pairs.shape[1]//2
+        pairs1 = curve_pairs[:,:half_size]
+        pairs2 = curve_pairs[:,half_size:]
+        return pairs1, pairs2
 
 def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,visualize=0):
-    sim_id,num_rods,rod_radius,AR,rod_length,note = parse_filename(pth)    
+    sim_id,num_rods,rod_radius,AR,rod_length,note,batch_id = parse_filename(pth)
+    
     nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,num_rods,start_col = start_column, max_rows = max_rows, row_skip=row_skip)    
     dta = np.loadtxt(pth,delimiter=',',max_rows=1)
+    
     print(f"Shape of nodes_over_time: {nodes_over_time.shape}")
     print(f"Final time point: {timepoints[-1]} sec")
     print(f"Number of vertices: {num_vertices}")
@@ -507,29 +420,33 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     # export last dofs
     export_dir = '/Users/yeonsu/Data/export'
     data_to_export = np.reshape(nodes_over_time[idx,:],(-1,3*num_vertices))    
-    np.savetxt(f'{export_dir}/{sim_id}_last_nodes.txt',data_to_export)    
+    np.savetxt(f'{export_dir}/{sim_id}_last_nodes.txt',data_to_export)
     
-    
-    curves = nodes_over_time[0,:].reshape(num_rods,-1)        
-    r = x_to_rpairs(curves,num_rods)    
-    i, j = jnp.triu_indices(num_rods, k=1)
-    r_i = r[i]  # Shape will be (N(N-1)/2, M)
-    r_j = r[j]  # Shape will be (N(N-1)/2, M)
-    
-    curve_pairs = jnp.concatenate([r_i,r_j],axis=1)
-    half_size = curve_pairs.shape[1]//2
-    pairs1 = curve_pairs[:,:half_size]
-    pairs2 = curve_pairs[:,half_size:]
-    
-    d = all_distances_between_curves2(pairs1,pairs2)    
+    curves = nodes_over_time[0,:].reshape(num_rods,-1) # curves are num_rods x num_vertices x 3 array
+    pairs1,pairs2 = create_curve_pairs(curves)
+    d = all_distances_between_curves2(pairs1,pairs2)
         
     print(f"Min distance: {jnp.min(d)}")
     print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.05)}")
+    # log file
+    if not os.path.exists(f'/Users/yeonsu/Data/analysis/{batch_id}'):
+        os.makedirs(f'/Users/yeonsu/Data/analysis/{batch_id}')
+    logfilepath = f'/Users/yeonsu/Data/analysis/{batch_id}/{note}_log.txt'
+    
+    with open(logfilepath,'w') as f:
+        f.write(f"File path: {pth}\n")        
+        f.write(f"Simulation ID: {sim_id}\n")
+        f.write(f"Num. rods: {num_rods}\n")
+        f.write(f"Rod radius: {rod_radius}\n")
+        f.write(f"Rod length: {rod_length}\n")
+        f.write(f"Aspect ratio: {AR}\n")
+        f.write(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.05)}\n")
+        f.write(f"Min distance: {jnp.min(d)}\n")
     
     # save animation
-    create_animation(sim_id,nodes_over_time,timepoints,zoom,row_skip)
+    create_animation(batch_id,sim_id,nodes_over_time,timepoints,zoom,row_skip,num_rods,dta,start_column,rod_length,note)
     
-def create_animation(sim_id,nodes_over_time,timepoints,zoom,row_skip):
+def create_animation(batch_id,sim_id,nodes_over_time,timepoints,zoom,row_skip,num_rods,dta,start_column,rod_length,note):
     fig,ax=set_3d_plot()
     params = {}    
     plot_many_curves(nodes_over_time[0,:],num_rods,params=params,ax=ax)
@@ -557,11 +474,17 @@ def create_animation(sim_id,nodes_over_time,timepoints,zoom,row_skip):
     
     ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],1), interval=30, )    
     FFwriter = animation.FFMpegWriter(fps=10)
-    ani.save(f'/Users/yeonsu/Videos/{sim_id}_zoom{zoom}_skip{row_skip}.mp4', writer = FFwriter)
+    # mkdir
+    
+    if not os.path.exists(f'/Users/yeonsu/Videos/{batch_id}'):
+        os.makedirs(f'/Users/yeonsu/Videos/{batch_id}')
+    ani.save(f'/Users/yeonsu/Videos/{batch_id}/{sim_id}_zoom{zoom}_skip{row_skip}.mp4', writer = FFwriter)
     
 def parse_filename(pth):
     sim_id = pth.split('/')[-1].split('.csv')[0]
-    note = pth.split('/')[-2]    
+    note = pth.split('/')[-2]
+    batch_id = pth.split('/')[-3] # TO DO: make it more general
+    
     tmp = pth.split('_node')[0]
     tmp = tmp.split('/')[-1].split('.csv')[0].split('-')
     tmp = tmp[1:]
@@ -571,16 +494,10 @@ def parse_filename(pth):
         
     rod_radius = rod_length/AR/2
     
-    return sim_id,num_rods,rod_radius,AR,rod_length,note
-    
-if __name__ == '__main__':
-    # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHookScaled_N100_r2.500000_node_20240503-213112.csv'
-    # pth = sys.argv[1]
-    
-    pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/DataFromCluster/N300_AR100_mu0.0_visc1_amp1/EntangledRelaxedPackingHook-N300-AR100-Scale1_node_20240505-044544.csv'
-    
-    
-    sim_id,num_rods,rod_radius,AR,rod_length,note = parse_filename(pth)
+    return sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id
+
+def analyze_single_data(pth):    
+    sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(pth)
     print(f"Simulation ID: {sim_id}")
     print(f"Num. rods: {num_rods}")
     print(f"Rod radius: {rod_radius}")
@@ -597,3 +514,19 @@ if __name__ == '__main__':
         inspect_packing(pth)
     elif len(dta.shape) == 2:
         inspect_dismech_nodes(pth,zoom,start_column=start_column,max_rows=max_rows,row_skip=row_skip)
+    
+def main():
+    pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/DataFromCluster/20240505-1516/**/*.csv'        
+    
+    for fname in glob.glob(pth):
+        sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(fname)
+        analyze_single_data(fname)        
+        break
+    
+    print('done')
+    
+    # orientational order
+    return 1
+
+if __name__ == '__main__':
+    main()
