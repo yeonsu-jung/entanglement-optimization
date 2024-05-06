@@ -6,3 +6,4 @@ upload_data.sh
 up.sh
 DataFromCluster/*
 download.sh
+.DS_Store
