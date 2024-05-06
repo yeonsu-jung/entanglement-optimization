@@ -402,12 +402,7 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     sim_id,num_rods,rod_radius,AR,rod_length,note,batch_id = parse_filename(pth)
     
     nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,num_rods,start_col = start_column, max_rows = max_rows, row_skip=row_skip)    
-    dta = np.loadtxt(pth,delimiter=',',max_rows=1)
-    
-    print(f"Shape of nodes_over_time: {nodes_over_time.shape}")
-    print(f"Final time point: {timepoints[-1]} sec")
-    print(f"Number of vertices: {num_vertices}")
-    
+    dta = np.loadtxt(pth,delimiter=',',max_rows=1)    
     idx = -1
     # visualize last frame
     if visualize:    
@@ -425,9 +420,7 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     curves = nodes_over_time[0,:].reshape(num_rods,-1) # curves are num_rods x num_vertices x 3 array
     pairs1,pairs2 = create_curve_pairs(curves)
     d = all_distances_between_curves2(pairs1,pairs2)
-        
-    print(f"Min distance: {jnp.min(d)}")
-    print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.05)}")
+    
     # log file
     if not os.path.exists(f'/Users/yeonsu/Data/analysis/{batch_id}'):
         os.makedirs(f'/Users/yeonsu/Data/analysis/{batch_id}')
@@ -439,10 +432,13 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
         f.write(f"Num. rods: {num_rods}\n")
         f.write(f"Rod radius: {rod_radius}\n")
         f.write(f"Rod length: {rod_length}\n")
-        f.write(f"Aspect ratio: {AR}\n")
-        f.write(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.05)}\n")
+        f.write(f"Aspect ratio: {AR}\n")        
+        f.write(f"Shape of nodes_over_time: {nodes_over_time.shape}")
+        f.write(f"Final time point: {timepoints[-1]} sec")
+        f.write(f"Number of vertices: {num_vertices}")
+        f.write(f"Min distance: {jnp.min(d)}")        
+        f.write(f"Number of contacts at the last frame: {jnp.count_nonzero(d < 2*rod_radius*1.05)}\n")
         f.write(f"Min distance: {jnp.min(d)}\n")
-    
     # save animation
     create_animation(batch_id,sim_id,nodes_over_time,timepoints,zoom,row_skip,num_rods,dta,start_column,rod_length,note)
     
@@ -454,18 +450,11 @@ def create_animation(batch_id,sim_id,nodes_over_time,timepoints,zoom,row_skip,nu
     # title
     
     def update(frame):
-        ax.clear()
-        print(f"frame: {frame}")
+        ax.clear()        
         plot_many_curves(nodes_over_time[frame,:],num_rods,params=params,ax=ax)
-        plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
-        # (f't={timepoints[frame]}')
-        # text
+        plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})        
         ax.set_title(f'{note}',fontsize=10)
         ax.text2D(0.05, 0.95, f't={timepoints[frame]}', transform=ax.transAxes)
-        
-        # plot_edges(vert_to_edge(dta[1:start_column].reshape(-1,3)),ax=ax,params={'color':'black','alpha':0.5})
-        # plt.axis([-100,100,-100,100,-100,100])
-        # axis for 3D plot
         ax.set_xlim(-rod_length/zoom,rod_length/zoom)
         ax.set_ylim(-rod_length/zoom,rod_length/zoom)
         ax.set_zlim(-rod_length/zoom,rod_length/zoom)
@@ -474,8 +463,6 @@ def create_animation(batch_id,sim_id,nodes_over_time,timepoints,zoom,row_skip,nu
     
     ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],1), interval=30, )    
     FFwriter = animation.FFMpegWriter(fps=10)
-    # mkdir
-    
     if not os.path.exists(f'/Users/yeonsu/Videos/{batch_id}'):
         os.makedirs(f'/Users/yeonsu/Videos/{batch_id}')
     ani.save(f'/Users/yeonsu/Videos/{batch_id}/{sim_id}_zoom{zoom}_skip{row_skip}.mp4', writer = FFwriter)
@@ -498,11 +485,11 @@ def parse_filename(pth):
 
 def analyze_single_data(pth):    
     sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(pth)
-    print(f"Simulation ID: {sim_id}")
-    print(f"Num. rods: {num_rods}")
-    print(f"Rod radius: {rod_radius}")
-    print(f"Rod length: {rod_length}")
-    print(f"Aspect ratio: {AR}")
+    # print(f"Simulation ID: {sim_id}")
+    # print(f"Num. rods: {num_rods}")
+    # print(f"Rod radius: {rod_radius}")
+    # print(f"Rod length: {rod_length}")
+    # print(f"Aspect ratio: {AR}")
     
     dta = np.loadtxt(pth,delimiter=',')
     start_column=1
@@ -520,10 +507,9 @@ def main():
     
     for fname in glob.glob(pth):
         sim_id,num_rods,rod_radius,AR,rod_length,note, batch_id = parse_filename(fname)
-        analyze_single_data(fname)        
+        print(f"Analyzing: {sim_id}")
+        analyze_single_data(fname)
         break
-    
-    print('done')
     
     # orientational order
     return 1
