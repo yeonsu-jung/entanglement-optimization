@@ -221,69 +221,6 @@ def check_length(selected_timepoints,avg_length_over_time):
     plt.xlabel('Simulation time')
     plt.ylabel('Average length')
     
-def postprocess():
-    sim_id = 'EntangledRelaxedPackingXYZ_node_20240502-220459'
-    
-    root_dir = '/Users/yeonsu/Data/from-cluster'
-    pth = f'{root_dir}/{sim_id}.csv'
-    num_rods = 100
-    
-    from data_io import import_from_dismech, import_from_dismech_hook
-    nodes_over_time, timepoints = import_from_dismech_hook(pth,num_rods,start_col = 1,max_rows = 1000000,row_skip=10)
-    
-    print(f"Shape of nodes_over_time: {nodes_over_time.shape}")
-    print(f"Final time point: {timepoints[-1]} sec")
-    idx = -1
-    
-    from visualizations import plot_many_curves,set_3d_plot
-    fig,ax = set_3d_plot()
-    plot_many_curves(nodes_over_time[idx,:],num_rods,ax)       
-    
-    # export last dofs
-    export_dir = '/Users/yeonsu/Data/export'
-    data_to_export = np.reshape(nodes_over_time[idx,:],(-1,30))
-    np.savetxt(f'{export_dir}/{sim_id}_last_nodes.txt',data_to_export)    
-    plt.show()
-    
-    
-    # q_pairs = create_pairs(jnp.reshape(nodes_over_time[idx,:],(-1,5)))    
-    from potentials import create_pairs2, all_distnaces_between_curves2
-    
-    curves = nodes_over_time[idx,:]
-    
-    reshaped = curves.reshape(-1,3*10)
-    pairs = create_pairs2(reshaped,reshaped)
-    pairs1 = pairs[:,:30]
-    pairs2 = pairs[:,30:]
-    
-    d = all_distnaces_between_curves2(pairs1,pairs2)
-    
-    rod_radius = 2
-    print(f"Min distance: {jnp.min(d)}")
-    print(f"Number of contacts: {jnp.count_nonzero(d < 2*rod_radius*1.001)}")
-    
-    fig,ax=set_3d_plot()
-    params = {}
-    # spatial_data = spatial_data.reshape((-1,num_rods,num_vertices,3))
-    
-    plot_many_curves(nodes_over_time[0,:],num_rods,params=params,ax=ax)
-    
-    def update(frame):
-        ax.clear()
-        print(f"frame: {frame}")        
-        plot_many_curves(nodes_over_time[frame,:],num_rods,params=params,ax=ax)
-        # plt.axis([-100,100,-100,100,-100,100])
-        # axis for 3D plot
-        # ax.set_xlim(-100,100)
-        # ax.set_ylim(-100,100)
-        # ax.set_zlim(-100,100)
-        return ax
-    
-    ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],10), interval=30, )
-    
-    FFwriter = animation.FFMpegWriter(fps=10)
-    ani.save(f'/Users/yeonsu/Videos/{sim_id}.mp4', writer = FFwriter)
-    
 def inspect_edge_level():
     pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240503-1542_COMPILE_/log_files/EntangledRelaxedPackingXYZ_node_20240503-154355.csv'
     dta = np.loadtxt(pth,delimiter=',')
@@ -412,7 +349,7 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     d = all_distances_between_curves2(pairs1,pairs2)
     
     rod_radius = parsed_info['rod_radius']
-    contact_cluster = np.where(d < 2*rod_radius*1.05)
+    idx_in_contact = np.unique(np.vstack([i[d < rod_radius*2.05], j[d < rod_radius*2.05]]))
     
     # log file
     logfiledir = f'/Users/yeonsu/Data/analysis/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
@@ -433,19 +370,28 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
         f.write(f'Min distance: {jnp.min(d)}\n')
         f.write(f'Number of contacts at the last frame: {jnp.count_nonzero(d < 2*parsed_info["rod_radius"]*1.05)}\n')
         f.write(f'Min distance: {jnp.min(d)}\n')
-        
     # save animation
-    create_animation(pth,nodes_over_time,timepoints,zoom)
+    cluster_size_list = create_animation_with_label(pth,nodes_over_time,timepoints,zoom)
     
-def create_animation(pth,nodes_over_time,timepoints,zoom,):
+    fig,ax=plt.subplots(figsize=(4,3))
+    ax.plot(timepoints,cluster_size_list)
+    ax.set_xlabel('Time')
+    ax.set_ylabel('Number of rods in the cluster')
+    
+    outdir = f'/Users/yeonsu/Figures/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)    
+    plt.savefig(f'{outdir}/{parsed_info["sim_id"]}_cluster_size.png',dpi=300)
+    
+    dataout = np.vstack([timepoints,cluster_size_list]).T
+    np.savetxt(f'{logfiledir}/{parsed_info["sim_id"]}_cluster_size.txt',dataout)
+    
+    return 0
+    
+def create_animation_with_label(pth,nodes_over_time,timepoints,zoom):
     parsed_info = parse_filename(pth)
-    
+    num_rods = parsed_info['num_rods']
     dt = timepoints[1] - timepoints[0] # assuming uniform time steps
-    
-    fig,ax=set_3d_plot()
-    params = {}    
-    plot_many_curves(nodes_over_time[0,:],parsed_info['num_rods'],params=params,ax=ax)
-    
     title_string = ''
     tokens = parsed_info['sim_id'].split('_')[0].split('-')
     for token in tokens:
@@ -459,18 +405,79 @@ def create_animation(pth,nodes_over_time,timepoints,zoom,):
             title_string += f'{token}_'
         if 'amp' in token:
             title_string += f'{token}'
+    num_frames = nodes_over_time.shape[0]
+    cluster_size_list = []
+    
+    rod_radius = parsed_info['rod_radius']
+    
+    fig,ax=set_3d_plot()
+    plot_many_curves(nodes_over_time[0,:],num_rods,ax,params={'color':'k','alpha':0.2})
     
     def update(frame):
         ax.clear()        
-        plot_many_curves(nodes_over_time[frame,:],parsed_info['num_rods'],params=params,ax=ax)
+        # plot_many_curves(nodes_over_time[frame,:],num_rods,ax)
+        print(frame)
+        curves = nodes_over_time[frame,:].reshape(parsed_info['num_rods'],-1)
+        pairs1,pairs2,i,j = create_curve_pairs(curves)
+        d = all_distances_between_curves2(pairs1,pairs2)
+        rods_in_contact = np.unique(np.vstack([i[d < rod_radius*2.05], j[d < rod_radius*2.05]]))
+        rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
         
-        ax.set_title(title_string,fontsize=10)
-        
+        nodes_at_a_time_matrix = nodes_over_time[frame,:].reshape(num_rods,-1)
+        if len(rods_in_contact) > 0:
+            plot_many_curves(nodes_at_a_time_matrix[rods_in_contact,:].flatten(),len(rods_in_contact),ax,params={'color':'k','alpha':0.2})
+        if len(rods_not_in_contact) > 0:
+            plot_many_curves(nodes_at_a_time_matrix[rods_not_in_contact,:].flatten(),len(rods_not_in_contact),ax)
+        cluster_size_list.append(len(rods_in_contact))
+    
+        ax.set_title(title_string,fontsize=10)        
         ax.text2D(0.05, 0.95, f't={timepoints[frame]}', transform=ax.transAxes)
         ax.set_xlim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)
         ax.set_ylim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)
-        ax.set_zlim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)
-        # ax.view_init(elev=0, azim=90)
+        ax.set_zlim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)        
+        return ax
+    
+    ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(1,nodes_over_time.shape[0],1), interval=30, )    
+    FFwriter = animation.FFMpegWriter(fps=10)
+    outpath = f'/Users/yeonsu/Videos/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)        
+    ani.save(f'{outpath}/{parsed_info["sim_id"]}_zoom{zoom}_dt{dt}.mp4', writer = FFwriter)
+    # close figure
+    plt.close()
+    return np.array(cluster_size_list)
+
+        
+def create_animation(pth,nodes_over_time,timepoints,zoom):
+    parsed_info = parse_filename(pth)
+    num_rods = parsed_info['num_rods']
+    dt = timepoints[1] - timepoints[0] # assuming uniform time steps
+    title_string = ''
+    tokens = parsed_info['sim_id'].split('_')[0].split('-')
+    for token in tokens:
+        if 'N' in token:
+            title_string += f'{token}_'
+        if 'AR' in token:
+            title_string += f'{token}_'
+        if 'mu' in token:
+            title_string += f'{token}_'
+        if 'visc' in token:
+            title_string += f'{token}_'
+        if 'amp' in token:
+            title_string += f'{token}'    
+    num_frames = nodes_over_time.shape[0]
+    cluster_size_list = []
+    
+    fig,ax=set_3d_plot()
+    plot_many_curves(nodes_over_time[0,:],num_rods,ax)
+    def update(frame):
+        ax.clear()        
+        plot_many_curves(nodes_over_time[frame,:],num_rods,ax)
+        ax.set_title(title_string,fontsize=10)        
+        ax.text2D(0.05, 0.95, f't={timepoints[frame]}', transform=ax.transAxes)
+        ax.set_xlim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)
+        ax.set_ylim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)
+        ax.set_zlim(-parsed_info["rod_length"]/zoom,parsed_info["rod_length"]/zoom)        
         return ax
     
     ani = animation.FuncAnimation(fig=fig, func=update, frames=np.arange(0,nodes_over_time.shape[0],1), interval=30, )    
@@ -479,6 +486,8 @@ def create_animation(pth,nodes_over_time,timepoints,zoom,):
     if not os.path.exists(outpath):
         os.makedirs(outpath)        
     ani.save(f'{outpath}/{parsed_info["sim_id"]}_zoom{zoom}_dt{dt}.mp4', writer = FFwriter)
+    return 0
+    
     
 def parse_filename(pth):
     sim_id = pth.split('/')[-1].split('.csv')[0]    
@@ -516,7 +525,7 @@ def analyze_single_data(pth):
     parsed_info = parse_filename(pth)
     dta = np.loadtxt(pth,delimiter=',')
     start_column=1
-    max_rows=100000
+    max_rows=5000
     row_skip=100
     zoom = 1
     
@@ -615,13 +624,18 @@ def analyze_correlation(nodes_at_a_time,nodes_at_next_time, num_rods):
     
     return correlations
 
-def find_cluster_by_cutoff(nodes_at_a_time_matrix,cutoff):
-    position_pairs1,position_pairs2 = create_curve_pairs(nodes_at_a_time_matrix)
-    d = all_distances_between_curves2(position_pairs1,position_pairs2)
+def find_contact_cluster(nodes_over_time):
     
-    
-    rod_radius = parsed_info['rod_radius']
-    print(np.count_nonzero(d < 2.1*rod_radius))
+    # num_rods = parsed_info['num_rods']                    
+    # nodes_at_a_time = nodes_over_time[frame,:]
+    # nodes_at_a_time_matrix = nodes_at_a_time.reshape(num_rods,-1)
+    # position_pairs1,position_pairs2,i,j = create_curve_pairs(nodes_at_a_time_matrix)
+    # d = all_distances_between_curves2(position_pairs1,position_pairs2)
+    # i_contact = i[d < 2.1*parsed_info['rod_radius']]
+    # j_contact = j[d < 2.1*parsed_info['rod_radius']]        
+    # rods_in_contact = np.unique(np.hstack([i_contact,j_contact]))
+    # rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
+        
     return 0
     
 def main():
@@ -635,48 +649,13 @@ def main():
 if __name__ == '__main__':
     batch_root = '/Users/yeonsu/Data/Nacho,/20240506-2217'
     pth = glob.glob(f'{batch_root}/**/*.csv',recursive=True)[0]
+    
     # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR200_mu1.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR200-Scale1-mu1.00-visc0.00-amp10.0_node_20240506-221710.csv'
-    pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR500_mu0.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR500-Scale1-mu0.00-visc0.00-amp10.0_node_20240506-221710.csv'
-    print(pth)
+    # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR500_mu0.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR500-Scale1-mu0.00-visc0.00-amp10.0_node_20240506-221710.csv'    
     
-    parsed_info = parse_filename(pth)
-    num_rods = parsed_info['num_rods']
-    q, tt, num_vertices = import_from_dismech_hook(pth,num_rods,start_col=1,max_rows=1000000,row_skip=1)
-    
-    nodes_at_a_time_matrix = q[-1,:].reshape(num_rods,-1)
-    position_pairs1,position_pairs2,i,j = create_curve_pairs(nodes_at_a_time_matrix)
-    d = all_distances_between_curves2(position_pairs1,position_pairs2)
-    # plt.hist(d,bins=50)
-    
-    i_contact = i[d < 2.1*parsed_info['rod_radius']]
-    j_contact = j[d < 2.1*parsed_info['rod_radius']]
-    
-    print(i_contact)
-    print(j_contact)
-    
-    # analyze_correlation(q[-2,:],q[-1,:],num_rods)
-        
-    # analyze_single_data(pth)
-    
-    print(np.array([i_contact,j_contact]).shape)
-    np.unique(i_contact)
-    
-    rods_in_contact = np.unique(np.hstack([i_contact,j_contact]))
-    rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
-    
-    fig,ax = set_3d_plot()
-    num_rods = parsed_info['num_rods']
-    if len(rods_in_contact) > 0:
-        plot_many_curves(nodes_at_a_time_matrix[rods_in_contact,:].flatten(),len(rods_in_contact),ax,params={'color':'k','alpha':0.2})
-    plot_many_curves(nodes_at_a_time_matrix[rods_not_in_contact,:].flatten(),len(rods_not_in_contact),ax)
-    ax.set_xlim(-2,2)
-    ax.set_ylim(-2,2)
-    ax.set_zlim(-2,2)
-    
-    import_from_dismech_hook(pth,parsed_info["num_rods"],start_col = 1,max_rows = 1000000,row_skip=10)
-    
-    # for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
-    #     analyze_single_data(pth)
+    for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
+        analyze_single_data(pth)
+        break
     
     # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHook-N300-AR100-Scale1-mu3.00-visc0.00-amp10.0_node_20240506-151401.csv'
     # analyze_single_data(pth)  
