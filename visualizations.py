@@ -25,12 +25,16 @@ def plot_contacts(q,i,neighbors):
     
     return 1
 
-def plot_many_rods(q,opt_dict={}):
+def plot_many_rods(q,ax=None,opt_dict={}):
+    if ax is None:
+        fig,ax=set_3d_plot()
+        
     N = q.shape[0]
     for i in range(N):        
         plot_rod(q[i,:],opt_dict)
         
-    return 1
+    return ax
+
 def plot_rod(q_single,opt_dict):
     q_onp = onp.array(q_single)
     x1 = q_onp[0]
