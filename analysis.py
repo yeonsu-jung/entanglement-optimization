@@ -525,7 +525,7 @@ def analyze_single_data(pth):
     parsed_info = parse_filename(pth)
     dta = np.loadtxt(pth,delimiter=',')
     start_column=1
-    max_rows=5000
+    max_rows=1000000
     row_skip=100
     zoom = 1
     
@@ -647,15 +647,14 @@ def main():
     return 1
 
 if __name__ == '__main__':
-    batch_root = '/Users/yeonsu/Data/Nacho,/20240506-2217'
+    batch_root = '/Users/yeonsu/Data/Nacho,'
     pth = glob.glob(f'{batch_root}/**/*.csv',recursive=True)[0]
     
     # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR200_mu1.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR200-Scale1-mu1.00-visc0.00-amp10.0_node_20240506-221710.csv'
     # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR500_mu0.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR500-Scale1-mu0.00-visc0.00-amp10.0_node_20240506-221710.csv'    
     
     for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
-        analyze_single_data(pth)
-        break
+        analyze_single_data(pth)        
     
     # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHook-N300-AR100-Scale1-mu3.00-visc0.00-amp10.0_node_20240506-151401.csv'
     # analyze_single_data(pth)  
