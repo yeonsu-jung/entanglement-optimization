@@ -2,14 +2,16 @@ import os
 
 
 pathlist = []
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR200_mu0.1_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR200_mu0.0_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR500_mu1.0_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR500_mu0.1_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR500_mu0.3_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR500_mu0.0_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR200_mu0.3_visc0.0_amp10.0')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-2217_RUN_Nacho,N200_AR200_mu1.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N100_AR100_mu0.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N300_AR100_mu3.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N300_AR100_mu1.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N300_AR100_mu0.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N100_AR100_mu1.0_visc0.0_amp10.0')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240506-1513_RUN_Jesse,N100_AR100_mu3.0_visc0.0_amp10.0')
+
+with open('downloaded_list.txt','a') as f:
+    for pth in pathlist:
+        f.write(f"{pth}\n") # TO DO: remove duplicates
 
 datalist = []
 
