@@ -1,15 +1,16 @@
 import jax.numpy as jnp
 from jax import grad,random
 from optimization import optimize_fire2, optimize_fire_nonjax
+
 from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances
 import numpy as onp
 from matplotlib import pyplot as plt
 
 import time
 from datetime import datetime
-from visualizations import set_3d_plot, plot_many_rods
+from visualizations import set_3d_plot, plot_many_rods, plot_edges
 from transforms import q_to_x, x_to_rpairs, x_to_epairs
-from utils import parse_id_string
+from utils import parse_id_string, archiving
 
 import sys
 import jax
@@ -198,7 +199,7 @@ def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container
     
     return q0
     
-def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,logoutput=False,visualize=False):
+def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3):
     # f = total_effective_potential # bad name...    
     q0 = create_random_rods(num_rods)
     df = grad(f)
@@ -209,7 +210,7 @@ def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,logoutput=False,
         
     q = q0
     for k in range(1):
-        q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax,atol, dt, logoutput)
+        q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax,atol, dt)
         atol = atol/2
         # print(f"iteration: {k}")
         # print(f"f_val: {f_val:.2f}")
@@ -716,23 +717,6 @@ def example_May1_relaxation(num_rods,AR,dt_string,N_outer,Nmax):
         plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
     
     return 1
-    
-def archiving():
-    # dt string in YYYY-MM-DD_HH-MM-SS
-    dt_string = datetime.now().strftime("%Y%m%d-%H%M%S")
-    folder_name = f"/Users/yeonsu/Data/cache/{dt_string}"
-    # hash = hashlib.md5(dt_string.encode()).hexdigest()
-    
-    os.makedirs(folder_name, exist_ok=False)
-    
-    source_dir = './'    
-    # copy every py file to the folder
-    files = glob.iglob(os.path.join(source_dir, "*.py"))
-    for file in files:
-        if os.path.isfile(file):
-            shutil.copy2(file, folder_name)
-    
-    return dt_string, folder_name
        
 def load_data_from_cache(dt_string):
     cache_dir = f'/Users/yeonsu/Data/cache/{dt_string}'
@@ -939,7 +923,9 @@ def print_distance_info(d,col_rad,packing_id,export_folder):
     print(f"Distance median: {jnp.median(d)}")    
     
     # log in a file
-    with open(f'{export_folder}/{packing_id}_distance_info.txt','w') as f:
+    if not os.path.exists(f'{export_folder}/distance_info'):
+        os.makedirs(f'{export_folder}/distance_info')
+    with open(f'{export_folder}/distance_info/{packing_id}_distance_info.txt','w') as f:
         f.write(f"rod radius: {col_rad}\n")
         f.write(f"rod diameter: {2*col_rad}\n")
         f.write(f"Minimum distance: {jnp.min(d)}\n")
@@ -1142,49 +1128,29 @@ def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
     filename = f"{cache_folder}/EntangledPacking_N{num_rods}_AR{AR}.txt"
     
     if not os.path.exists(filename):
-        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3,logoutput=False,visualize=False)
-        
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3)
         fig,ax = set_3d_plot()
         plot_params = {"alpha": 1., "linewidth": 1}
         plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
         ax.set_xlim([-1,2])
         ax.set_ylim([-1,2])
         ax.set_zlim([-1,2])
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
+        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_CachedEntPack_N{num_rods}_AR{AR}.png",dpi=150)
         onp.savetxt(filename,onp.array(q0))
     else:        
         q0 = onp.loadtxt(filename)
     
-    filename = f"{cache_folder}/{dt_string}/EntangledAndRelaxedPacking-N{num_rods}-AR{AR}.txt"
     col_rad = 1./AR/2.
-    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025} # 10, 0.025 for initial batch
         
     q = relax_collision(q0,params,N_outer,Nmax)
     x = q_to_x(q)
     
     center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
     x = x - jnp.array([*center,*center])    
-    x = scale_factor*x    
-    packing_id = f'EntangledRelaxedPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
-    onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+    x = scale_factor*x
+    return x
     
-    pairs = create_pairs(x)
-    d = all_pairwise_distances_xyz(pairs)
-    col_rad = 1./AR/2.*scale_factor
-    print_distance_info(d,col_rad,packing_id)
-    
-    from visualizations import plot_edges
-    fig,ax = set_3d_plot()
-    plot_edges(x,ax=ax)
-    plt.axis('equal')
-    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_N{num_rods}_AR{AR}.png",dpi=300)
-        
-    fig = plt.figure()
-    plt.hist(d,bins=100)
-    plt.xlabel('Distance')
-    plt.ylabel('Frequency')
-    plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_histogram_N{num_rods}.png",dpi=300)
-    return 0
 
 def create_packing():
     
@@ -1288,8 +1254,8 @@ def test_create_random_rods():
     # packing_id = f'RandomPacking-N{num_rods}-Scale{scale_factor}'
     # np.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
     return 0
-    
-if __name__ == "__main__":
+
+def random_nonintersection_contained_protocol():
     num_rods = 300
     AR = 200
     scale_factor = 1
@@ -1316,3 +1282,55 @@ if __name__ == "__main__":
     x = scale_factor*x
     
     onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+    
+if __name__ == "__main__":
+    packing_batch_id = sys.argv[1]
+    assert(packing_batch_id is not None)
+    print(f"Creating a set of packings for batch: {packing_batch_id}")
+    
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    export_folder = f"{data_folder}/export/{packing_batch_id}"
+    if not os.path.exists(export_folder):
+        os.makedirs(export_folder)
+        
+    # Initial batch: 20, 500, 1
+    N_outer = 20
+    Nmax = 500
+    scale_factor = 1
+        
+    # num_rods = 100
+    # AR = 20
+    
+    # initial batch for Jesse and Nacho
+    # for num_rods in [100,200,300]:
+    #     for AR in [20,50,100,200,500,1000]:
+    
+    if not os.path.exists(f'{export_folder}/figures'):
+        os.makedirs(f'{export_folder}/figures')
+    
+    dt_string, _ = archiving(export_folder)
+    
+    
+    for num_rods in [100,200,300]:
+        for AR in [20,50,75,100,200,300]:#[50,100,125,200,300]:
+            x = create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+            
+            packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
+            onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+            
+            pairs = create_pairs(x)
+            d = all_pairwise_distances_xyz(pairs)
+            col_rad = 1./AR/2.*scale_factor
+            print_distance_info(d,col_rad,packing_id,export_folder)
+            
+            fig,ax = set_3d_plot()
+            plot_edges(x,ax=ax)
+            plt.axis('equal')
+            plt.savefig(f"{export_folder}/figures/{dt_string}_N{num_rods}_AR{AR}_Scale{scale_factor}.png",dpi=300)
+                
+            fig = plt.figure()
+            plt.hist(d,bins=100)
+            plt.xlabel('Distance')
+            plt.ylabel('Frequency')
+            plt.savefig(f"{export_folder}/figures/{dt_string}_histogram_N{num_rods}_AR{AR}_Scale{scale_factor}.png",dpi=300)
