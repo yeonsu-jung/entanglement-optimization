@@ -138,7 +138,60 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
             print(f"Rod {i} placed successfully")
     
     return q
-    
+
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000):
+    print('create_nonintersecting_random_rods in a container')        
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-1,1)
+            y = onp.random.uniform(-1,1)
+            z = onp.random.uniform(-1,1)
+            phi = onp.random.uniform(0, onp.pi)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + 1 * onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            if (i == 0) & (onp.linalg.norm(p_i) > container_size or onp.linalg.norm(p_ii) > container_size):
+                intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + 1 * onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+                
+                # print([onp.linalg.norm(p_i), onp.linalg.norm(p_ii), onp.linalg.norm(p_j), onp.linalg.norm(p_jj)])
+                if (onp.linalg.norm(p_i) > container_size or onp.linalg.norm(p_ii) > container_size or onp.linalg.norm(p_j) > container_size or onp.linalg.norm(p_jj) > container_size):                    
+                    intersect = True
+                    break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
     # circles = np.zeros((n, 4))
     
     
@@ -1234,21 +1287,24 @@ def test_create_random_rods():
     # x = scale_factor*x
     # packing_id = f'RandomPacking-N{num_rods}-Scale{scale_factor}'
     # np.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+    return 0
     
 if __name__ == "__main__":
-    num_rods = 1600
+    num_rods = 300
     AR = 200
     scale_factor = 1
     rod_diameter = scale_factor/AR
-    max_attempts = 10000
+    max_attempts = 10000000
     print(f"Rod diameter: {rod_diameter}")
-
+    
+    container_size = 0.7
+    packing_id = f'RandomNonintersectingPackingContained-N{num_rods}-AR{AR}-Scale{scale_factor}-Container{container_size}'
     # length is fixed 1
     
-    q = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=max_attempts)
+    q = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=max_attempts)    
+    plot_many_rods(q.reshape(-1,5))
     
-    plot_many_rods(q.reshape(-1,5))    
-    plt.savefig(f"/Users/yeonsu/Figures/RandomNonintersectingPacking-N{num_rods}-AR{AR}-Scale{scale_factor}.png",dpi=300)
+    plt.savefig(f"/Users/yeonsu/Figures/{packing_id}.png",dpi=300)
     
     pairs = create_pairs(q.reshape(-1,5))
     d = all_pairwise_distances(pairs)
@@ -1258,5 +1314,5 @@ if __name__ == "__main__":
     center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
     x = x - jnp.array([*center,*center])    
     x = scale_factor*x
-    packing_id = f'RandomNonintersectingPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
+    
     onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
