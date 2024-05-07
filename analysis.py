@@ -19,6 +19,7 @@ import time
 import re
 
 import glob
+import networkx as nx
 
 jax.config.update("jax_enable_x64", True)
 
@@ -637,6 +638,82 @@ def find_contact_cluster(nodes_over_time):
     # rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
         
     return 0
+
+def cluster_analysis(pth):
+    print(pth)
+    
+    parsed_info = parse_filename(pth)
+    dta = np.loadtxt(pth,delimiter=',')
+    start_column=1
+    max_rows=1000000
+    row_skip=100
+    zoom = 1
+    
+    assert(len(dta.shape) >1)
+    
+    parsed_info = parse_filename(pth)
+    
+    num_rods = parsed_info["num_rods"]
+    nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,num_rods,start_col = start_column, max_rows = max_rows, row_skip=row_skip)            
+    
+    def get_pairwise_distances(curves):
+        pairs1,pairs2,i,j = create_curve_pairs(curves)
+        d = all_distances_between_curves2(pairs1,pairs2)
+        return d,i,j
+    
+    start_time = time.time()
+    rod_radius = parsed_info['rod_radius']
+    
+    num_frames = nodes_over_time.shape[0]
+    cluster_size_over_time = np.zeros(num_frames)
+    
+    logfiledir = f'/Users/yeonsu/Data/analysis/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
+    if not os.path.exists(logfiledir):
+        os.makedirs(logfiledir)
+    
+    cluster_size_logfile = f'{logfiledir}/{parsed_info["sim_id"]}_largest_cluster.txt'
+    with open(cluster_size_logfile,'w') as f:
+    
+        for frame in range(num_frames):
+            d,idx,jdx = get_pairwise_distances(nodes_over_time[frame,:].reshape(num_rods,-1))
+            
+            d = np.array(d)
+            idx = np.array(idx)
+            jdx = np.array(jdx)    
+            adj_values = np.where(d < 2.1*rod_radius)
+                
+            idx_adj = idx[adj_values]
+            jdx_adj = jdx[adj_values]
+            input_list = []    
+            for ii in range(idx_adj.shape[0]):
+                input_list.append((idx_adj[ii],jdx_adj[ii]))
+            
+            graph = nx.Graph(input_list)    
+            n_conncomp = nx.number_connected_components(graph)
+            
+            largest_cc = []
+            if n_conncomp > 0:
+                largest_cc = max(nx.connected_components(graph), key=len)            
+                cluster_size_over_time[frame] = len(largest_cc)
+                
+            f.write(f'{timepoints[frame]},')
+            for rod in largest_cc:
+                f.write(f'{rod},')
+            f.write('\n')
+            
+    # print(f"Elapsed time: {time.time()-start_time}")
+    
+    fig,ax = plt.subplots(figsize=(4,3))
+    ax.plot(timepoints,cluster_size_over_time)
+    ax.set_xlabel('Time (sec)')
+    ax.set_ylabel('Number of rods in the cluster')
+    
+    figure_outdir = f"/Users/yeonsu/Figures/{parsed_info['batch_id']}/{parsed_info['date_time']}"
+    if not os.path.exists(figure_outdir):
+        os.makedirs(figure_outdir)
+    plt.savefig(f'{figure_outdir}/{parsed_info["sim_id"]}_cluster_size.png',dpi=300)
+    
+    return cluster_size_over_time,largest_cc
     
 def main():
     
@@ -647,14 +724,11 @@ def main():
     return 1
 
 if __name__ == '__main__':
+    
     batch_root = '/Users/yeonsu/Data/Nacho,'
-    pth = glob.glob(f'{batch_root}/**/*.csv',recursive=True)[0]
-    
-    # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR200_mu1.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR200-Scale1-mu1.00-visc0.00-amp10.0_node_20240506-221710.csv'
-    # pth = '/Users/yeonsu/Data/Nacho,/20240506-2217/N200_AR500_mu0.0_visc0.0_amp10.0/EntangledRelaxedPackingHook-N200-AR500-Scale1-mu0.00-visc0.00-amp10.0_node_20240506-221710.csv'    
-    
     for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
-        analyze_single_data(pth)        
+        cluster_analysis(pth)
+        # analyze_single_data(pth)
     
     # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHook-N300-AR100-Scale1-mu3.00-visc0.00-amp10.0_node_20240506-151401.csv'
     # analyze_single_data(pth)  
