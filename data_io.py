@@ -8,6 +8,8 @@ from matplotlib import pyplot as plt
 
 from utils import parse_id_string
 import glob
+import scipy.io
+import os
 
 def read_data(pth):
     q = loadtxt(pth)
@@ -233,8 +235,7 @@ def export_nodes_at_final_time(pth):
     return 1
 
 
-
-if __name__ == '__main__':
+def foo():
     # sim_id = '20240426-215217_node_20240427-014524'
     sim_id = '20240426-215217_node_20240427-160317'    
     root_dir = '/Users/yeonsu/Data/from-cluster'
@@ -250,4 +251,44 @@ if __name__ == '__main__':
     
     fig,ax = set_3d_plot()
     plot_many_curves(nodes_at_a_time,num_rods,ax)
-    plt.show() 
+    plt.show()
+    
+if __name__ == '__main__':
+    
+    pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/centerlines_alpha100_epsilon00.mat'
+    data = scipy.io.loadmat(pth)
+    
+        
+    data_rearranged = []
+    for i in range(data['centerlines'].shape[0]):
+        rr = data['centerlines'][i][0]
+        # interpolate to have 10 points.
+        rr = np.array(rr)
+        N = rr.shape[0]
+        t = np.linspace(0,1,N)
+        t_new = np.linspace(0,1,10)
+        rr_new = np.zeros((10,3))
+        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
+                           np.interp(t_new,t,rr[:,1]),
+                           np.interp(t_new,t,rr[:,2])]).T
+        
+        data_rearranged.append(rr_new)
+        
+    fig,ax = set_3d_plot()
+    for d in data_rearranged:
+        ax.plot(d[:,0]/650,d[:,1]/650,d[:,2]/650)
+        
+    # pixel_size_in_um = 78.22*1e-6;
+    pixel_size_in_um = 1/650
+    num_rods = len(data_rearranged)
+    data_rearranged = np.array(data_rearranged)
+    data_rearranged = np.array(data_rearranged)*pixel_size_in_um
+    data_rearranged = data_rearranged.reshape(num_rods,-1)
+    
+    print(data_rearranged.shape)
+    export_dir = '/Users/yeonsu/Data/export/xray-scan-data'
+    if not os.path.exists(export_dir):
+        os.makedirs(export_dir,exist_ok=True)
+    np.savetxt(f'{export_dir}/centerlines_alpha100_epsilon00.txt',data_rearranged)
+
+    plt.show()
