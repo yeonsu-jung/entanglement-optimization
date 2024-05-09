@@ -374,15 +374,15 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     # save animation
     cluster_size_list = create_animation_with_label(pth,nodes_over_time,timepoints,zoom)
     
-    fig,ax=plt.subplots(figsize=(4,3))
-    ax.plot(timepoints,cluster_size_list)
-    ax.set_xlabel('Time')
-    ax.set_ylabel('Number of rods in the cluster')
+    # fig,ax=plt.subplots(figsize=(4,3))
+    # ax.plot(timepoints,cluster_size_list)
+    # ax.set_xlabel('Time')
+    # ax.set_ylabel('Number of rods in the cluster')
     
-    outdir = f'/Users/yeonsu/Figures/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)    
-    plt.savefig(f'{outdir}/{parsed_info["sim_id"]}_cluster_size.png',dpi=300)
+    # outdir = f'/Users/yeonsu/Figures/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
+    # if not os.path.exists(outdir):
+    #     os.makedirs(outdir)    
+    # plt.savefig(f'{outdir}/{parsed_info["sim_id"]}_cluster_size.png',dpi=300)
     
     dataout = np.vstack([timepoints,cluster_size_list]).T
     np.savetxt(f'{logfiledir}/{parsed_info["sim_id"]}_cluster_size.txt',dataout)
@@ -416,20 +416,20 @@ def create_animation_with_label(pth,nodes_over_time,timepoints,zoom):
     
     def update(frame):
         ax.clear()        
-        # plot_many_curves(nodes_over_time[frame,:],num_rods,ax)
+        plot_many_curves(nodes_over_time[frame,:],num_rods,ax)
         print(frame)
-        curves = nodes_over_time[frame,:].reshape(parsed_info['num_rods'],-1)
-        pairs1,pairs2,i,j = create_curve_pairs(curves)
-        d = all_distances_between_curves2(pairs1,pairs2)
-        rods_in_contact = np.unique(np.vstack([i[d < rod_radius*2.05], j[d < rod_radius*2.05]]))
-        rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
+        # curves = nodes_over_time[frame,:].reshape(parsed_info['num_rods'],-1)
+        # pairs1,pairs2,i,j = create_curve_pairs(curves)
+        # d = all_distances_between_curves2(pairs1,pairs2)
+        # rods_in_contact = np.unique(np.vstack([i[d < rod_radius*2.05], j[d < rod_radius*2.05]]))
+        # rods_not_in_contact = np.setdiff1d(np.arange(num_rods),rods_in_contact)
         
-        nodes_at_a_time_matrix = nodes_over_time[frame,:].reshape(num_rods,-1)
-        if len(rods_in_contact) > 0:
-            plot_many_curves(nodes_at_a_time_matrix[rods_in_contact,:].flatten(),len(rods_in_contact),ax,params={'color':'k','alpha':0.2})
-        if len(rods_not_in_contact) > 0:
-            plot_many_curves(nodes_at_a_time_matrix[rods_not_in_contact,:].flatten(),len(rods_not_in_contact),ax)
-        cluster_size_list.append(len(rods_in_contact))
+        # nodes_at_a_time_matrix = nodes_over_time[frame,:].reshape(num_rods,-1)
+        # if len(rods_in_contact) > 0:
+        #     plot_many_curves(nodes_at_a_time_matrix[rods_in_contact,:].flatten(),len(rods_in_contact),ax,params={'color':'k','alpha':0.2})
+        # if len(rods_not_in_contact) > 0:
+        #     plot_many_curves(nodes_at_a_time_matrix[rods_not_in_contact,:].flatten(),len(rods_not_in_contact),ax)
+        # cluster_size_list.append(len(rods_in_contact))
     
         ax.set_title(title_string,fontsize=10)        
         ax.text2D(0.05, 0.95, f't={timepoints[frame]}', transform=ax.transAxes)
@@ -527,7 +527,7 @@ def analyze_single_data(pth):
     dta = np.loadtxt(pth,delimiter=',')
     start_column=1
     max_rows=1000000
-    row_skip=100
+    row_skip=10
     zoom = 1
     
     if len(dta.shape) == 1:
@@ -724,11 +724,14 @@ def main():
     return 1
 
 if __name__ == '__main__':
+    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240509-1648_RUN_test-N300-noFriction/log_files/Entrel-N300-AR300-Scale1-mu0.00-visc0.00-amp1.00_node_20240509-164824.csv'
     
-    batch_root = '/Users/yeonsu/Data/Nacho,'
-    for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
-        cluster_analysis(pth)
-        # analyze_single_data(pth)
+    analyze_single_data(pth)
+    
+    # batch_root = '/Users/yeonsu/Data/Nacho,'
+    # for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
+    #     # cluster_analysis(pth)
+    #     analyze_single_data(pth)
     
     # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHook-N300-AR100-Scale1-mu3.00-visc0.00-amp10.0_node_20240506-151401.csv'
     # analyze_single_data(pth)  
