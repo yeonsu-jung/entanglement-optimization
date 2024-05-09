@@ -299,6 +299,15 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         print(f"num_iterations: {num_iterations}")
         print(f"error: {error}")
         print(f"dt: {dt}")
+        
+        x = q_to_x(q)
+        pairs = create_pairs(x)
+        d = all_pairwise_distances_xyz(pairs)
+        col_rad = 1./AR/2.*scale_factor
+        
+        packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
+        print_distance_info(d,col_rad,packing_id,export_folder)
+            
         atol = atol/1.3 # TO DO: factor out this numbers
         dt = dt/1.3     # TO DO: factor out this numbers
     
@@ -925,7 +934,7 @@ def print_distance_info(d,col_rad,packing_id,export_folder):
     # log in a file
     if not os.path.exists(f'{export_folder}/distance_info'):
         os.makedirs(f'{export_folder}/distance_info')
-    with open(f'{export_folder}/distance_info/{packing_id}_distance_info.txt','w') as f:
+    with open(f'{export_folder}/distance_info/{packing_id}_distance_info.txt','a') as f:
         f.write(f"rod radius: {col_rad}\n")
         f.write(f"rod diameter: {2*col_rad}\n")
         f.write(f"Minimum distance: {jnp.min(d)}\n")
@@ -1311,9 +1320,10 @@ if __name__ == "__main__":
     
     dt_string, _ = archiving(export_folder)
     
-    
-    for num_rods in [100,200,300]:
-        for AR in [20,50,75,100,200,300]:#[50,100,125,200,300]:
+    # N > 300 needs a bit different parameters
+    # 
+    for num_rods in [500,1000]:
+        for AR in [100]:#[20,50,75,100,200,300]:#[50,100,125,200,300]:
             x = create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
             
             packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
