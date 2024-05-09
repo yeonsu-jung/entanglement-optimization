@@ -27,7 +27,7 @@ def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
     alpha = alpha0
     Npos = 0
 
-    q = q0.copy()    
+    q = q0.copy()
     V = jnp.zeros(q.shape)
     F = -df(q)
 
@@ -47,11 +47,21 @@ def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
             alpha = alpha0
             V = jnp.zeros(q.shape)        
         
+        # V = V + 0.5*dt*F
+        # V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        # q = q + dt*V
+        # F = -df(q)
+        # V = V + 0.5*dt*F        
+        
+        Vhalf = V + 0.5*dt*F
+        q = q + dt*Vhalf
         V = V + 0.5*dt*F
+        
+        
         V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
         q = q + dt*V
         F = -df(q)
-        V = V + 0.5*dt*F        
+        V = V + 0.5*dt*F
 
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
