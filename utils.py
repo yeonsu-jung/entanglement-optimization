@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import glob
 import shutil
+import re
 
 def timeit(func):
     import time
@@ -40,6 +41,38 @@ def archiving(folder_name=None):
             shutil.copy2(file, folder_name)
     
     return dt_string, folder_name
+
+def parse_filename(pth):
+    sim_id = pth.split('/')[-1].split('.csv')[0]    
+    date_time = 0
+    batch_id = 0
+    
+    tokens = pth.split('/')[:-1]
+    
+    for token in tokens:
+        if re.match(r'^\d+-\d+$',token):            
+            date_time = token        
+        if re.match(r'^[A-Za-z]+,$',token):            
+            batch_id = token
+        
+    tmp = pth.split('_node')[0]
+    tmp = tmp.split('/')[-1].split('.csv')[0].split('-')
+    tmp = tmp[1:]
+    num_rods = [int(i.split('N')[-1]) for i in tmp if 'N' in i][0]
+    AR = [float(i.split('AR')[-1]) for i in tmp if 'AR' in i][0]
+    rod_length = [float(i.split('Scale')[-1]) for i in tmp if 'Scale' in i][0]        
+    rod_radius = rod_length/AR/2
+    
+    parsed_info = {'pth': pth,
+                   'sim_id': sim_id,
+                   'num_rods': num_rods,
+                   'rod_radius': rod_radius,
+                   'AR': AR,
+                   'rod_length': rod_length,                   
+                   'batch_id': batch_id,
+                   'date_time': date_time}
+    
+    return parsed_info
     
 if __name__ == '__main__':
     
