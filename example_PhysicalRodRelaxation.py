@@ -123,9 +123,7 @@ def main():
         np.savetxt(prnt_fldr / f'centerlines-N{N}-AR{alpha}-Scale1.txt',data_rearranged)
     
     return 0
-    
-if __name__ == '__main__':
-    main()
+
     
     
 # %%
@@ -156,7 +154,96 @@ def prep_svd_cylinder(cl):
     return svd_cylinders,centroids,orientations
 
 svd_cylinders,_,_ = prep_svd_cylinder(centerlines)
+# %%
+for cyl in svd_cylinders:
+    print(cyl.shape)
+    
+# %%
+np.savetxt('svd_cylinders.txt',svd_cylinders)
+# %%
+def fixbound(x):
+    return np.clip(x, 0, 1)
 
+def lumelsky_dist(point1s, point1e, point2s, point2e):
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = np.dot(d1, d1)
+    D2 = np.dot(d2, d2)
+    S1 = np.dot(d1, d12)
+    S2 = np.dot(d2, d12)
+    R = np.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+
+    if D1 == 0 or D2 == 0:
+        if D1 != 0:  # line1 is a segment and line2 is a point
+            u = 0
+            t = fixbound(S1 / D1)
+        elif D2 != 0:  # line2 is a segment and line1 is a point
+            t = 0
+            u = fixbound(-S2 / D2)
+        else:  # both segments are points
+            t = u = 0
+    elif den == 0:  # lines are parallel
+        t = 0
+        u = fixbound(-S2 / D2)
+        uf = fixbound(u)
+        if uf != u:
+            t = fixbound((uf * R + S1) / D1)
+            u = uf
+    else:  # general case
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = fixbound((t * R - S2) / D2)
+        uf = fixbound(u)
+        if uf != u:
+            t = fixbound((uf * R + S1) / D1)
+            u = uf
+
+    # Compute distance
+    dist = np.linalg.norm(d1 * t - d2 * u - d12)
+    return dist
+
+# def extract_cylinder_data(line):
+#     parts = line.strip().split()
+#     p1 = np.array([float(parts[0]), float(parts[1]), float(parts[2])])
+#     p2 = np.array([float(parts[3]), float(parts[4]), float(parts[5])])
+#     radius = float(parts[6])
+#     return p1, p2, radius
+
+# def compute_cylinder_distance(line1, line2):
+#     p1, q1, r1 = extract_cylinder_data(line1)
+#     p2, q2, r2 = extract_cylinder_data(line2)
+    
+#     distance_between_segments = lumelsky_dist(p1, q1, p2, q2)
+#     surface_distance = max(0, distance_between_segments - (r1 + r2))
+#     return surface_distance
+
+from numba import jit
+@jit(nopython=True)
+def compute_cylinder_distance_matrix(svd_cylinders):
+    N = svd_cylinders.shape[0]
+    distances = np.zeros((N, N))
+    for i in range(N):
+        p1 = svd_cylinders[i, 0:3]
+        q1 = svd_cylinders[i, 3:6]
+        for j in range(i+1, N):
+            p2 = svd_cylinders[j, 0:3]
+            q2 = svd_cylinders[j, 3:6]
+            distances[i, j] = lumelsky_dist(p1, q1, p2, q2)
+    
+    return distances
+
+# lumelsky_dist(np.array([0,0,0]),np.array([1,0,0]),np.array([0,1,1]),np.array([0,0,0.5]))
+
+import time
+start = time.time()
+distances = compute_cylinder_distance_matrix(svd_cylinders)
+end = time.time()
+print(f'Elapsed time: {end-start}')
+    
 # %% Cylinder data
 i = 20
 fig,ax= set_3d_plot()
@@ -198,3 +285,6 @@ ax.view_init(50, 30)
 # zoom(ax,2)
 
 # %%
+    
+if __name__ == '__main__':
+    main()
