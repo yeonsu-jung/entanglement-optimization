@@ -246,6 +246,66 @@ def plot_centerline_with_container(centerlines,svd_cylinders,i,ax):
     # ax.set_ylim(bounding_box[:,1])
     # ax.set_zlim(bounding_box[:,2])
 
+def check_collsion(centerlines, dist_limit=1e-6, visualize=False):
+    svd_cylinders,_,_ = prep_svd_cylinder(centerlines)    
+    dist_matrix = compute_cylinder_distance_matrix(svd_cylinders)
+    dist_matrix[np.diag_indices_from(dist_matrix)] = np.inf
+    dist_matrix = dist_matrix + dist_matrix.T
+    
+    collision_limit_matrix = svd_cylinders[:,6,None] + svd_cylinders[:,6]
+    collision_limit_matrix *= 5
+    
+    pairs = np.where(dist_matrix < collision_limit_matrix)    
+    colliding_cylinder_pairs = []
+    colliding_cylinder_indices = set()
+    
+    for i in range(len(pairs[0])):
+        i_rod = pairs[0][i]
+        j_rod = pairs[1][i]
+        container_dist = dist_matrix[i_rod,j_rod]
+        # p1 = svd_cylinders[i_rod, 0:3]
+        # q1 = svd_cylinders[i_rod, 3:6]
+        # p2 = svd_cylinders[j_rod, 0:3]
+        # q2 = svd_cylinders[j_rod, 3:6]
+        
+        rr_i = centerlines[i_rod]
+        rr_j = centerlines[j_rod]
+        
+        min_dist = 1e10
+                
+        dist_mat = fast_lumelsky_dist(rr_i,rr_j)
+        dist = np.min(dist_mat)
+        if dist < dist_limit:
+            colliding_cylinder_pairs.append((i_rod,j_rod))
+            colliding_cylinder_indices.add(i_rod)
+            colliding_cylinder_indices.add(j_rod)                    
+            if 0:
+                print(f'Collision between rods {i_rod} and {j_rod}')
+                
+                fig,ax = set_3d_plot()            
+                plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+                plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+                plt.savefig(f'colliding_cylinders/collision_{i_rod}_{j_rod}.png', dpi=300)
+                plt.close()
+            
+    # if visualize:
+    #     fig,ax = set_3d_plot()
+    #     i = 1000
+    #     i_rod = pairs[0][i]
+    #     j_rod = pairs[1][i]
+    #     plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+    #     plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+    #     plt.show()
+    
+    # if visualize:
+    #     fig,ax = set_3d_plot()
+    #     for i_rod in colliding_cylinder_pairs:
+    #         plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+    #     plt.show()
+                
+    print(len(colliding_cylinder_indices))
+    return colliding_cylinder_pairs,colliding_cylinder_indices
+
 # %%
 def foo():
     pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat'
@@ -260,7 +320,7 @@ def load_xray_data(pth):
     N = cl.shape[0]
     centerlines = []
     for i in range(N):
-        centerlines.append(cl[i][0])
+        centerlines.append(np.array(cl[i][0],dtype=np.float64))
 
     data_rearranged = []
     for rr in centerlines:
@@ -323,98 +383,222 @@ def estimate_overlap(cylinder1_start, cylinder1_end, radius1, cylinder2_start, c
     
     return volume_overlap
 # %%    
-if __name__ == '__main__':
-    # main()
+
+@jit(nopython=True)
+def fast_lumelsky_dist(rr_i,rr_j):
+    dist_mat = np.zeros((len(rr_i)-1,len(rr_j)-1))            
+    for i in range(len(rr_i)-1):
+        p1 = rr_i[i]
+        q1 = rr_i[i+1]
+        for j in range(len(rr_j)-1):
+            p2 = rr_j[j]
+            q2 = rr_j[j+1]
+            dist_mat[i,j] = lumelsky_dist(p1,q1,p2,q2)
+    return dist_mat
+    
+def export_centerlines(centerlines,filename):
+    data_rearranged = []
+    for rr in centerlines:
+        rr = np.array(rr)
+        N = rr.shape[0]
+        t = np.linspace(0,1,N)
+        t_new = np.linspace(0,1,10)
+        rr_new = np.zeros((10,3))
+        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
+                        np.interp(t_new,t,rr[:,1]),
+                        np.interp(t_new,t,rr[:,2])]).T
+        
+        data_rearranged.append(rr_new.flatten())
+    
+    np.savetxt(filename,data_rearranged)
+    return 0
+    
+def trim_centerlines():
     pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat')
     centerlines,_ = load_xray_data(pth)
-    centerlines = centerlines[-1000:]
-    # data_rearranged = data_rearranged[-1000:,:]
-    svd_cylinders,_,_ = prep_svd_cylinder(centerlines)
     
-    i_rod = 69
-    j_rod = 1 # 69,597
-    # Define the cylinders
-    cylinder1_start = svd_cylinders[i_rod,0:3]
-    cylinder1_end = svd_cylinders[j_rod,3:6]
-    radius1 = svd_cylinders[i_rod,6]
-
-    cylinder2_start = svd_cylinders[j_rod,0:3]
-    cylinder2_end = svd_cylinders[j_rod,3:6]
-    radius2 = svd_cylinders[j_rod,6]
-    
-    dist_matrix = compute_cylinder_distance_matrix(svd_cylinders)
-    dist_matrix[np.diag_indices_from(dist_matrix)] = np.inf
-    dist_matrix = dist_matrix + dist_matrix.T
-    
-    collision_limit_matrix = svd_cylinders[:,6,None] + svd_cylinders[:,6]
-    collision_limit_matrix *= 2
-    
-    # find pairs of cylinders that are close    
-    pairs = np.where(dist_matrix < collision_limit_matrix)
-    
-    colliding_cylinder_indices = []
-    
-    for i in range(len(pairs[0])):
-        i_rod = pairs[0][i]
-        j_rod = pairs[1][i]
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
         
-        p1 = svd_cylinders[i_rod, 0:3]
-        q1 = svd_cylinders[i_rod, 3:6]
-        p2 = svd_cylinders[j_rod, 0:3]
-        q2 = svd_cylinders[j_rod, 3:6]
-        
-        dist = lumelsky_dist(p1, q1, p2, q2)
-        if dist < 1e-6:
-            # get rid of j_rod
-            colliding_cylinder_indices.append((i_rod,j_rod))
-            
-        visualize = False
-        if visualize:
-            print(f'Collision between rods {i_rod} and {j_rod}')
-            
-            fig,ax = set_3d_plot()            
-            plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
-            plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
-            plt.savefig(f'colliding_cylinders/collision_{i_rod}_{j_rod}.png', dpi=300)
-            plt.close()
-    
-    visualize = False
-    if visualize:
-        fig,ax = set_3d_plot()
-        i = 1000
-        i_rod = pairs[0][i]
-        j_rod = pairs[1][i]
-        plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
-        plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
-        plt.show()
-    
-    if visualize:
-        fig,ax = set_3d_plot()
-        for i_rod in colliding_cylinder_indices:
-            plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
-        plt.show()
-    
     G = nx.Graph()
-    G.add_edges_from(colliding_cylinder_indices)
-    connected_components = list(nx.connected_components(G))
-    # Print the connected components
-    for i, component in enumerate(connected_components):
-        print(f"Component {i+1}: {component}")
-
-    items = connected_components[1]
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    reborn_centerlines = []
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+        
+    # remove the colliding cylinders
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    export_centerlines(centerlines,outpth)
+    
+    # add the reborn centerlines
+    centerlines.extend(reborn_centerlines)
+    
+    # check sanity   
+    check_collsion(centerlines)
+    
+    # outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    # export_centerlines(centerlines,outpth)
+    
+    # def centerline_statistics(cl):
+    #     lengths = []
+    #     for c in cl:
+    #         lengths.append(np.linalg.norm(c[-1]-c[0]))
+    #     return lengths    
+    # lengths = centerline_statistics(centerlines)    
+    # plt.hist(lengths,bins=100)
+    # plt.show()
+    scaled_centerlines = []
+    for c in centerlines:
+        scaled_centerlines.append(c/300)
+    
+    scaled_centerlines = sanitize_centerlines(scaled_centerlines)
+    
+    # export
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale1.txt')
+    export_centerlines(scaled_centerlines,outpth)
+    
+def sanitize_centerlines(centerlines): 
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
+    G = nx.Graph()
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    
+    reborn_centerlines = []    
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+    
+    # add the reborn centerlines
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    centerlines.extend(reborn_centerlines)
+    
+    return centerlines
+    
+def test_two_rods():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale1.txt')
+    dta = np.loadtxt(pth)
+    rod1 = dta[733,:].reshape(-1,3)
+    rod2 = dta[826,:].reshape(-1,3)
+    
+    def get_svd_cylinder(rod):
+        center = rod.mean(axis=0)
+        u,s,v = np.linalg.svd(rod-center)
+        orientation = v[0,:]
+        
+        e1 = center - s[0]*(v[0,:])/np.sqrt(2)/2
+        e2 = center + s[0]*(v[0,:])/np.sqrt(2)/2
+        r1 = s[1]/np.sqrt(2)
+        
+        return np.hstack((e1,e2,r1))
+    
+    # fig,ax = set_3d_plot()
+    # ax.plot(rod1[:,0],rod1[:,1],rod1[:,2])
+    # ax.plot(rod2[:,0],rod2[:,1],rod2[:,2])
+    # plt.show()
+    
+    rods = [rod1,rod2]
+    svd_cylinders,_,_ = prep_svd_cylinder(rods)
+    
+    check_collsion(rods)
+    
     fig,ax = set_3d_plot()
+    plot_centerline_with_container(rods,svd_cylinders,0,ax)
+    plot_centerline_with_container(rods,svd_cylinders,1,ax)
+    plt.show()
+    return
+
+def trim_centerlines_for_path(pth):
+    centerlines,_ = load_xray_data(pth)    
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
+        
+    G = nx.Graph()
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    reborn_centerlines = []
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+        
+    # remove the colliding cylinders
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    export_centerlines(centerlines,outpth)
     
-    if visualize:
-        for i in items:
-            print(i)
-            plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
-        plt.show()
+    # add the reborn centerlines
+    centerlines.extend(reborn_centerlines)
     
+    return centerlines
     
+def nudge_centerlines():
+    return 
+
+if __name__ == '__main__':   
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
     
-    # Estimate the overlap
-    # overlap_volume = estimate_overlap(cylinder1_start, cylinder1_end, radius1, cylinder2_start, cylinder2_end, radius2)
-    # print(f"Estimated Overlap Volume: {overlap_volume}")
-            
+    # centerlines: list of N x 3 numpy arrays
+    unpacked = np.vstack(centerlines)
+    unpacked.shape
+    
+    u, indices = np.unique(unpacked,axis=0,return_index=True)
+    
+    duplicates_idx = np.setdiff1d(np.arange(unpacked.shape[0]),indices)
+    # nudge duplicate points
+    nudging_amplitude = np.random.randn(duplicates_idx.shape[0],3)*1e-6
+    unpacked[duplicates_idx, :] += nudging_amplitude
+
+    
+    # how to get this unraveled one to the original list?
+    
+    # Reconstruct the original list of arrays
+    new_centerlines = []
+    start_idx = 0
+    for array in centerlines:
+        end_idx = start_idx + array.shape[0]
+        new_centerlines.append(unpacked[start_idx:end_idx,:])
+        start_idx = end_idx
+        
+    def centerline_statistics(cl):
+        lengths = []
+        for c in cl:
+            lengths.append(np.linalg.norm(c[-1]-c[0]))
+        return np.array(lengths)
+    lengths = centerline_statistics(new_centerlines)
+    plt.hist(lengths,bins=100)
+    plt.show()
+    
+    idx = np.where(lengths < 250)[0]
+    new_centerlines = [new_centerlines[i] for i in range(len(new_centerlines)) if i not in idx]
+    len(new_centerlines)
+    
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines2-N8152-AR38-Scale300.txt')
+    export_centerlines(new_centerlines,outpth)
+    
+    fig,ax = set_3d_plot()
+    for d in new_centerlines:
+        ax.plot(d[:,0],d[:,1],d[:,2])
+    plt.show()
+    
+    nudge_centerlines()
+    trim_centerlines()
+    # root_pth = Path('./xray_raw_data')
+    # for pth in (Path.glob(root_pth, '**/centerlines.mat')):
+    #     dta = loadmat(pth)
+    #     # get folder from pth
+    #     prnt_fldr = str(pth.parent)
+    #     exp_id = prnt_fldr.split('/')[-1]
+    #     prnt_fldr = Path(prnt_fldr)
+    #     centerlines = trim_centerlines_for_path(pth)            
     print()
     # main()  
