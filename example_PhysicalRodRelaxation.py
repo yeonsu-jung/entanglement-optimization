@@ -128,6 +128,7 @@ def main():
     
     return 0
 
+
 def prep_svd_cylinder(cl):
     N = len(cl)
     svd_cylinders = np.zeros((N,7))
@@ -202,6 +203,62 @@ def lumelsky_dist(point1s, point1e, point2s, point2e):
     dist = np.linalg.norm(d1 * t - d2 * u - d12)
     return dist
 
+@jit(nopython=True)
+def lumelsky_dist_vec(point1s, point1e, point2s, point2e):
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = np.dot(d1, d1)
+    D2 = np.dot(d2, d2)
+    S1 = np.dot(d1, d12)
+    S2 = np.dot(d2, d12)
+    R = np.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+
+    if D1 == 0 or D2 == 0:
+        if D1 != 0:  # line1 is a segment and line2 is a point
+            u = 0
+            t = fixbound(S1 / D1)
+        elif D2 != 0:  # line2 is a segment and line1 is a point
+            t = 0
+            u = fixbound(-S2 / D2)
+        else:  # both segments are points
+            t = u = 0
+    elif den == 0:  # lines are parallel
+        t = 0
+        u = fixbound(-S2 / D2)
+        uf = fixbound(u)
+        if uf != u:
+            t = fixbound((uf * R + S1) / D1)
+            u = uf
+    else:  # general case
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = fixbound((t * R - S2) / D2)
+        uf = fixbound(u)
+        if uf != u:
+            t = fixbound((uf * R + S1) / D1)
+            u = uf
+
+    # # Compute distance
+    # dist = np.linalg.norm(d1 * t - d2 * u - d12)
+    return t,u,d1,d2,d12
+
+@jit(nopython=True)
+def calculate_lumelsky_dist_mat(centerlines,neighbors):
+    N = len(centerlines)
+    ultimate_dist_mat = np.ones((N,N))*np.inf
+    for i in range(N):
+        if not neighbors[i]:
+            continue
+        
+        rr_i = centerlines[i]
+        for j in neighbors[i]:
+            rr_j = centerlines[j]
+            ultimate_dist_mat[i,j] = fast_lumelsky_dist(rr_i,rr_j)
+
 
 @jit(nopython=True)
 def compute_cylinder_distance_matrix(svd_cylinders):
@@ -273,7 +330,7 @@ def check_collsion(centerlines, dist_limit=1e-6, visualize=False):
         
         min_dist = 1e10
                 
-        dist_mat = fast_lumelsky_dist(rr_i,rr_j)
+        dist_mat = fast_lumelsky_dist_mat(rr_i,rr_j)
         dist = np.min(dist_mat)
         if dist < dist_limit:
             colliding_cylinder_pairs.append((i_rod,j_rod))
@@ -386,6 +443,21 @@ def estimate_overlap(cylinder1_start, cylinder1_end, radius1, cylinder2_start, c
 
 @jit(nopython=True)
 def fast_lumelsky_dist(rr_i,rr_j):
+    min_dist = 1e10
+    for i in range(len(rr_i)-1):
+        p1 = rr_i[i]
+        q1 = rr_i[i+1]
+        for j in range(len(rr_j)-1):
+            p2 = rr_j[j]
+            q2 = rr_j[j+1]
+            curr_dist = lumelsky_dist(p1,q1,p2,q2)
+            if curr_dist < min_dist:
+                min_dist = curr_dist
+            
+    return min_dist
+
+@jit(nopython=True)
+def fast_lumelsky_dist_mat(rr_i,rr_j):
     dist_mat = np.zeros((len(rr_i)-1,len(rr_j)-1))            
     for i in range(len(rr_i)-1):
         p1 = rr_i[i]
@@ -543,9 +615,11 @@ def trim_centerlines_for_path(pth):
 def nudge_centerlines():
     return 
 
-if __name__ == '__main__':   
-    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat')
+def nudge_by_random_kick():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
     centerlines,_ = load_xray_data(pth)
+    
+    centerlines = sanitize_centerlines(centerlines)
     
     # centerlines: list of N x 3 numpy arrays
     unpacked = np.vstack(centerlines)
@@ -560,6 +634,7 @@ if __name__ == '__main__':
 
     
     # how to get this unraveled one to the original list?
+    
     
     # Reconstruct the original list of arrays
     new_centerlines = []
@@ -578,20 +653,21 @@ if __name__ == '__main__':
     plt.hist(lengths,bins=100)
     plt.show()
     
-    idx = np.where(lengths < 250)[0]
-    new_centerlines = [new_centerlines[i] for i in range(len(new_centerlines)) if i not in idx]
-    len(new_centerlines)
+    idx = np.where(lengths < 400)[0]
+    new_centerlines = [new_centerlines[i]/650 for i in range(len(new_centerlines)) if i not in idx]
     
-    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines2-N8152-AR38-Scale300.txt')
+    num_rods = len(new_centerlines)
+    outpth = Path(f'/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines2-N{num_rods}-AR200-Scale1.txt')
     export_centerlines(new_centerlines,outpth)
     
     fig,ax = set_3d_plot()
     for d in new_centerlines:
         ax.plot(d[:,0],d[:,1],d[:,2])
+    ax.axis('equal')
     plt.show()
     
-    nudge_centerlines()
-    trim_centerlines()
+    # nudge_centerlines()
+    # trim_centerlines()
     # root_pth = Path('./xray_raw_data')
     # for pth in (Path.glob(root_pth, '**/centerlines.mat')):
     #     dta = loadmat(pth)
@@ -600,5 +676,177 @@ if __name__ == '__main__':
     #     exp_id = prnt_fldr.split('/')[-1]
     #     prnt_fldr = Path(prnt_fldr)
     #     centerlines = trim_centerlines_for_path(pth)            
+
+@jit(nopython=True)
+def distance_lowerbound(point1s, point1e, point2s, point2e):    
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = np.dot(d1, d1)
+    D2 = np.dot(d2, d2)
+    S1 = np.dot(d1, d12)
+    S2 = np.dot(d2, d12)
+    R = np.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    t = fixbound((S1 * D2 - S2 * R) / den)
+    u = fixbound((t * R - S2) / D2)
+    return np.linalg.norm(d1 * t - d2 * u - d12)
+
+@jit(nopython=True)
+def calculate_alignment_matrix(svd_cylinders):
+    N = svd_cylinders.shape[0]
+    alignment_matrix = np.zeros((N,N))
+    for i in range(N):
+        for j in range(i+1,N):
+            alignment_matrix[i,j] = np.dot(orientations[i],orientations[j])
+    
+    return alignment_matrix
+
+def centerline_statistics(cl):
+    lengths = []
+    for c in cl:
+        lengths.append(np.linalg.norm(c[-1]-c[0]))
+    return np.array(lengths)
+    
+def remove_short_centerlines(cl,cutoff):
+    lengths = centerline_statistics(centerlines)    
+    # plt.hist(lengths,bins=100)
+    # plt.show()    
+    idx = np.where(lengths < 250)[0]
+    return 
+
+@jit(nopython=True)
+def fast_distance_lowerbound(svd_cylinders):
+    n = svd_cylinders.shape[0]
+    distance_matrix = np.zeros((n,n))
+    for i in range(n):
+        p1 = svd_cylinders[i, 0:3]
+        q1 = svd_cylinders[i, 3:6]
+        for j in range(i+1,n):
+            p2 = svd_cylinders[j, 0:3]
+            q2 = svd_cylinders[j, 3:6]  
+            distance_matrix[i,j] = distance_lowerbound(p1,q1,p2,q2)
+    return distance_matrix
+
+@jit(nopython=True)
+def fast_svd_distance_matrix(svd_cylinders):
+    n = svd_cylinders.shape[0]
+    distance_matrix = np.zeros((n,n))
+    for i in range(n):
+        p1 = svd_cylinders[i, 0:3]
+        q1 = svd_cylinders[i, 3:6]
+        for j in range(i+1,n):
+            p2 = svd_cylinders[j, 0:3]
+            q2 = svd_cylinders[j, 3:6]  
+            distance_matrix[i,j] = lumelsky_dist(p1,q1,p2,q2)
+    return distance_matrix
+
+def plot_single_rod(single_rod, *args, ax=None, **kwargs):
+    if ax is None:
+        fig,ax = set_3d_plot()
+    ax.plot(single_rod[:,0],single_rod[:,1],single_rod[:,2],*args,**kwargs)
+    return ax
+
+def clustering():
+    from fitting import fit_rod, fit_rod_error
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    centerlines = centerlines[-1000:]
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(centerlines)
+    
+    # alignment_matrix = calculate_alignment_matrix(svd_cylinders)
+
+    N = len(centerlines)
+    fitting_error_matrix = np.zeros((N,N))
+    for i in range(N):
+        rr_i = centerlines[i]
+        for j in range(i+1,N):
+            rr_j = centerlines[j]
+            joined = np.vstack((rr_i,rr_j))
+            joined = joined - joined.mean(axis=0)
+            
+            fitting_error_matrix[i,j] = fit_rod_error(joined)
+            
+        # print(result)
+    
+    start = time.time()
+    svd_distlb_mat = fast_svd_distance_matrix(svd_cylinders)
+    print("Elapsed time: ",time.time()-start)
+    
+    indices = np.triu_indices_from(svd_distlb_mat,1)
+    dist_values = svd_distlb_mat[indices]
+    
+    ind_contact = np.where(dist_values < 10)
+    rod_indices = list(zip(indices[0][ind_contact],indices[1][ind_contact]))
+    
+    import networkx as nx
+    G = nx.Graph()
+    
+    G.add_edges_from(rod_indices)
+    connected_components = list(nx.connected_components(G))
+    print(len(connected_components))
+    
+    neighbors = []
+    for i in range(len(centerlines)):
+        if G.has_node(i):
+            neighbors.append(list(G[i]))
+            
+    fig,ax = set_3d_plot()
+    for i in neighbors[0]:
+        plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
+    plot_centerline_with_container(centerlines,svd_cylinders,0,ax)
+    
+    svd_distlb_mat[0,95]
+    
+    d = fast_lumelsky_dist_mat(centerlines[0],centerlines[95])
+    np.min(d)
+        
+    fig,ax = set_3d_plot()
+    for i in [0,95]:
+        # plot_single_rod(centerlines[i],ax=ax)
+        plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
+        plt.show()    
+    
+    print(svd_distlb_mat.shape)
+    
+    
+    
+    return
+    
+if __name__ == '__main__':   
+    clustering()
+    # nudge_by_random_kick() # <-- 
+    
+    # pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    # centerlines,_ = load_xray_data(pth)
+    # svd_cylinders,centroids,orientations = prep_svd_cylinder(centerlines)    
+    # alignment_matrix = calculate_alignment_matrix(svd_cylinders)
+    
+    # t,u,d1,d2,d12 = lumelsky_dist_vec()
+    
+
+    
+    # unpacked = np.vstack(centerlines)
+    # unpacked.shape    
+    # u, indices = np.unique(unpacked,axis=0,return_index=True)    
+    # duplicates_idx = np.setdiff1d(np.arange(unpacked.shape[0]),indices)
+    # nudging_amplitude = np.random.randn(duplicates_idx.shape[0],3)*1e-6
+    # unpacked[duplicates_idx, :] += nudging_amplitude
+
+    
+    # how to get this unraveled one to the original list?    
+    # Reconstruct the original list of arrays
+    
+    # new_centerlines = []
+    # start_idx = 0
+    # for array in centerlines:
+    #     end_idx = start_idx + array.shape[0]
+    #     new_centerlines.append(unpacked[start_idx:end_idx,:])
+    #     start_idx = end_idx
+        
     print()
     # main()  
