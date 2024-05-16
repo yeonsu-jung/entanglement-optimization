@@ -11,6 +11,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from numba import jit
 import time
 import networkx as nx
+import pickle
+from fitting import fit_rod_error, fit_rod
 
 class logger:
     def __init__(self):
@@ -533,37 +535,6 @@ def check_collsion_supposed_to_be_fast(centerlines, dist_limit=1e-6, visualize=F
     print(len(colliding_cylinder_indices))
     return colliding_cylinder_pairs,colliding_cylinder_indices
     
-def load_xray_data(pth):
-    pth = Path(pth)
-    dta = loadmat(pth)
-    cl = dta["centerlines"]
-    
-    N = cl.shape[0]
-    centerlines = []
-    for i in range(N):
-        centerlines.append(np.array(cl[i][0],dtype=np.float64))
-
-    data_rearranged = []
-    for rr in centerlines:
-        # rr = centerlines[i]
-        # interpolate to have 10 points.
-        rr = np.array(rr)
-        N = rr.shape[0]
-        t = np.linspace(0,1,N)
-        t_new = np.linspace(0,1,10)
-        rr_new = np.zeros((10,3))
-        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
-                        np.interp(t_new,t,rr[:,1]),
-                        np.interp(t_new,t,rr[:,2])]).T
-
-        data_rearranged.append(rr_new)
-    
-    pixel_size_in_um = 1
-    num_rods = len(data_rearranged)
-    data_rearranged = np.array(data_rearranged)
-    data_rearranged = np.array(data_rearranged)*pixel_size_in_um
-    data_rearranged = data_rearranged.reshape(num_rods,-1)
-    return centerlines,data_rearranged
 
 import numpy as np
 
@@ -909,12 +880,6 @@ def fast_svd_distance_matrix(svd_cylinders):
             distance_matrix[i,j] = lumelsky_dist(p1,q1,p2,q2)
     return distance_matrix
 
-def plot_single_rod(single_rod, *args, ax=None, **kwargs):
-    if ax is None:
-        fig,ax = set_3d_plot()
-    ax.plot(single_rod[:,0],single_rod[:,1],single_rod[:,2],*args,**kwargs)
-    return ax
-
 def clustering():
     # TO DO remove overlap
     # then get overlap first
@@ -1084,9 +1049,7 @@ def pruning():
     
     return
     
-    
-    
-if __name__ == '__main__':
+def overlapping_labels():
     pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
     centerlines,_ = load_xray_data(pth)
     
@@ -1132,6 +1095,8 @@ if __name__ == '__main__':
         return mask
     
     duplicate_groups = []
+    group_labels = []
+    
     while duplicates_list_on_the_image.size > 0:
         idx = duplicates_list_on_the_image[0]
         neighbor_labels = labels[inverses == idx]
@@ -1148,6 +1113,7 @@ if __name__ == '__main__':
         idx_to_remove = np.where(mask[unique_indices])[0] # these are what I want to remove, fudging complicated!
         duplicates_list_on_the_image = np.setdiff1d(duplicates_list_on_the_image,idx_to_remove)
         duplicate_groups.append(idx_to_remove)
+        group_labels.append(np.unique(labels[np.isin(inverses, idx_to_remove)]))
         
         print(f"Size of remaining duplicates: {duplicates_list_on_the_image.size} / {N_dup}")
         print
@@ -1159,7 +1125,134 @@ if __name__ == '__main__':
             rr = centerlines[lllb]
             plot_single_rod(rr,'-',ax=ax)
         plt.show() """
+    
+    with open('duplicate_groups.pkl','wb') as f:
+        pickle.dump(duplicate_groups,f)
+    
+    with open('group_labels.pkl','wb') as f:
+        pickle.dump(group_labels,f)
+    
+if __name__ == '__main__':
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)    
+    for i,cl in enumerate(centerlines):
+        centerlines[i] = np.unique(cl,axis=0)
+        
+    unpacked = np.vstack(centerlines)
+    labels = np.zeros(unpacked.shape[0],dtype=np.int64)
+    start_idx = 0
+    for i,cl in enumerate(centerlines):
+        end_idx = start_idx + cl.shape[0]
+        labels[start_idx:end_idx] = i
+        start_idx = end_idx
+        
+    unq,ind,inv,cnt = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    nonoverlap_labels = np.unique(labels[(cnt == 1)[inv]])
+    fig,ax = set_3d_plot()
+    for lb in nonoverlap_labels:
+        rr = centerlines[lb]
+        plot_single_rod(rr,'-',ax=ax)
+        
+    print('done')
+    # read duplicate_groups.pkl
+    # read group_labels.pkl
+    pickle_in = open('duplicate_groups.pkl','rb')
+    duplicate_groups = pickle.load(pickle_in)
+    pickle_in = open('group_labels.pkl','rb')
+    group_labels = pickle.load(pickle_in)
+    
+    from scipy.spatial import distance
+    from scipy.cluster import hierarchy
+    
+    i = 32
+    glb = group_labels[i]
+    group_vertices = np.vstack([centerlines[lb] for lb in glb])
+    group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
+        
+    # Step 1: Calculate the pairwise distance matrix
+    dist_matrix = distance.pdist(group_unq, 'euclidean')
+    square_dist_matrix = distance.squareform(dist_matrix)
 
+    # Step 2: Perform hierarchical clustering
+    linked = hierarchy.linkage(dist_matrix, 'single')
+
+    # Step 3: Plot the dendrogram to help decide the cut-off
+    plt.figure(figsize=(10, 7))
+    dendrogram = hierarchy.dendrogram(linked)
+    plt.title('Hierarchical Clustering Dendrogram')
+    plt.xlabel('Sample index')
+    plt.ylabel('Distance')
+    plt.show()
+    
+    fig,ax = set_3d_plot()
+    plot_single_rod(group_unq,'.',ax=ax,markersize=0.5)
+
+    # Step 4: Cut the dendrogram to form flat clusters
+    # Choosing a cutoff at distance 0.2, for example
+    clusters = hierarchy.fcluster(linked, 8, criterion='distance')
+
+    # clusters now contains the cluster labels for each point
+    print(clusters)
+    
+    fig,ax = set_3d_plot()
+    for i in range(1,clusters.max()+1):
+        idx = np.where(clusters == i)[0]
+        plot_single_rod(group_unq[idx],'.',ax=ax,markersize=0.5,color=np.random.rand(3))
+    
+    
+    # Step 1: Calculate the pairwise distance matrix
+    dist_matrix = distance.pdist(group_unq, 'euclidean')
+    
+    square_dist_matrix = distance.squareform(dist_matrix)
+
+    # Step 2: Perform hierarchical clustering
+    linked = hierarchy.linkage(dist_matrix, 'single')
+
+    N_group = len(duplicate_groups)
+    
+    for i in range(N_group):
+        glb = group_labels[i]
+        group_vertices = np.vstack([centerlines[lb] for lb in glb])
+        group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
+        
+    
+    
+    visualize = 0
+    if visualize:
+        fig,ax = set_3d_plot()
+        for i in range(N_group):
+            glb = group_labels[i]
+            group_vertices = np.vstack([centerlines[lb] for lb in glb])
+            group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
+            
+            result = fit_rod(group_unq)
+            fitpts = result['pts']
+            plot_single_rod(fitpts,'-',ax=ax)
+            plot_single_rod(group_unq,'.',ax=ax,markersize=0.2)
+            plt.savefig(f'/Users/yeonsu/Figures/fitting/fitting_{i}.png',dpi=150)
+            ax.clear()
+            
+            if result['err'] < 10:
+                print(i, result['err'])
+                
+            if i % 10 == 0:
+                print(i)
+
+    print('Done')
+    # fig,ax = set_3d_plot()
+    # num_labels = 0
+    # for i in range(N_group):
+    #     glb = group_labels[i]
+    #     num_labels += len(glb)
+    #     group_vertices = np.vstack([centerlines[lb] for lb in glb])
+    #     group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)        
+    #     plot_single_rod(group_unq,'.',ax=ax,markersize=0.2)
+
+    fig,ax = set_3d_plot()
+    for lb in group_labels[max_group]:
+        plot_single_rod(centerlines[lb],'.-',ax=ax)
+    plot_single_rod(group_unq[group_count>1],'.',ax=ax)
+    plt.show()
     
     print(f'Number of duplicate groups: {len(duplicate_groups)}')
     # pruning()
@@ -1171,4 +1264,5 @@ if __name__ == '__main__':
     # nudge_by_random_kick() # <-- 
         
     print()
+
     # main()  
