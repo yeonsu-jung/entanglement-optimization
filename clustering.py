@@ -10,7 +10,62 @@ from visualizations import set_3d_plot, plot_single_rod
 from matplotlib import pyplot as plt
 from sklearn.cluster import DBSCAN
 from example_PhysicalRodRelaxation import prep_svd_cylinder,lumelsky_dist_vec
-from numba import jit
+from numba import jit, prange
+
+from sklearn.cluster import KMeans
+from sklearn_extra.cluster import KMedoids
+
+@jit(nopython=True,fastmath=True)
+def calculate_alignment_adjacency_numba(svd_cylinders,orientations,threshold=0.1):
+    N = svd_cylinders.shape[0]
+    
+    lst = []    
+    for i in range(N):
+        point1s = svd_cylinders[i][0:3]
+        point1e = svd_cylinders[i][3:6]
+        orientation1 = orientations[i]
+
+        for j in range(i+1,N):
+            point2s = svd_cylinders[j][0:3]
+            point2e = svd_cylinders[j][3:6]
+            orientation2 = orientations[j]
+            t,u,d1,d2,d12=lumelsky_dist_vec(point1s, point1e, point2s, point2e)
+            
+            vec = d1 * t - d2 * u - d12
+            vec = vec / np.linalg.norm(vec)
+            score = (np.linalg.norm(np.cross(vec,orientation1)) + np.linalg.norm(np.cross(vec,orientation2)))/2
+            if score < threshold:
+                # add to adjacency matrix
+                lst.append([i,j])
+                if i % 100 == 0:
+                    print(i,j)
+            
+    return lst
+
+@jit(nopython=True,fastmath=True)
+def calculate_alignment_dist_matrix_numba(svd_cylinders,orientations):
+    N = svd_cylinders.shape[0]
+    align_matrix = np.full((N,N),np.inf)
+    dist_matrix = np.full((N,N),np.inf)
+    
+    for i in range(N):
+        point1s = svd_cylinders[i][0:3]
+        point1e = svd_cylinders[i][3:6]
+        orientation1 = orientations[i]
+
+        for j in range(i+1,N):
+            point2s = svd_cylinders[j][0:3]
+            point2e = svd_cylinders[j][3:6]
+            orientation2 = orientations[j]
+            t,u,d1,d2,d12=lumelsky_dist_vec(point1s, point1e, point2s, point2e)
+            
+            vec = d1 * t - d2 * u - d12
+            dist_matrix[i,j] = np.linalg.norm(vec)
+            vec = vec / np.linalg.norm(vec)
+            align_matrix[i,j] = (np.linalg.norm(np.cross(vec,orientation1)) + np.linalg.norm(np.cross(vec,orientation2)))/2
+            
+    return align_matrix,dist_matrix
+            
 
 @jit(nopython=True,fastmath=True)
 def calculate_alignment_matrix_numba(svd_cylinders,orientations):
@@ -195,9 +250,6 @@ def translating_matlab_to_python():
     for components in conn_comp:
         joined = np.vstack([splitted[j] for j in components])
         plot_single_rod(joined,'o',ax=ax,markersize=2)
-        
-    from sklearn.cluster import KMeans
-    from sklearn_extra.cluster import KMedoids
 
     N_trials = np.min([N-1,20])
     fitting_score_over_trials = np.full(N_trials+1,np.inf)    
@@ -310,6 +362,8 @@ if __name__ == '__main__':
     centerlines,_ = load_xray_data(pth)
     for i,cl in enumerate(centerlines):
         centerlines[i] = np.unique(cl,axis=0)
+        
+    
     
     pickle_in = open('duplicate_groups.pkl','rb')
     duplicate_groups = pickle.load(pickle_in)
@@ -358,7 +412,7 @@ if __name__ == '__main__':
         broken_pieces.extend(splitted)
     len(broken_pieces)
     
-    svd_cylinders,centroids,orientations = prep_svd_cylinder(broken_pieces,scale_factor=1.5)
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(broken_pieces,scale_factor=0.95)
     
     length_list = np.zeros(len(broken_pieces))
     for i in range(len(broken_pieces)):
@@ -366,21 +420,20 @@ if __name__ == '__main__':
         p2 = svd_cylinders[i,3:6]
         length_list[i] = np.linalg.norm(p2-p1)
 
-    import time
-    start = time.time()
-    align_matrix = calculate_alignment_matrix_numba(svd_cylinders,orientations)
-    print(f'Elapsed time: {time.time()-start}')
+    # import time
+    # start = time.time()
+    # align_matrix = calculate_alignment_matrix_numba(svd_cylinders,orientations)
+    # print(f'Elapsed time: {time.time()-start}')
     
-    # clustering
+    # # clustering
+    # align_matrix = np.minimum(align_matrix,align_matrix.T)
+    # align_matrix[np.diag_indices(len(broken_pieces))] = 1
     
-    align_matrix = np.minimum(align_matrix,align_matrix.T)
-    align_matrix[np.diag_indices(len(broken_pieces))] = 1
-    pickle_out = open('align_matrix_AR200.pkl','wb')
-    pickle.dump(align_matrix,pickle_out)
+    # pickle_out = open('align_matrix_AR200.pkl','wb')
+    # pickle.dump(align_matrix,pickle_out)
     
-    
-    # pickle_in = open('align_matrix_AR200.pkl','rb')
-    # align_matrix = pickle.load(pickle_in)
+    pickle_in = open('align_matrix_AR200.pkl','rb')
+    align_matrix = pickle.load(pickle_in)
     
     edges = np.where(align_matrix < 0.1)
     edges[0].shape
@@ -391,22 +444,159 @@ if __name__ == '__main__':
     conn_comp = list(nx.connected_components(G))
     print(len(conn_comp))
     
-    list(nx.bridges(G))
+    bridges = list(nx.bridges(G))    
+    G.remove_edges_from(bridges)
+    conn_comp = list(nx.connected_components(G))
+    print(len(conn_comp))
     
-    align_matrix2 = align_matrix
-    
-    plt.hist(length_list[length_list<100],bins=100)
-    fig,ax=set_3d_plot()
-    for i in length_list[length_list<25]:
-        j = np.where(length_list == i)[0][0]
-        plot_single_rod(broken_pieces[j],'-',ax=ax)
-    
-    fig,ax=set_3d_plot()
+    error_list = []
     for cc in conn_comp:
-        for i in cc:
-            plot_single_rod(broken_pieces[i],'-',ax=ax)
-        plt.savefig(f'/Users/yeonsu/Figures/AR200_clustering/{i}.png')
-        ax.clear()
+        joined = np.vstack([broken_pieces[i] for i in cc])
+        # for i in cc:
+        #     plot_single_rod(broken_pieces[i],'-',ax=ax)
+        fit_res = fit_rod(joined)
+        error_list.append(fit_res['err'])
+        
+    error_list = np.array(error_list)
+    plt.plot(error_list)
+    np.count_nonzero(error_list > 1)
+    
+    bac_clusters = [x for i,x in enumerate(conn_comp) if error_list[i] > 1]
+    
+    splitted_again = []
+    for cc in bac_clusters:
+        joined = np.vstack([broken_pieces[i] for i in cc])
+        clustering = DBSCAN(eps=2, min_samples=2).fit(joined)
+        
+        
+        for j in range(clustering.labels_.max()+1):
+            idx = np.where(clustering.labels_ == j)[0]
+            rr = joined[idx]
+            if rr.shape[0] < 10:
+                continue            
+            
+            rr_centered = rr - np.mean(rr, axis=0)
+            U, S, V = np.linalg.svd(rr_centered, full_matrices=False)
+            v1, v2, v3 = V[0,:] , V[1,:], V[2,:]
+            orientation = v1 * np.sign(np.sum(v1 * (rr_centered[-1, :] - rr_centered[0, :])))
+            slist = np.dot(rr_centered, orientation)
+            sorted_indices = np.argsort(slist)
+            rr_sorted = rr_centered[sorted_indices] + np.mean(rr, axis=0)
+            splitted_again.append(rr_sorted)
+        
+    # fig,ax=set_3d_plot()
+    # for rr in splitted_again:
+    #     plot_single_rod(rr,'-',ax=ax)
+        
+    len(splitted_again)
+    
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(splitted_again,scale_factor=0.95)
+        
+    import time
+    start = time.time()
+    align_matrix_again = calculate_alignment_matrix_numba(svd_cylinders,orientations)
+    align_matrix_again,distance_matrix_again = calculate_alignment_dist_matrix_numba(svd_cylinders,orientations)
+    print(f'Elapsed time: {time.time()-start}')
+    
+    # clustering
+    align_matrix_again = np.minimum(align_matrix_again,align_matrix_again.T)
+    align_matrix_again[np.diag_indices(len(splitted_again))] = 1
+    
+    edges = np.where(align_matrix_again < 0.1)
+    edges[0].shape
+    N = len(splitted_again)
+    G = nx.Graph()
+    G.add_nodes_from(range(N))
+    G.add_edges_from(zip(edges[0],edges[1]))
+    conn_comp = list(nx.connected_components(G))
+    print(len(conn_comp))
+    
+    bridges = list(nx.bridges(G))    
+    G.remove_edges_from(bridges)
+    conn_comp = list(nx.connected_components(G))
+    print(len(conn_comp))
+    
+    error_list = []
+    length_list = []
+    number_list = []
+    for cc in conn_comp:
+        joined = np.vstack([splitted_again[i] for i in cc])
+        # for i in cc:
+        #     plot_single_rod(broken_pieces[i],'-',ax=ax)
+        fit_res = fit_rod(joined)
+        error_list.append(fit_res['err'])
+        length_list.append(fit_res['len'])
+        number_list.append(len(cc))
+        
+    
+        
+    error_list = np.array(error_list)
+    length_list = np.array(length_list)
+    
+    plt.plot(error_list)
+    np.count_nonzero(error_list > 1)
+    np.where(error_list > 1)
+    
+    ii = 35
+    cc = np.array([*conn_comp[ii]])
+    print(length_list[ii])
+    print(error_list[ii])    
+    
+    G_conncomp = nx.Graph()
+    G_conncomp.add_nodes_from(range(len(cc)))
+    edges = np.where(align_matrix_again[np.ix_(cc,cc)] < 0.1)
+    G_conncomp.add_edges_from(zip(edges[0],edges[1]))
+    
+    list(nx.articulation_points(G_conncomp))
+    
+    nx.draw(G_conncomp,with_labels=True)
+    
+    for deg in G_conncomp.degree:
+        print(deg)
+    
+    fig,ax=set_3d_plot()
+    
+    for i in cc:
+        plot_single_rod(splitted_again[i],'-',ax=ax)
+    ax.axis('equal')
+    print()
+    
+    
+    
+    def clustering_staircase(centerlines):
+        N = len(centerlines)
+        fitting_error_matrix = np.full((N,N),np.inf)
+        
+        for i in range(N):
+            r1 = centerlines[i]
+            for j in range(i+1,N):
+                r2 = centerlines[j]
+                joined = np.vstack([r1,r2])
+                joined = joined - np.mean(joined,axis=0)
+                res = fit_rod(joined)
+                fitting_error_matrix[i,j] = res['err']
+                
+        # symmetrize using element wise min
+        fitting_error_matrix = np.minimum(fitting_error_matrix,fitting_error_matrix.T)
+        fitting_error_matrix[np.diag_indices(N)] = np.max(fitting_error_matrix[np.triu_indices_from(fitting_error_matrix,1)])*10
+        
+        
+    
+    # fig,ax=set_3d_plot()
+    # for i in np.where(error_list < 1)[0]:
+    #     cc = conn_comp[i]
+    #     for i in cc:
+    #         plot_single_rod(broken_pieces[i],'-',ax=ax)
+    #     plt.savefig(f'/Users/yeonsu/Figures/AR200_clustering_good_clusters/{i}.png')
+    #     ax.clear()
+        
+    # fig,ax=set_3d_plot()
+    # for i in np.where(error_list > 1)[0]:
+    #     cc = conn_comp[i]
+    #     for i in cc:
+    #         plot_single_rod(broken_pieces[i],'-',ax=ax)
+    #     plt.savefig(f'/Users/yeonsu/Figures/AR200_clustering_bad_clusters/{i}.png')
+    #     ax.clear()
     
     
     # fig,ax=set_3d_plot()
