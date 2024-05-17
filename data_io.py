@@ -10,6 +10,41 @@ from utils import parse_id_string
 import glob
 import scipy.io
 import os
+from pathlib import Path
+from scipy.io import loadmat
+
+def load_xray_data(pth):
+    pth = Path(pth)
+    dta = loadmat(pth)
+    cl = dta["centerlines"]
+    
+    N = cl.shape[0]
+    centerlines = []
+    for i in range(N):
+        centerlines.append(np.array(cl[i][0],dtype=np.float64))
+
+    data_rearranged = []
+    for rr in centerlines:
+        # rr = centerlines[i]
+        # interpolate to have 10 points.
+        rr = np.array(rr)
+        N = rr.shape[0]
+        t = np.linspace(0,1,N)
+        t_new = np.linspace(0,1,10)
+        rr_new = np.zeros((10,3))
+        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
+                        np.interp(t_new,t,rr[:,1]),
+                        np.interp(t_new,t,rr[:,2])]).T
+
+        data_rearranged.append(rr_new)
+    
+    pixel_size_in_um = 1
+    num_rods = len(data_rearranged)
+    data_rearranged = np.array(data_rearranged)
+    data_rearranged = np.array(data_rearranged)*pixel_size_in_um
+    data_rearranged = data_rearranged.reshape(num_rods,-1)
+    return centerlines,data_rearranged
+
 
 def read_data(pth):
     q = loadtxt(pth)
