@@ -9,3 +9,4 @@ download.sh
 .DS_Store
 
 xray_raw_data/*
+*.pkl
