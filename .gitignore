@@ -12,3 +12,5 @@ xray_raw_data/*
 *.pkl
 *.zip
 *.mat
+
+pg/*
