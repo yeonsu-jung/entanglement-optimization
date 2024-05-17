@@ -10,3 +10,4 @@ download.sh
 
 xray_raw_data/*
 *.pkl
+*.zip
