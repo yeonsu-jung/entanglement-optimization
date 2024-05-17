@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 from sklearn.cluster import DBSCAN
 from example_PhysicalRodRelaxation import prep_svd_cylinder,lumelsky_dist_vec
 from numba import jit, prange
+from scipy.io import loadmat
 
 from sklearn.cluster import KMeans
 from sklearn_extra.cluster import KMedoids
@@ -355,15 +356,12 @@ def got_alignment_matrix():
     G.add_edges_from(zip(edges[0],edges[1]))
     conn_comp = list(nx.connected_components(G))
     print(len(conn_comp))   
-
-if __name__ == '__main__':
     
+def developing_clustering():
     pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
     centerlines,_ = load_xray_data(pth)
     for i,cl in enumerate(centerlines):
         centerlines[i] = np.unique(cl,axis=0)
-        
-    
     
     pickle_in = open('duplicate_groups.pkl','rb')
     duplicate_groups = pickle.load(pickle_in)
@@ -419,18 +417,6 @@ if __name__ == '__main__':
         p1 = svd_cylinders[i,0:3]
         p2 = svd_cylinders[i,3:6]
         length_list[i] = np.linalg.norm(p2-p1)
-
-    # import time
-    # start = time.time()
-    # align_matrix = calculate_alignment_matrix_numba(svd_cylinders,orientations)
-    # print(f'Elapsed time: {time.time()-start}')
-    
-    # # clustering
-    # align_matrix = np.minimum(align_matrix,align_matrix.T)
-    # align_matrix[np.diag_indices(len(broken_pieces))] = 1
-    
-    # pickle_out = open('align_matrix_AR200.pkl','wb')
-    # pickle.dump(align_matrix,pickle_out)
     
     pickle_in = open('align_matrix_AR200.pkl','rb')
     align_matrix = pickle.load(pickle_in)
@@ -483,10 +469,6 @@ if __name__ == '__main__':
             sorted_indices = np.argsort(slist)
             rr_sorted = rr_centered[sorted_indices] + np.mean(rr, axis=0)
             splitted_again.append(rr_sorted)
-        
-    # fig,ax=set_3d_plot()
-    # for rr in splitted_again:
-    #     plot_single_rod(rr,'-',ax=ax)
         
     len(splitted_again)
     
@@ -579,29 +561,276 @@ if __name__ == '__main__':
         # symmetrize using element wise min
         fitting_error_matrix = np.minimum(fitting_error_matrix,fitting_error_matrix.T)
         fitting_error_matrix[np.diag_indices(N)] = np.max(fitting_error_matrix[np.triu_indices_from(fitting_error_matrix,1)])*10
-        
-        
-    
-    # fig,ax=set_3d_plot()
-    # for i in np.where(error_list < 1)[0]:
-    #     cc = conn_comp[i]
-    #     for i in cc:
-    #         plot_single_rod(broken_pieces[i],'-',ax=ax)
-    #     plt.savefig(f'/Users/yeonsu/Figures/AR200_clustering_good_clusters/{i}.png')
-    #     ax.clear()
-        
-    # fig,ax=set_3d_plot()
-    # for i in np.where(error_list > 1)[0]:
-    #     cc = conn_comp[i]
-    #     for i in cc:
-    #         plot_single_rod(broken_pieces[i],'-',ax=ax)
-    #     plt.savefig(f'/Users/yeonsu/Figures/AR200_clustering_bad_clusters/{i}.png')
-    #     ax.clear()
-    
-    
-    # fig,ax=set_3d_plot()
-    # for i in range(len(broken_pieces)):
-    #     plot_single_rod(broken_pieces[i],'-',ax=ax)
 
+def local_group(G_i):
+    # G_i is a subgraph of connected components
+    
+    N_trials = np.min([N-1,20])
+    fitting_score_over_trials = np.full(N_trials+1,np.inf)
+    
+    for i in range(1,N_trials+1):
+        # km = KMeans(n_clusters=i, random_state=0, n_init="auto").fit(align_matrix)        
+        km = KMedoids(n_clusters=i, random_state=0).fit(align_matrix)
+        fit_score = 0
+        
+        cluster_fit_errors = []
+        cluster_lengths = []
+        for ii in range(km.labels_.max() + 1):
+            idx = np.where(km.labels_ == ii)[0]
+            joined = np.vstack([splitted[j] for j in idx])
+            res = fit_rod(joined)
+            cluster_fit_errors.append(res['err']**5)
+            cluster_lengths.append(res['len']**2)
+        
+        fitting_score_over_trials[i] = np.sum(cluster_fit_errors)/np.mean(cluster_lengths)
+    
+    j_min = np.argmin(fitting_score_over_trials)
+    # km = KMeans(n_clusters=i, random_state=0, n_init="auto").fit(align_matrix)
+    km = KMedoids(n_clusters=j_min, random_state=0).fit(align_matrix)
+
+if __name__ == '__main__':
+    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+    adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_scale0p95_threshold0p1_ij_score.pkl'
+    
+    # "Literal" values - those are parameters
+    rod_length = 650
+    rod_length_margin = 30
+    stairs = np.linspace(0.01,0.1,10)
+    # "Derived" values - those are calculated from the parameters
+    
+    mat_obj = loadmat(segments_file_path)
+    segments = mat_obj['segments']
+    segments = [seg[0] for seg in segments]
+    with open(adjacency_file_path, 'rb') as f:
+        adjij = pickle.load(f)
+    print(len(adjij))
+    
+    max(adjij,key=lambda x: x[2])
+    
+    
+    for stair in stairs:
+        filtered = [x for x in adjij if x[2] < stair]
+        print(len(filtered))
+        
+        
+    
+    
+    N_segments = len(segments)
+    G = nx.Graph()
+    G.add_nodes_from(range(N_segments))
+    filtered = np.array(adjij)
+
+    reconnection_nodes = []
+    reconnected_rod_list = []
+    error_list = []
+    length_list = []
+    
+    for stair in stairs:
+        filtered = filtered[filtered[:,2] < stair].copy()
+        print(f"Previous filtered edge info: ", filtered.shape[0])
+                
+        ijs = filtered[:,0:2]
+        ijs = np.array(ijs,dtype=int)
+        
+        
+        G.add_edges_from(ijs)
+        conn_comp = list(nx.connected_components(G))
+        print(len(conn_comp))
+        
+        bridges = list(nx.bridges(G))
+        G.remove_edges_from(bridges)
+        conn_comp = list(nx.connected_components(G))
+        print(len(conn_comp))
+        
+
+        reconnected_nodes = []````
+        for i,cc in enumerate(conn_comp):
+            idx = np.array([*cc])
+            if len(idx) > 500:
+                continue
+            joined = np.vstack([segments[i] for i in idx])
+            fit_result = fit_rod(joined)
+            if (fit_result['err'] < 1) & (fit_result['len'] > rod_length-rod_length_margin):
+                reconnection_nodes.append(idx)
+                reconnected_rod_list.append(joined)
+                error_list.append(fit_result['err'])
+                length_list.append(fit_result['len'])
+                reconnected_nodes.append(idx)
+        
+        reconnected_nodes = np.hstack(reconnected_nodes)
+        
+        all_is = filtered[:,0]
+        all_js = filtered[:,1]
+        
+        num_reconnected_nodes = np.count_nonzero((np.isin(all_is,reconnected_nodes)) | (np.isin(all_js,reconnected_nodes)))
+        print(f"Number of reconnected nodes: {num_reconnected_nodes}")
+        filtered = filtered[((~np.isin(all_is,reconnected_nodes)) & (~np.isin(all_js,reconnected_nodes)))].copy()
+        
+        G.remove_nodes_from(  )
+        
+        print(f"Current filtered edge info: ", filtered.shape[0])
+    
+        
+    fig,ax=set_3d_plot()
+    for i in np.where(length_list > 0)[0]:
+        print(length_list[i])
+        idx = np.array([*conn_comp[i]])
+        joined = np.vstack([segments[i] for i in idx])
+        plot_single_rod(joined,'-',ax=ax)
+        break
+    ax.axis('equal')
+    
+    conn_comp_bins = []
+    for cc in conn_comp:
+        conn_comp_bins.append(np.array([*cc]))
+        
+    num_element_list = [len(cc) for cc in conn_comp_bins]
+    
+    np.argsort(num_element_list)[::-1]
+    
+    cc = np.array(conn_comp_bins[201],dtype=int)
+    print(cc.shape)
+    idx = np.random.choice(len(cc),3000)
+    
+    joined = np.vstack([segments[i] for i in cc])
+    fit_result = fit_rod(joined)
+    print('Error of circle fitting: ', fit_result['err'])
+    print('Length of reconnected rod: ', fit_result['len'])
+
+    # local group
+    for c in cc:
+        print(c)
+    
+    G_i = G.subgraph(cc).copy()
+    G_i.number_of_edges()
+    
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(segments,scale_factor=0.95)
+    
+    # draw
+    fig,ax = plt.subplots()
+    nx.draw(G_i,ax=ax,with_labels=True)
+    
+    N_i = len(cc)
+    
+    euc_dist_mat_i = np.full((N_i,N_i),1e10)
+    align_mat_i = np.full((N_i,N_i),1e10)
+    for i in range(N_i):
+        global_i = cc[i]
+        p1 = svd_cylinders[global_i,0:3]
+        p2 = svd_cylinders[global_i,3:6]
+        for j in range(i+1,N_i):
+            global_j = cc[j]
+            q1 = svd_cylinders[global_j,0:3]
+            q2 = svd_cylinders[global_j,3:6]
+            t,u,d1,d2,d12=lumelsky_dist_vec(p1, p2, q1, q2)
+            # when min dist occurs between endpoints
+            # t must be 1 or 0
+            # u must be 1 or 0
+            vec = d1 * t - d2 * u - d12
+            dist = np.linalg.norm(vec)
+            vec = vec / np.linalg.norm(vec)
+            score = (np.linalg.norm(np.cross(vec,orientations[global_i])) + np.linalg.norm(np.cross(vec,orientations[global_j])))/2
+            tol = 1e-12
+            if ( (t>(1-tol)) or (t<tol) ) and ( (u>(1-tol)) or (u<tol) ):
+                euc_dist_mat_i[i,j] = np.linalg.norm(d1*t - d2*u - d12)
+                align_mat_i[i,j] = score
+                # (d1 * t - d2 * u - d12)
+    
+    euc_dist_mat_i = np.minimum(euc_dist_mat_i,euc_dist_mat_i.T)
+    
+    dists = euc_dist_mat_i[np.triu_indices(N_i,1)]
+    fig,ax=plt.subplots()
+    ax.hist(dists[dists<20],bins=100)
+    
+    np.min(euc_dist_mat_i)
+    np.sort(euc_dist_mat_i[np.triu_indices(N_i,1)])[:100]
+    
+    np.count_nonzero(euc_dist_mat_i < 5)
+    
+    fig,ax=set_3d_plot()
+    for i in cc[idx]:
+        1
+        
+    
+    # S = [G.subgraph(c).copy() for c in nx.connected_components(G)]
+    # F_i = G.subgraph(cc).copy()
+    F_i = nx.Graph()
+    F_i.add_nodes_from(range(N_i))
+    edges = np.where(align_mat_i < 0.05)
+    
+    for e in zip(edges[0],edges[1]):
+        print(e)
+    
+    F_i.add_edges_from(zip(edges[0],edges[1]))
+    # bridges_Fi = list(nx.bridges(F_i))
+    # F_i.remove_edges_from(bridges_Fi)    
+    conn_comp_Fi = list(nx.connected_components(F_i))
+    print(len(conn_comp_Fi))
+    
+    fig,ax=set_3d_plot()
+    for i in conn_comp_Fi:
+        i = np.array([*i])
+        joined = np.vstack([segments[ cc[i] ] for i in i])
+        plot_single_rod(joined,'-',ax=ax)
+        
+    conn_comp_Fi_bins = []
+    for cc_Fi in conn_comp_Fi:
+        conn_comp_Fi_bins.append(np.array([*cc_Fi]))
+        
+    length_list_Fi = [len(cc_Fi) for cc_Fi in conn_comp_Fi_bins]
+    F_i.degree[15]
+    F_i[15]
+    
+    i_cc_Fi = 15
+    cc_Fi = conn_comp_Fi_bins[i_cc_Fi]
+    F_i.degree[i_cc_Fi]
+    F_i[i_cc_Fi]
+    
+    degree_list = [F_i.degree[i] for i in range(N_i)]
+    nodes_of_degree_three_or_more = [i for i in range(N_i) if degree_list[i] >= 3]
+    
+    fig,ax=set_3d_plot()
+    for i in cc[idx]:
+        plot_single_rod(segments[i],'-',ax=ax,linewidth=0.5,color='black')
+    ax.axis('equal')
+    
+    for i in nodes_of_degree_three_or_more:
+        plot_single_rod(segments[cc[i]],'o',ax=ax,markersize=2)
+    
+    
+    
+    
+    F_i.remove_nodes_from(nodes_of_degree_three_or_more)
+    
+    reduced_conncomp = list(nx.connected_components(F_i))
+    reduced_conncomp
+    
+    red_conn_comp_Fi_bins = []
+    for cc_Fi in reduced_conncomp:
+        red_conn_comp_Fi_bins.append(np.array([*cc_Fi]))
+    
+    fig,ax=set_3d_plot()
+    for xx in reduced_conncomp:
+        xx = np.array([*xx])
+        joined = np.vstack([segments[ cc[i] ] for i in xx])
+    
+    
+    fig,ax=set_3d_plot()
+    for i in [i_xx_Fi,*F_i[i_xx_Fi]]:
+        plot_single_rod(segments[ xx[i] ],'-',ax=ax)
+    
+    # draw
+    fig,ax = plt.subplots()
+    nx.draw(F_i,ax=ax,with_labels=True)
+    
+    
+    
+    
+    list(nx.articulation_points(G_i))
+    fig,ax=set_3d_plot()
+    for i in cc[idx]:
+        plot_single_rod(segments[i],'-',ax=ax)
+    plot_single_rod(segments[14875],'o',ax=ax)
     
     print
