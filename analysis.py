@@ -384,8 +384,8 @@ def inspect_dismech_nodes(pth,zoom,start_column=1,max_rows=100000,row_skip=1,vis
     #     os.makedirs(outdir)    
     # plt.savefig(f'{outdir}/{parsed_info["sim_id"]}_cluster_size.png',dpi=300)
     
-    dataout = np.vstack([timepoints,cluster_size_list]).T
-    np.savetxt(f'{logfiledir}/{parsed_info["sim_id"]}_cluster_size.txt',dataout)
+    # dataout = np.vstack([timepoints,cluster_size_list]).T
+    # np.savetxt(f'{logfiledir}/{parsed_info["sim_id"]}_cluster_size.txt',dataout)
     
     return 0
     
@@ -465,7 +465,7 @@ def create_animation(pth,nodes_over_time,timepoints,zoom):
         if 'visc' in token:
             title_string += f'{token}_'
         if 'amp' in token:
-            title_string += f'{token}'    
+            title_string += f'{token}'
     num_frames = nodes_over_time.shape[0]
     cluster_size_list = []
     
@@ -489,6 +489,42 @@ def create_animation(pth,nodes_over_time,timepoints,zoom):
     ani.save(f'{outpath}/{parsed_info["sim_id"]}_zoom{zoom}_dt{dt}.mp4', writer = FFwriter)
     return 0
     
+def create_animation_images(pth,nodes_over_time,timepoints,zoom=1,offset=[0,0,0],params={}):
+    parsed_info = parse_filename(pth)
+    num_rods = parsed_info['num_rods']
+    dt = timepoints[1] - timepoints[0] # assuming uniform time steps
+    title_string = ''
+    tokens = parsed_info['sim_id'].split('_')[0].split('-')
+    for token in tokens:
+        if 'N' in token:
+            title_string += f'{token}_'
+        if 'AR' in token:
+            title_string += f'{token}_'
+        if 'mu' in token:
+            title_string += f'{token}_'
+        if 'visc' in token:
+            title_string += f'{token}_'
+        if 'amp' in token:
+            title_string += f'{token}'    
+    num_frames = nodes_over_time.shape[0]
+    cluster_size_list = []
+    
+    outpath = f'/Users/yeonsu/Videos/{parsed_info["batch_id"]}/{parsed_info["date_time"]}/XRAY100_mu0.2'
+    if not os.path.exists(outpath):
+        os.makedirs(outpath)
+        
+    fig,ax=set_3d_plot()
+    for frame in range(num_frames):
+        plot_many_curves(nodes_over_time[frame,:],num_rods,ax,params=params)
+        ax.set_title(title_string,fontsize=10)        
+        ax.text2D(0.05, 0.95, f't={timepoints[frame]}', transform=ax.transAxes)
+        ax.set_xlim((-parsed_info["rod_length"])/zoom+offset[0],(parsed_info["rod_length"])/zoom+offset[0])
+        ax.set_ylim((-parsed_info["rod_length"])/zoom+offset[1],(parsed_info["rod_length"])/zoom+offset[1])
+        ax.set_zlim((-parsed_info["rod_length"])/zoom+offset[2],(parsed_info["rod_length"])/zoom+offset[2])
+        plt.savefig(f'{outpath}/frame{frame:03d}.png',dpi=300)
+        ax.clear()
+    
+    return 0
     
 def parse_filename(pth):
     sim_id = pth.split('/')[-1].split('.csv')[0]    
@@ -527,7 +563,7 @@ def analyze_single_data(pth):
     dta = np.loadtxt(pth,delimiter=',')
     start_column=1
     max_rows=1000000
-    row_skip=10
+    row_skip=1
     zoom = 1
     
     if len(dta.shape) == 1:
@@ -669,7 +705,7 @@ def cluster_analysis(pth):
     
     logfiledir = f'/Users/yeonsu/Data/analysis/{parsed_info["batch_id"]}/{parsed_info["date_time"]}'
     if not os.path.exists(logfiledir):
-        os.makedirs(logfiledir)
+        os.makedirs(logfiledir) 
     
     cluster_size_logfile = f'{logfiledir}/{parsed_info["sim_id"]}_largest_cluster.txt'
     with open(cluster_size_logfile,'w') as f:
@@ -724,14 +760,19 @@ def main():
     return 1
 
 if __name__ == '__main__':
-    pth = '/Users/yeonsu/Documents/GitHub/dismech-rods-main/runs/20240509-1648_RUN_test-N300-noFriction/log_files/Entrel-N300-AR300-Scale1-mu0.00-visc0.00-amp1.00_node_20240509-164824.csv'
+    pth = '/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale1-mu0.20-visc0.00-amp0.00_node_20240515-203222.csv'
+    parsed_info = parse_filename(pth)
+    start_column = 1
+    max_rows = 10000000
+    row_skip = 1
+    nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,parsed_info["num_rods"],start_col = start_column, max_rows = max_rows, row_skip=row_skip)
+    print(nodes_over_time.shape)
+    # nodes_over_time[0,:]
     
-    analyze_single_data(pth)
+    # last_frame = nodes_over_time[-1,:].reshape(parsed_info['num_rods'],-1)
+    # np.savetxt('relaxedCenterlines-N6995-AR38-Scale1_lastFrame.txt',last_frame)
     
-    # batch_root = '/Users/yeonsu/Data/Nacho,'
-    # for pth in glob.glob(f'{batch_root}/**/*.csv',recursive=True):
-    #     # cluster_analysis(pth)
-    #     analyze_single_data(pth)
+    create_animation_images(pth,nodes_over_time,timepoints,zoom=0.7,offset=[1.5,1.5,1],params={'linewidth': 0.5})
     
-    # pth = '/Users/yeonsu/Data/from-cluster/EntangledRelaxedPackingHook-N300-AR100-Scale1-mu3.00-visc0.00-amp10.0_node_20240506-151401.csv'
-    # analyze_single_data(pth)  
+    
+    # analyze_single_data(pth)
