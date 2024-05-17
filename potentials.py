@@ -777,7 +777,7 @@ def simple_harmonic_line(q,params):
     
     dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
                          lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -1.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+                         lambda _: -0.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
                          
                          None)
     return dist_cont
