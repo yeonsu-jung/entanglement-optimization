@@ -1,8 +1,85 @@
 import jax
 import jax.numpy as jnp
+from jax.tree_util import tree_map
 import numpy as onp
-from potentials import compute_linking_number_vectorized, effective_potential, simple_harmonic_line
+from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
 from matplotlib import pyplot as plt
+
+def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0    
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    
+    dtmin = 0.02*dt
+    alpha = alpha0
+    
+    Npos = jnp.zeros(q0.shape[0])
+
+    q = q0.copy()
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+    dt_array = jnp.ones(q.shape)*dt
+    dtmax = 10*dt_array
+    
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = F*V
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        Npos = jnp.where(P>=0,Npos+1,0)
+        
+        dt_choice = jnp.array([dt_array * finc, dtmax])
+        
+        dt_array = jnp.where(P >= 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P < 0, dt * fdec, dt)
+        
+        alpha = jnp.where(P >= 0,jnp.where(Npos > Ndelay,
+                                alpha * fa,
+                                alpha),alpha)
+        
+        alpha = jnp.where(P < 0, alpha0, alpha)
+        # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
+        
+        # V = jnp.where(P >= 0,V + 0.5*dt*F,V)
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+        
+        V = tree_map(lambda v: (P >= 0) * v, V)
+        
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,10) == 0:
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+        
+        if jnp.isnan(F).any():
+            print("NaN detected in variables")
+            
+        if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
 
 def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
     dtmax = 10 * dt
@@ -53,10 +130,10 @@ def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
         # F = -df(q)
         # V = V + 0.5*dt*F        
         
-        Vhalf = V + 0.5*dt*F
-        q = q + dt*Vhalf
-        V = V + 0.5*dt*F
-        
+        V = V + 0.25*dt*F
+        q = q + dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
         
         V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
         q = q + dt*V
@@ -351,9 +428,78 @@ def example1():
     
 def example2():
     pass
+
+def testing_individual_fire(q = None):
+    from protocols import create_random_rods, create_nonintersecting_random_rods_contained
+    from potentials import total_effective_potential
+    from jax import grad
+    import os
+    
+    num_rods = 100
+    
+    # rod length = 1
+    rod_diameter = 0.001
+    container_size = 1.2
+    
+    if q is None:
+        cachefile = 'random-rod-cache.txt'
+        if os.path.exists(cachefile):
+            q0 = onp.loadtxt(cachefile)
+        else:
+            q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
+            onp.savetxt(cachefile,q0)
+            
+        cachefile = 'entangled-rod-cache.txt'
+        if os.path.exists(cachefile):
+            q = onp.loadtxt(cachefile)
+        else:
+            f = total_effective_potential
+            df = grad(f)
+                
+            Nmax = 500
+            atol = 1e-4
+            dt = 1e-3
+            
+            q0 = jnp.array(q0.flatten(),dtype=jnp.float64)
+            # q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q0, f, df, Nmax,atol, dt)
+            q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q0, f, df, Nmax,atol, dt)
+            onp.savetxt(cachefile,q)
+            
+    from visualizations import plot_many_rods,set_3d_plot
+    # fig,ax=set_3d_plot()
+    # plot_many_rods(q.reshape(num_rods,-1),ax=ax)
+    
+    params = {"col_rad":rod_diameter/2,"amp":1.0}
+    f = lambda q: total_harmonic_line(q,params)
+    df = grad(f)
+    
+    Nmax = 500
+    atol = 1e-7
+    dt = 1e-3
+    q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt)
+    
+    from potentials import create_pairs,all_pairwise_distances_xyz
+    from transforms import q_to_x
+    
+    x = q_to_x(q)
+    pairs = create_pairs(x)
+    d = all_pairwise_distances_xyz(pairs)
+    
+    print(f'Rod diameter: {rod_diameter}')
+    print(f'Minimum distance: {d.min()}')
+    
+    
+    fig,ax=set_3d_plot()
+    plot_many_rods(q0.reshape(num_rods,-1),ax=ax,opt_dict={'color':'k'})
+    plot_many_rods(q.reshape(num_rods,-1),ax=ax)
+    plt.show()
+    print()
     
 def main():
-    example2()
+    from protocols import create_large_entangled_packing
+    q = create_large_entangled_packing(500)
+    
+    testing_individual_fire(q)
     
 
 if __name__ == "__main__":
