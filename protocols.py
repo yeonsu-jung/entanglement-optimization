@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax import grad,random
-from optimization import optimize_fire2, optimize_fire_nonjax
+from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual
 
 from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances
 import numpy as onp
@@ -210,7 +210,7 @@ def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3):
         
     q = q0
     for k in range(1):
-        q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax,atol, dt)
+        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt)
         atol = atol/2
         # print(f"iteration: {k}")
         # print(f"f_val: {f_val:.2f}")
@@ -301,13 +301,24 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         print(f"dt: {dt}")
         
         x = q_to_x(q)
+        
+        with open(f"/Users/yeonsu/Data/relaxation_process.txt", "ab") as file:
+            # write a line
+            for i in range(q.shape[0]):
+                file.write(f"{q[i]:.4f}".encode())
+                file.write(b" ")
+            file.write(b"\n")
+        
         pairs = create_pairs(x)
         d = all_pairwise_distances_xyz(pairs)
         col_rad = 1./AR/2.*scale_factor
         
         packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
         print_distance_info(d,col_rad,packing_id,export_folder)
-            
+        
+        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-2):
+            break
+        
         atol = atol/1.3 # TO DO: factor out this numbers
         dt = dt/1.3     # TO DO: factor out this numbers
     
@@ -316,6 +327,7 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
     print(f"f_val: {f_val:.2f}")
     print(f"error: {error}") # which is maximum of gradient vector
     print(f"num_iterations: {num_iterations}")
+    
     
     return q
 
@@ -387,7 +399,7 @@ def relax_collision(q,params,N_outer,Nmax):
     q = collision_relaxation(q,total_harmonic_line,
                                  params,
                                  N_outer=N_outer,
-                                 Nmax=Nmax,atol=1e-3,dt=1.e-3,atol_min=1e-5,
+                                 Nmax=Nmax,atol=1e-5,dt=1.e-3,atol_min=1e-9,
                                  visualize=False)
     
     return q
@@ -854,7 +866,7 @@ def inspect_packing_from_cache(dt_string):
     
     
 # TO DO: move this to visualizations module
-def plot_edges(edges,ax=None,plot_params={"color":"b","linewidth":1}):
+def plot_edges(edges,ax=None,plot_params={}):
     # edges are Nx6 matrix. first 3 columns are start points, last 3 columns are end points
     if ax is None:
         fig = plt.figure()
@@ -1131,23 +1143,25 @@ def create_entrel_packing_with_hook(num_rods,AR,dt_string,N_outer,Nmax,scale_fac
     return 0
 
 
-def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor):
+def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=None):
     data_folder = '/Users/yeonsu/Data/'
     cache_folder = f"{data_folder}/cache"
     filename = f"{cache_folder}/EntangledPacking_N{num_rods}_AR{AR}.txt"
     
-    if not os.path.exists(filename):
-        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-4,dt=1e-3)
-        fig,ax = set_3d_plot()
-        plot_params = {"alpha": 1., "linewidth": 1}
-        plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
-        ax.set_xlim([-1,2])
-        ax.set_ylim([-1,2])
-        ax.set_zlim([-1,2])
-        plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_CachedEntPack_N{num_rods}_AR{AR}.png",dpi=150)
-        onp.savetxt(filename,onp.array(q0))
-    else:        
-        q0 = onp.loadtxt(filename)
+    if q0 is None:
+        if not os.path.exists(filename):
+            q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-8,dt=1e-3)
+            fig,ax = set_3d_plot()
+            plot_params = {"alpha": 1., "linewidth": 1}
+            plot_many_rods(jnp.reshape(q0,(-1,5)),plot_params)
+            ax.set_xlim([-1,2])
+            ax.set_ylim([-1,2])
+            ax.set_zlim([-1,2])
+            plt.savefig(f"/Users/yeonsu/Figures/{dt_string}_CachedEntPack_N{num_rods}_AR{AR}.png",dpi=150)
+            onp.savetxt(filename,onp.array(q0))
+        else:        
+            q0 = onp.loadtxt(filename)
+    
     
     col_rad = 1./AR/2.
     params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025} # 10, 0.025 for initial batch
@@ -1292,19 +1306,71 @@ def random_nonintersection_contained_protocol():
     
     onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
     
-if __name__ == "__main__":
+def create_large_entangled_packing(num_rods):
+    # assumming num_rods > 500
+    key = random.key(0)
+    p1s = random.uniform(key, (num_rods,3), minval=-0.005, maxval=0.005)
+    
+    key = random.key(1)
+    phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
+    key = random.key(2)
+    theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
+    
+    x1 = -0.5*jnp.cos(theta1)*jnp.sin(phi1)
+    y1 = -0.5*jnp.sin(theta1)*jnp.sin(phi1)
+    z1 = -0.5*jnp.cos(phi1)
+    
+    x2 = 0.5*jnp.cos(theta1)*jnp.sin(phi1)
+    y2 = 0.5*jnp.sin(theta1)*jnp.sin(phi1)
+    z2 = 0.5*jnp.cos(phi1)
+    
+    x0 = jnp.concatenate([x1,y1,z1,x2,y2,z2],axis=1)
+    x0 = x0 + jnp.concatenate([p1s,p1s],axis=1)
+    # plot_edges(x0)
+    
+    def x_to_q(x):
+        orientation = x[:,3:]-x[:,:3]
+        
+        phi = jnp.arccos(orientation[:,2])
+        theta = jnp.arctan2(orientation[:,1],orientation[:,0])
+        q = jnp.concatenate([x[:,:3],phi[:,None],theta[:,None]],axis=1)
+        return q.flatten()
+    
+    q0 = x_to_q(x0)
+    plot_many_rods(q0.reshape(-1,5))
+    print()
+    
+    return q0.flatten()
+    
+class logger():
+    def __init__(self,log_file):
+        self.log_file = log_file
+        with open(self.log_file,'w') as f:
+            f.write('Logging starts\n')
+        
+    def log(self,message):
+        with open(self.log_file,'a') as f:
+            f.write(message)
+            f.write('\n')
+    
+    
+def batch_process():
     packing_batch_id = sys.argv[1]
     assert(packing_batch_id is not None)
     print(f"Creating a set of packings for batch: {packing_batch_id}")
     
     data_folder = '/Users/yeonsu/Data/'
+    
+    
+    
+    
     cache_folder = f"{data_folder}/cache"
     export_folder = f"{data_folder}/export/{packing_batch_id}"
     if not os.path.exists(export_folder):
         os.makedirs(export_folder)
         
     # Initial batch: 20, 500, 1
-    N_outer = 20
+    N_outer = 10
     Nmax = 500
     scale_factor = 1
         
@@ -1321,10 +1387,12 @@ if __name__ == "__main__":
     dt_string, _ = archiving(export_folder)
     
     # N > 300 needs a bit different parameters
-    # 
-    for num_rods in [500,1000]:
-        for AR in [100]:#[20,50,75,100,200,300]:#[50,100,125,200,300]:
-            x = create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+    #
+    from protocols import create_large_entangled_packing
+    for num_rods in [500]:
+        q0 = create_large_entangled_packing(num_rods)
+        for AR in [200,300]:
+            x = create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=q0)
             
             packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
             onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
@@ -1344,3 +1412,18 @@ if __name__ == "__main__":
             plt.xlabel('Distance')
             plt.ylabel('Frequency')
             plt.savefig(f"{export_folder}/figures/{dt_string}_histogram_N{num_rods}_AR{AR}_Scale{scale_factor}.png",dpi=300)
+
+if __name__ == "__main__":
+    pth_xray_data_ar100 = '/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale1.txt'
+    dta = onp.loadtxt(pth_xray_data_ar100)
+    
+    dta.shape
+    
+    dta *= 0.05
+    
+    onp.savetxt('/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale0.05.txt',dta)
+    
+    
+    
+    print
+    
