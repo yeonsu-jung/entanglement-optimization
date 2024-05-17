@@ -34,38 +34,6 @@ def get_centerlines(pth,logger):
         
     return centerlines
 
-def data_for_cylinder_along_z(center_x, center_y, radius, height_z):
-    z = np.linspace(-height_z, height_z, 50)
-    theta = np.linspace(0, 2 * np.pi, 50)
-    theta_grid, z_grid = np.meshgrid(theta, z)
-    x_grid = radius * np.cos(theta_grid) + center_x
-    y_grid = radius * np.sin(theta_grid) + center_y
-    return x_grid, y_grid, z_grid
-
-def set_3d_plot():
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    return fig, ax
-
-def rotation_matrix_from_vectors(vec1, vec2):
-    """ Find the rotation matrix that aligns vec1 to vec2 """
-    a, b = (vec1 / np.linalg.norm(vec1)).reshape(3), (vec2 / np.linalg.norm(vec2)).reshape(3)
-    v = np.cross(a, b)
-    c = np.dot(a, b)
-    s = np.linalg.norm(v)
-    kmat = np.array([[0, -v[2], v[1]],
-                     [v[2], 0, -v[0]],
-                     [-v[1], v[0], 0]])
-    rotation_matrix = np.eye(3) + kmat + kmat @ kmat * ((1 - c) / (s ** 2))
-    return rotation_matrix
-
-def rotate_grid(X, Y, Z, rotation_matrix):
-    shape = X.shape
-    grid = np.vstack([X.ravel(), Y.ravel(), Z.ravel()])
-    rotated_grid = rotation_matrix @ grid
-    X_rot, Y_rot, Z_rot = rotated_grid.reshape(3, *shape)
-    return X_rot, Y_rot, Z_rot
-
 def main():
     root_pth = Path('./xray_raw_data')
     for pth in (Path.glob(root_pth, '**/centerlines.mat')):
@@ -131,7 +99,7 @@ def main():
     return 0
 
 
-def prep_svd_cylinder(cl):
+def prep_svd_cylinder(cl,scale_factor = 1.5):
     N = len(cl)
     svd_cylinders = np.zeros((N,7))
     centroids = np.zeros((N,3))
@@ -164,9 +132,9 @@ def prep_svd_cylinder(cl):
         max_s = np.max(slist)
         min_s = np.min(slist)
         
-        e1 = center + min_s*(v[0,:])*1.5
-        e2 = center + max_s*(v[0,:])*1.5
-        r1 = s[1]*max_s/s[0]*2
+        e1 = center + min_s*(v[0,:])*scale_factor 
+        e2 = center + max_s*(v[0,:])*scale_factor 
+        r1 = s[1]*max_s/s[0]*2*scale_factor
         
         
         svd_cylinders[i,:] = np.hstack((e1,e2,r1))
