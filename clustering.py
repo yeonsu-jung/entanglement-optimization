@@ -6,15 +6,47 @@ import networkx as nx
 import pickle
 from fitting import fit_rod_error, fit_rod
 from data_io import load_xray_data
-from visualizations import set_3d_plot, plot_single_rod
+from visualizations import set_3d_plot, plot_single_rod, plot_centerline_with_container
 from matplotlib import pyplot as plt
 from sklearn.cluster import DBSCAN
-from example_PhysicalRodRelaxation import prep_svd_cylinder,lumelsky_dist_vec
+from example_PhysicalRodRelaxation import prep_svd_cylinder,lumelsky_dist_vec, lumelsky_dist
 from numba import jit, prange
 from scipy.io import loadmat
 
+from potentials import dist_lin_seg_nonjax
+
+
 from sklearn.cluster import KMeans
 from sklearn_extra.cluster import KMedoids
+
+def get_cluster_properties(connected_component_list,segments,segment_length_list,max_nodes_each_cluster=500):
+    cluster_size_list = [len(x) for x in connected_component_list]
+    max_cluster_size = np.max(cluster_size_list)
+    max_cluster_idx = np.argmax(cluster_size_list)
+    max_cluster = connected_component_list[max_cluster_idx]
+    num_clusters = len(connected_component_list)
+    
+    error_list = np.full(num_clusters,np.nan)
+    length_list = np.full(num_clusters,np.nan)
+    # distance_list = np.full(num_clusters,np.nan)
+    
+    for iterator,cc in enumerate(connected_component_list):
+        if len(cc) > max_nodes_each_cluster:
+            continue
+        segments_cc = np.vstack([segments[i] for i in cc])
+        fit_result = fit_rod(segments_cc,linearity_threshold=0.1,radius_curvature_threshold=100)        
+        error_list[iterator] = fit_result['err']
+        length_list[iterator] = np.sum( segment_length_list[cc] )
+    
+    out_dict = {
+        'num_clusters': num_clusters,
+        'max_cluster_size': max_cluster_size,
+        'max_cluster_idx': max_cluster_idx,
+        'max_cluster': max_cluster,
+        'error_list': error_list,
+        'length_list': length_list
+    }
+    return out_dict
 
 @jit(nopython=True,fastmath=True)
 def calculate_alignment_adjacency_numba(svd_cylinders,orientations,threshold=0.1):
@@ -124,7 +156,6 @@ def calculate_alignment_matrix(splitted,svd_cylinders,centroids,orientations):
 
             
     return align_matrix
-
 
 def check_centerlines(centerlines):
     unpacked = np.vstack(centerlines)
@@ -587,8 +618,8 @@ def local_group(G_i):
     j_min = np.argmin(fitting_score_over_trials)
     # km = KMeans(n_clusters=i, random_state=0, n_init="auto").fit(align_matrix)
     km = KMedoids(n_clusters=j_min, random_state=0).fit(align_matrix)
-
-if __name__ == '__main__':
+    
+def implementation_without_precomputed_adjij():
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
     adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_scale0p95_threshold0p1_ij_score.pkl'
@@ -596,7 +627,8 @@ if __name__ == '__main__':
     # "Literal" values - those are parameters
     rod_length = 650
     rod_length_margin = 30
-    stairs = np.linspace(0.01,0.1,10)
+    max_nodes_each_cluster = 500
+    stairs = np.linspace(0.03,0.1,5)
     # "Derived" values - those are calculated from the parameters
     
     mat_obj = loadmat(segments_file_path)
@@ -606,231 +638,498 @@ if __name__ == '__main__':
         adjij = pickle.load(f)
     print(len(adjij))
     
-    max(adjij,key=lambda x: x[2])
-    
+    max(adjij,key=lambda x: x[2])    
     
     for stair in stairs:
         filtered = [x for x in adjij if x[2] < stair]
         print(len(filtered))
-        
-        
-    
     
     N_segments = len(segments)
     G = nx.Graph()
     G.add_nodes_from(range(N_segments))
     filtered = np.array(adjij)
+    
 
     reconnection_nodes = []
     reconnected_rod_list = []
     error_list = []
     length_list = []
     
+    stairs = np.linspace(0.001,0.1,10)[::-1]
+    
     for stair in stairs:
-        filtered = filtered[filtered[:,2] < stair].copy()
+        
+        print(f"Stair: {stair}")
+        
+        # filtered = filtered[filtered[:,2] < stair,:]
+        filtered = [x for x in adjij if x[2] < stair]
+        filtered = np.array(filtered)
         print(f"Previous filtered edge info: ", filtered.shape[0])
                 
         ijs = filtered[:,0:2]
         ijs = np.array(ijs,dtype=int)
         
-        
+        G.remove_edges_from(list(G.edges))
         G.add_edges_from(ijs)
-        conn_comp = list(nx.connected_components(G))
-        print(len(conn_comp))
-        
-        bridges = list(nx.bridges(G))
-        G.remove_edges_from(bridges)
+        G.remove_edges_from(nx.bridges(G))
         conn_comp = list(nx.connected_components(G))
         print(len(conn_comp))
         
 
-        reconnected_nodes = []````
+        certified_nodes = []
+        import time
+        start = time.time()
         for i,cc in enumerate(conn_comp):
             idx = np.array([*cc])
-            if len(idx) > 500:
+            if len(idx) > max_nodes_each_cluster:
                 continue
             joined = np.vstack([segments[i] for i in idx])
-            fit_result = fit_rod(joined)
+            fit_result = fit_rod(joined,linearity_threshold=0.1,radius_curvature_threshold=100)
+            
             if (fit_result['err'] < 1) & (fit_result['len'] > rod_length-rod_length_margin):
-                reconnection_nodes.append(idx)
                 reconnected_rod_list.append(joined)
                 error_list.append(fit_result['err'])
                 length_list.append(fit_result['len'])
-                reconnected_nodes.append(idx)
-        
-        reconnected_nodes = np.hstack(reconnected_nodes)
+                certified_nodes.append(idx)
+                
+        print(f'Elapsed time: {time.time()-start}')
+        certified_nodes = np.hstack(certified_nodes)
+        reconnection_nodes.append(certified_nodes)
         
         all_is = filtered[:,0]
+        all_is = np.array(all_is,dtype=int)
         all_js = filtered[:,1]
+        all_js = np.array(all_js,dtype=int)
         
-        num_reconnected_nodes = np.count_nonzero((np.isin(all_is,reconnected_nodes)) | (np.isin(all_js,reconnected_nodes)))
-        print(f"Number of reconnected nodes: {num_reconnected_nodes}")
-        filtered = filtered[((~np.isin(all_is,reconnected_nodes)) & (~np.isin(all_js,reconnected_nodes)))].copy()
+        np.isin(all_is,certified_nodes).any()
         
-        G.remove_nodes_from(  )
+        num_certified_nodes = np.count_nonzero((np.isin(all_is,certified_nodes)) | (np.isin(all_js,certified_nodes)))
+        print(f"Number of reconnected nodes: {num_certified_nodes}")
+        # if num_certified_nodes == 0:
+        #     break
         
+        filtered = filtered[((~np.isin(all_is,certified_nodes)) & (~np.isin(all_js,certified_nodes)))]
         print(f"Current filtered edge info: ", filtered.shape[0])
     
-        
-    fig,ax=set_3d_plot()
-    for i in np.where(length_list > 0)[0]:
-        print(length_list[i])
-        idx = np.array([*conn_comp[i]])
-        joined = np.vstack([segments[i] for i in idx])
-        plot_single_rod(joined,'-',ax=ax)
-        break
-    ax.axis('equal')
-    
-    conn_comp_bins = []
-    for cc in conn_comp:
-        conn_comp_bins.append(np.array([*cc]))
-        
-    num_element_list = [len(cc) for cc in conn_comp_bins]
-    
-    np.argsort(num_element_list)[::-1]
-    
-    cc = np.array(conn_comp_bins[201],dtype=int)
-    print(cc.shape)
-    idx = np.random.choice(len(cc),3000)
-    
-    joined = np.vstack([segments[i] for i in cc])
-    fit_result = fit_rod(joined)
-    print('Error of circle fitting: ', fit_result['err'])
-    print('Length of reconnected rod: ', fit_result['len'])
+    num_nodes_removed = np.sum([len(x) for x in reconnection_nodes])
+    print(f'Filtration result.')
+    print(f'Number of reconnected nodes: {len(reconnection_nodes)}')
+    print(f'Number of removed nodes: {num_nodes_removed}')
 
-    # local group
-    for c in cc:
-        print(c)
+    [len(x) for x in reconnection_nodes]
     
-    G_i = G.subgraph(cc).copy()
-    G_i.number_of_edges()
     
-    svd_cylinders,centroids,orientations = prep_svd_cylinder(segments,scale_factor=0.95)
+    pickle_out = open('reconnection_nodes.pkl','wb')
+    pickle.dump(reconnection_nodes,pickle_out)
     
-    # draw
-    fig,ax = plt.subplots()
-    nx.draw(G_i,ax=ax,with_labels=True)
+    print
     
-    N_i = len(cc)
     
-    euc_dist_mat_i = np.full((N_i,N_i),1e10)
-    align_mat_i = np.full((N_i,N_i),1e10)
-    for i in range(N_i):
-        global_i = cc[i]
-        p1 = svd_cylinders[global_i,0:3]
-        p2 = svd_cylinders[global_i,3:6]
-        for j in range(i+1,N_i):
-            global_j = cc[j]
-            q1 = svd_cylinders[global_j,0:3]
-            q2 = svd_cylinders[global_j,3:6]
-            t,u,d1,d2,d12=lumelsky_dist_vec(p1, p2, q1, q2)
-            # when min dist occurs between endpoints
-            # t must be 1 or 0
-            # u must be 1 or 0
-            vec = d1 * t - d2 * u - d12
-            dist = np.linalg.norm(vec)
-            vec = vec / np.linalg.norm(vec)
-            score = (np.linalg.norm(np.cross(vec,orientations[global_i])) + np.linalg.norm(np.cross(vec,orientations[global_j])))/2
-            tol = 1e-12
-            if ( (t>(1-tol)) or (t<tol) ) and ( (u>(1-tol)) or (u<tol) ):
-                euc_dist_mat_i[i,j] = np.linalg.norm(d1*t - d2*u - d12)
-                align_mat_i[i,j] = score
-                # (d1 * t - d2 * u - d12)
+def staircase(distance_threshold,first_stair,last_stair,num_stairs,max_nodes_each_cluster=500):
+    stairs = np.linspace(first_stair,last_stair,num_stairs)        
+    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+    adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
+
+    mat_obj = loadmat(segments_file_path)
+    segments = mat_obj['segments']
+    segments = [seg[0] for seg in segments]
+    N_segments = len(segments)
     
-    euc_dist_mat_i = np.minimum(euc_dist_mat_i,euc_dist_mat_i.T)
+    print(f'Staircase clustering: {segments_file_path.parent}')
+    print(f'Number of segments: {N_segments}')
+
+    pickle_in = open(adjacency_file_path,'rb')
+    adjij = pickle.load(pickle_in)
+    svd_cylinders,centroids,orientations, = prep_svd_cylinder(segments,scale_factor=0.98)
+    segment_length_list = np.zeros(len(segments))
+    for i,seg in enumerate(segments):
+        segment_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
     
-    dists = euc_dist_mat_i[np.triu_indices(N_i,1)]
-    fig,ax=plt.subplots()
-    ax.hist(dists[dists<20],bins=100)
+    #adjij: i,j,score,dist,t,u
+    adjij = np.array(adjij)
+    ijs = adjij[:,0:2].astype(int)
+    align_score = adjij[:,2]
+    dist_score = adjij[:,3]
+    # t_list = adjij[:,4]
+    # u_list = adjij[:,5]
     
-    np.min(euc_dist_mat_i)
-    np.sort(euc_dist_mat_i[np.triu_indices(N_i,1)])[:100]
-    
-    np.count_nonzero(euc_dist_mat_i < 5)
-    
-    fig,ax=set_3d_plot()
-    for i in cc[idx]:
-        1
+    G = nx.Graph()
+    G.add_nodes_from(range(N_segments)) # play with edges only
+    list_of_cluster_stats = []
+    for stair in stairs:
+        print(f'Stepping up to {stair}')
+        G.add_edges_from(ijs[(align_score < stair) & (dist_score < distance_threshold)])
+        connected_component_list = list(nx.connected_components(G))
+        connected_component_list = [list(x) for x in connected_component_list]
         
+        # sort inner list
+        for i in range(len(connected_component_list)):
+            connected_component_list[i] = sorted(connected_component_list[i])
+            
+        props = get_cluster_properties(connected_component_list,segments,segment_length_list,max_nodes_each_cluster=500)
+        
+        local_dict = {
+            'stiar': stair,
+            'distance_threshold': distance_threshold,
+            'max_cluster_size': props['max_cluster_size'],
+            'connected_component_list': connected_component_list,
+            'max_cluster_idx': props['max_cluster_idx'],
+            'num_clusters': props['num_clusters'],
+            'error_list': props['error_list'],
+            'length_list': props['length_list'],
+            'segment_file': segments_file_path.parent,
+            'adjacency_file': adjacency_file_path.name,
+        }
+        props.update({'connected_component_list': connected_component_list})
+        max_cluster_size = props['max_cluster_size']
+        max_cluster_idx = props['max_cluster_idx']
+        num_clusters = props['num_clusters']
+        
+        print(f'Maximum size {max_cluster_size} at index {max_cluster_idx} / out of {num_clusters} clusters\n')
+        
+        # error_list = cluster_stats['error_list']
+        # length_list = cluster_stats['length_list']
+        list_of_cluster_stats.append(local_dict)
+        
+        G.remove_edges_from(G.edges)
+        
+    return list_of_cluster_stats
+
+def adaptive_staircase(segments,svd_cylinders,ijs,align_score,dist_score,segment_length_list,
+                       distance_threshold,first_stair,last_stair,num_stairs,max_nodes_each_cluster=500):
     
-    # S = [G.subgraph(c).copy() for c in nx.connected_components(G)]
-    # F_i = G.subgraph(cc).copy()
-    F_i = nx.Graph()
-    F_i.add_nodes_from(range(N_i))
-    edges = np.where(align_mat_i < 0.05)
+    error_criterion = 1
+    length_criterion = 300
+    stairs = np.linspace(0.001,0.15,30)
+    distance_thresholds = np.linspace(10,300,30)
+    max_cluster_size_criterion = 25
     
-    for e in zip(edges[0],edges[1]):
-        print(e)
-    
-    F_i.add_edges_from(zip(edges[0],edges[1]))
-    # bridges_Fi = list(nx.bridges(F_i))
-    # F_i.remove_edges_from(bridges_Fi)    
-    conn_comp_Fi = list(nx.connected_components(F_i))
-    print(len(conn_comp_Fi))
-    
+    G = nx.Graph()
+    G.add_nodes_from(range(len(segments))) # play with edges only
+    list_of_cluster_stats = []
+    good_clusters = []
+    good_cluster_nodes = []
+    for stair in stairs:
+        print(f'Stepping up to {stair}')
+        for distance_threshold in distance_thresholds:
+            print(f'Distance threshold: {distance_threshold}')
+            
+            from partition import partition
+            
+            G.add_edges_from(ijs[(align_score < stair) & (dist_score < distance_threshold)])
+            G.remove_nodes_from(good_cluster_nodes)
+            G.number_of_nodes()
+            connected_component_list = list(nx.connected_components(G))
+            connected_component_list = [list(x) for x in connected_component_list]
+            for i in range(len(connected_component_list)):
+                connected_component_list[i] = sorted(connected_component_list[i])
+                
+            cluster_size_list = [len(x) for x in connected_component_list]
+            max_cluster_size = np.max(cluster_size_list)
+            print(f'Max cluster size: {max_cluster_size}')
+        
+            if max_cluster_size > max_cluster_size_criterion:
+                continue
+            
+            # use frozenset to update cc list; if cc hasn't been updated, don't compute again.
+            props = get_cluster_properties(connected_component_list,segments,segment_length_list,max_nodes_each_cluster)
+        
+            local_dict = {
+                'stair': stair,
+                'distance_threshold': distance_threshold,
+                'max_cluster_size': props['max_cluster_size'],
+                'connected_component_list': connected_component_list,
+                'max_cluster_idx': props['max_cluster_idx'],
+                'num_clusters': props['num_clusters'],
+                'error_list': props['error_list'],
+                'length_list': props['length_list']
+            }
+            props.update({'connected_component_list': connected_component_list})
+            
+            max_cluster_size = props['max_cluster_size']
+            max_cluster_idx = props['max_cluster_idx']
+            num_clusters = props['num_clusters']        
+            error_list = props['error_list']
+            length_list = props['length_list']
+            
+            a_criterion = (error_list < error_criterion) & (length_list > length_criterion) 
+            if np.count_nonzero(a_criterion) == 0:
+                continue
+        
+            new_good_clusters = []
+            for i in np.where(a_criterion)[0]:
+                good_clusters.append(connected_component_list[i])
+                new_good_clusters.append(connected_component_list[i])
+                
+            # plt.close()
+            # fig,ax=set_3d_plot()
+            # for i in np.where(a_criterion)[0]:
+            #     joined = np.vstack([segments[j] for j in connected_component_list[i]])
+            #     plot_single_rod(joined,'-',ax=ax)
+            # ax.axis('equal')
+            
+            new_good_clusters = np.hstack(new_good_clusters)
+            good_cluster_nodes = np.hstack(good_clusters)
+            print(f'Number of removed nodes: {len(new_good_clusters)}')
+        
+            list_of_cluster_stats.append(local_dict)
+        
+    pickle_out = open(f'cache.pkl','wb')
+    pickle.dump(good_clusters,pickle_out)
+        
+    all_nodes = []
+    plt.close()
+    ll = []
     fig,ax=set_3d_plot()
-    for i in conn_comp_Fi:
-        i = np.array([*i])
-        joined = np.vstack([segments[ cc[i] ] for i in i])
+    for i in good_clusters:
+        indices = np.array(i)
+        joined = np.vstack([segments[j] for j in indices])
         plot_single_rod(joined,'-',ax=ax)
+        all_nodes.append(indices)
+        # length of joined
+        ll.append( np.sum([segment_length_list[x] for x in indices]) )
         
-    conn_comp_Fi_bins = []
-    for cc_Fi in conn_comp_Fi:
-        conn_comp_Fi_bins.append(np.array([*cc_Fi]))
-        
-    length_list_Fi = [len(cc_Fi) for cc_Fi in conn_comp_Fi_bins]
-    F_i.degree[15]
-    F_i[15]
-    
-    i_cc_Fi = 15
-    cc_Fi = conn_comp_Fi_bins[i_cc_Fi]
-    F_i.degree[i_cc_Fi]
-    F_i[i_cc_Fi]
-    
-    degree_list = [F_i.degree[i] for i in range(N_i)]
-    nodes_of_degree_three_or_more = [i for i in range(N_i) if degree_list[i] >= 3]
-    
-    fig,ax=set_3d_plot()
-    for i in cc[idx]:
-        plot_single_rod(segments[i],'-',ax=ax,linewidth=0.5,color='black')
     ax.axis('equal')
+    print(np.hstack(all_nodes).size)
+    len(good_clusters) # easy get
+    ll = np.array(ll)
+    plt.close()
+    plt.hist(ll,bins=100)
+    np.where(ll>1000.)[0]
     
-    for i in nodes_of_degree_three_or_more:
-        plot_single_rod(segments[cc[i]],'o',ax=ax,markersize=2)
-    
-    
-    
-    
-    F_i.remove_nodes_from(nodes_of_degree_three_or_more)
-    
-    reduced_conncomp = list(nx.connected_components(F_i))
-    reduced_conncomp
-    
-    red_conn_comp_Fi_bins = []
-    for cc_Fi in reduced_conncomp:
-        red_conn_comp_Fi_bins.append(np.array([*cc_Fi]))
-    
+    ii = 375
+    cc = good_clusters[ii]
     fig,ax=set_3d_plot()
-    for xx in reduced_conncomp:
-        xx = np.array([*xx])
-        joined = np.vstack([segments[ cc[i] ] for i in xx])
-    
-    
-    fig,ax=set_3d_plot()
-    for i in [i_xx_Fi,*F_i[i_xx_Fi]]:
-        plot_single_rod(segments[ xx[i] ],'-',ax=ax)
-    
-    # draw
-    fig,ax = plt.subplots()
-    nx.draw(F_i,ax=ax,with_labels=True)
-    
-    
-    
-    
-    list(nx.articulation_points(G_i))
-    fig,ax=set_3d_plot()
-    for i in cc[idx]:
+    for i in cc:
         plot_single_rod(segments[i],'-',ax=ax)
-    plot_single_rod(segments[14875],'o',ax=ax)
+    ax.axis('equal')
+    ll[ii]
+
+    stair = 0.02
+    distance_threshold = 100
+    G = nx.Graph()
+    G.add_nodes_from(range(len(segments))) # play with edges only
+    
+    max_cluster_size = 1e10
+    
+    G.add_edges_from(ijs[(align_score < stair) & (dist_score < distance_threshold)])
+    G.remove_nodes_from(good_cluster_nodes)
+    connected_component_list = list(nx.connected_components(G))
+    connected_component_list = [list(x) for x in connected_component_list]
+    for i in range(len(connected_component_list)):
+        connected_component_list[i] = sorted(connected_component_list[i])
+        
+    cluster_size_list = [len(x) for x in connected_component_list]
+    max_cluster_size = np.max(cluster_size_list)
+    print(f'Max cluster size: {max_cluster_size}')
+    
+    cc0 = connected_component_list[np.argmax(cluster_size_list)]
+    fig,ax=set_3d_plot()
+    for i in np.random.choice(len(cc0),1000):
+        plot_single_rod(segments[cc0[i]],'-',ax=ax)
+    ax.axis('equal')        
+    
+        
+    cc = connected_component_list[10]
+        
+    return list_of_cluster_stats
+    
+def do_staircase():
+    distance_threshold = 30
+    num_stairs = 10
+    first_stair = 0.001
+    last_stair = 0.1
+    max_nodes_each_cluster = 500
+    
+    staircase_stats = staircase(distance_threshold,first_stair,last_stair,num_stairs,max_nodes_each_cluster)
+    
+    pickle_out = open(f'staircase_stats_{first_stair}_{last_stair}_{num_stairs}_{distance_threshold}.pkl','wb')
+    pickle.dump(staircase_stats,pickle_out)
+    
+def do_adaptive_staircase():
+    distance_threshold = 200
+
+    first_stair = 0.05
+    last_stair = 0.06
+    num_stairs = 1
+    
+    max_nodes_each_cluster = 500
+    
+    # load data
+    if 1:
+        rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+        segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+        adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
+        
+        mat_obj = loadmat(segments_file_path)
+        segments = mat_obj['segments']
+        segments = [seg[0] for seg in segments]
+        N_segments = len(segments)
+        
+        print(f'Staircase clustering: {segments_file_path.parent}')
+        print(f'Number of segments: {N_segments}')
+
+        pickle_in = open(adjacency_file_path,'rb')
+        adjij = pickle.load(pickle_in)
+        svd_cylinders,centroids,orientations, = prep_svd_cylinder(segments,scale_factor=0.98)
+        segment_length_list = np.zeros(len(segments))
+        for i,seg in enumerate(segments):
+            segment_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
+    
+        #adjij: i,j,score,dist,t,u
+        adjij = np.array(adjij)
+        ijs = adjij[:,0:2].astype(int)
+        align_score = adjij[:,2]
+        dist_score = adjij[:,3]
+        # t_list = adjij[:,4]
+        # u_list = adjij[:,5]
+        
+        """
+        adjacency_file_path.parent / 'adj_cutoff.pkl'
+        pickle_out = open(adjacency_file_path.parent / 'adj_cutoff.pkl','wb')
+        adjij_cutoff = adjij[:100000]
+        pickle.dump(adjij_cutoff,pickle_out)
+        
+        import time
+        start = time.time()
+        pickle_in = open(adjacency_file_path.parent / 'adj_cutoff.pkl','rb')
+        adjij_cutoff = pickle.load(pickle_in)
+        print(f'Elapsed time: {time.time()-start}')
+        adjij = adjij_cutoff
+        """
+    
+    
+    staircase_stats = adaptive_staircase(segments,svd_cylinders,ijs,align_score,dist_score,segment_length_list,
+        distance_threshold,first_stair,last_stair,num_stairs,max_nodes_each_cluster)
+    
+    to_add = {'segment_file': segments_file_path.parent,'adjacency_file': adjacency_file_path.name}
+    for i in range(num_stairs):
+        staircase_stats[i].update(to_add)
+    
+    pickle_out = open(f'staircase_stats_{first_stair}_{last_stair}_{num_stairs}_{distance_threshold}.pkl','wb')
+    pickle.dump(staircase_stats,pickle_out)
+    
+def do_what():
+    
+    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    
+    rod_length = 650
+    rod_length_told = 30
+    
+    pickle_in = open('staircase_stats_0.001_0.1_10_30.pkl','rb')
+    staircase_stats = pickle.load(pickle_in)
+    
+    segments_file_path = staircase_stats[0]['segment_file'] / 'segments.mat'
+    adjacency_file_path = staircase_stats[0]['segment_file'] / staircase_stats[0]['adjacency_file']
+
+    mat_obj = loadmat(segments_file_path)
+    segments = mat_obj['segments']
+    segments = [seg[0] for seg in segments]
+    N_segments = len(segments)
+    
+    print(f'Staircase clustering: {segments_file_path.parent}')
+    print(f'Number of segments: {N_segments}')
+
+    pickle_in = open(adjacency_file_path,'rb')
+    adjij = pickle.load(pickle_in)
+    svd_cylinders,centroids,orientations, = prep_svd_cylinder(segments,scale_factor=0.98)
+    segment_length_list = np.zeros(len(segments))
+    for i,seg in enumerate(segments):
+        segment_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
+    
+    #adjij: i,j,score,dist,t,u
+    adjij = np.array(adjij)
+    ijs = adjij[:,0:2].astype(int)
+    align_score = adjij[:,2]
+    dist_score = adjij[:,3]
+    # t_list = adjij[:,4]
+    # u_list = adjij[:,5]
+    
+    G = nx.Graph()
+    G.add_nodes_from(range(N_segments)) # play with edges only
+
+    def update_connected_components(prev,curr):
+        prev_set = set([frozenset(x) for x in prev])
+        curr_set = set([frozenset(x) for x in curr])
+        new_set = curr_set - prev_set
+        new_list = [list(x) for x in new_set]
+        return new_list
+    
+    i_stair = 8
+    a_criterion = (staircase_stats[i_stair]['error_list'] < 1) & (staircase_stats[i_stair]['length_list'] > rod_length-rod_length_told) & (staircase_stats[i_stair]['length_list'] < rod_length+rod_length_told)
+    good_connected_components_prev = [staircase_stats[i_stair]['connected_component_list'][i] for i in np.where(a_criterion)[0]]
+    a_criterion = (staircase_stats[i_stair+1]['error_list'] < 1) & (staircase_stats[i_stair+1]['length_list'] > rod_length-rod_length_told) & (staircase_stats[i_stair+1]['length_list'] < rod_length+rod_length_told)
+    good_connected_components_curr = [staircase_stats[i_stair+1]['connected_component_list'][i] for i in np.where(a_criterion)[0]]
+    
+    cc_diff = update_connected_components(good_connected_components_prev,good_connected_components_curr)
+    fig,ax=set_3d_plot()            
+    for cc in cc_diff:
+        for j in cc:
+            plot_single_rod(segments[j],'-',ax=ax)
+            ax.axis('equal')
+        ax.clear()
+        
+    
+    
+    # print(cluster_stats['num_clusters'])
+    
+    # a_criterion = (error_list < 1) & (length_list > rod_length-rod_length_told) & (length_list < rod_length+rod_length_told)
+    # print(np.count_nonzero(a_criterion))
+    
+    print()
+    
+    # staircase_stats = staircase(distance_threshold,first_stair,last_stair,num_stairs,max_nodes_each_cluster)
+    # pickle_out = open(f'staircase_stats_{first_stair}_{last_stair}_{num_stairs}_{distance_threshold}.pkl','wb')
+    # pickle.dump(staircase_stats,pickle_out)
+    
+    # i = 1979
+    # plt.close()
+    # fig,ax=set_3d_plot()
+    # plot_single_rod(np.vstack([segments[j] for j in connected_component_list[i]]),'.',ax=ax,markersize=0.2)
+    # plot_single_rod(np.vstack([segments[cc[j]] for j in deg0]),'o',ax=ax,markersize=1)
+    # ax.axis('equal')
+    
+    
+if __name__ == '__main__':
+    do_adaptive_staircase()
+    # distance_threshold = 200
+
+    # first_stair = 0.05
+    # last_stair = 0.06
+    # num_stairs = 1
+    
+    # max_nodes_each_cluster = 500
+    
+    # # load data
+    # if 1:
+    #     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    #     segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+    #     adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
+        
+    #     mat_obj = loadmat(segments_file_path)
+    #     segments = mat_obj['segments']
+    #     segments = [seg[0] for seg in segments]
+    #     N_segments = len(segments)
+        
+    #     print(f'Staircase clustering: {segments_file_path.parent}')
+    #     print(f'Number of segments: {N_segments}')
+
+    #     pickle_in = open(adjacency_file_path,'rb')
+    #     adjij = pickle.load(pickle_in)
+    #     svd_cylinders,centroids,orientations, = prep_svd_cylinder(segments,scale_factor=0.98)
+    #     segment_length_list = np.zeros(len(segments))
+    #     for i,seg in enumerate(segments):
+    #         segment_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
+    
+    #     #adjij: i,j,score,dist,t,u
+    #     adjij = np.array(adjij)
+    #     ijs = adjij[:,0:2].astype(int)
+    #     align_score = adjij[:,2]
+    #     dist_score = adjij[:,3]
+    #     # t_list = adjij[:,4]
+    #     # u_list = adjij[:,5]
+    
+    
     
     print
