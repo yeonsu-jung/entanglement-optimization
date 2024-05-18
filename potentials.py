@@ -1,3 +1,4 @@
+import numpy as np
 import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
@@ -205,12 +206,21 @@ def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):
     d1 = point1e - point1s
     d2 = point2e - point2s
     d12 = point2s - point1s
+        
+    # d1  = point1e - point1s;
+    # d2  = point2e - point2s;
+    # d12 = point2s - point1s;
 
-    D1 = onp.dot(d1, d1)
-    D2 = onp.dot(d2, d2)
-    S1 = onp.dot(d1, d12)
-    S2 = onp.dot(d2, d12)
-    R = onp.dot(d1, d2)
+    # D1 = onp.dot(d1, d1)
+    # D2 = onp.dot(d2, d2)
+    # S1 = onp.dot(d1, d12)
+    # S2 = onp.dot(d2, d12)
+    # R = onp.dot(d1, d2)
+    D1 = np.sum(d1*d1, axis=0)
+    D2 = np.sum(d2*d2, axis=0)
+    S1 = np.sum(d1*d12, axis=0)
+    S2 = np.sum(d2*d12, axis=0)
+    R = np.sum(d1*d2, axis=0)
 
     den = D1 * D2 - R**2
 
@@ -232,7 +242,7 @@ def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):
             u = uf
     else:  # general case
         t = fixbound_nonjax((S1 * D2 - S2 * R) / den)
-        u = fixbound_nonjax((t * R - S2) / D2)
+        u = ((t * R - S2) / D2)
         uf = fixbound_nonjax(u)
         if uf != u:
             t = fixbound_nonjax((uf * R + S1) / D1)
@@ -899,5 +909,23 @@ def simple_harmonic_line_nonjax(q,params):
     return amp*(dist-col_rad)**2
 
 if __name__ == "__main__":
-    print(f"Hellow World!")
+    print(f"Hello World!")
+    
+    p1 = np.array([-1,0,0])
+    p2 = np.array([0.99,0,0])
+    q1 = np.array([1.0001,0,0])
+    q2 = np.array([5.0,0.,0])
+    
+    
+    p1 = np.array([704.37623584, 769.77342393, 234.01175294])
+    p2 = np.array([673.55325552,791.00241085, 238.54406944])
+    q1 = np.array([670.9797848, 792.98033422, 238.72843565])
+    q2 = np.array([627.21769586,823.2844119, 245.21007349])
+
+    
+    d = dist_lin_seg_nonjax(p1,p2,q1,q2)
+    print(d)
+    
+    
+
     
