@@ -11,7 +11,7 @@ from scipy.spatial.transform import Rotation as R
 #             Applications To Edge And Range Image Segmentation",
 # IEEE Trans. PAMI, Vol. 13, pages 1115-1138, (1991)
 
-# @jit(nopython=True)
+@jit(nopython=True)
 def CircleFitByTaubin(XY,centroid):
     n = len(XY)  # number of data points
     # centroid = np.mean(XY, axis=0)  # the centroid of the data set
@@ -63,42 +63,92 @@ def CircleFitByTaubin(XY,centroid):
         Dy = A1 + xnew * (A22 + xnew * A33)
         xold = xnew
         xnew = xold - ynew / Dy
+        if xnew < 1e-15:
+            break
         if abs((xnew - xold) / xnew) < epsilon:
             break
         if iter >= IterMax and abs(xnew) > epsilon:
-            print('Newton-Taubin will not converge')
+            # print('Newton-Taubin will not converge')
             xnew = 0
         if xnew < 0 and abs(xnew) > epsilon:
-            print(f'Newton-Taubin negative root: x={xnew}')
+            # print(f'Newton-Taubin negative root: x={xnew}')
             xnew = 0
 
     # Computing the circle parameters
     DET = xnew**2 - xnew * Mz + Cov_xy
+    if DET == 0:
+        # print('Too flat')
+        return np.nan,np.nan,np.nan
+        
+        
     Center = np.array([Mxz * (Myy - xnew) - Myz * Mxy,
                        Myz * (Mxx - xnew) - Mxz * Mxy]) / DET / 2
-
+    
+    
+    
     # Par = np.hstack((Center + centroid, np.sqrt(np.dot(Center, Center) + Mz)))
 
     return Center[0] + centroid[0], Center[1] + centroid[1], np.sqrt(np.dot(Center, Center) + Mz)
 
-def fit_rod(rr, DEBUG_FLAG=False):
+# @jit(nopython=True,fastmath=True)
+def fit_rod_light(rr_centered,centroid,linearity_threshold, radius_curvature_threshold):
     n = rr.shape[0]  # number of data points
+    if n <= 2:
+        return rr_centered
 
+    # Main fitting process for n > 2
+    # SVD for least-squares fit of coalescing plane
+    U, S, V = np.linalg.svd(rr_centered, full_matrices=False)
+    v1, v2, v3 = V[0,:] , V[1,:], V[2,:]
+    orientation = v1 * np.sign(np.sum(v1 * (rr_centered[-1, :] - rr_centered[0, :])))
+    slist = np.dot((rr_centered), orientation)
+    sorted_indices = np.argsort(slist)
+    rr_sorted = rr_centered[sorted_indices]
+    svd_line = slist[:, None] * orientation    
+    # Circle fit using Taubin's method for n > 2
+    # Project points onto v1 and v2
+    xx_projected = rr_sorted @ v1
+    yy_projected = rr_sorted @ v2
+    x1 = np.mean(xx_projected)
+    x2 = np.mean(yy_projected)
+    # local_cen = np.mean(rr_projected, axis=0)
+    local_cen = 1
+    
+    
+    xm,ym,r0 = CircleFitByTaubin(rr_projected,local_cen) # numba jit make it 10 times faster.
+    
+    if np.isnan(r0):
+        s1, s2 = np.min(slist), np.max(slist)
+        r1 = centroid + s1 * v1
+        r2 = centroid + s2 * v1
+        best_estimation = centroid + np.outer(slist, v1)
+        return best_estimation
+    
+    x_projected = rr_sorted @ v1 - xm
+    y_projected = rr_sorted @ v2 - ym
+    # Compute atan2 for these projections and unwrap phi_list to prevent discontinuities
+    phi_list = np.arctan2(y_projected, x_projected)
+    phi_list = np.unwrap(phi_list)
+    xpt = xm + r0 * np.cos(phi_list)
+    ypt = ym + r0 * np.sin(phi_list)    
+    best_estimation = centroid + np.outer(xpt, v1) + np.outer(ypt, v2)    
+    return best_estimation
+
+def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
+    n = rr.shape[0]  # number of data points
     if rr.size == 0:
         return create_output([], np.nan, np.nan, [], [], 0, rr, [])
-
     if n == 1:
         temp = rr / np.linalg.norm(rr, axis=1, keepdims=True)
         return create_output(rr, np.nan, np.tile(temp, (1, 3)), [], [], 0, rr, [])
-
     if n == 2:
         cen = np.mean(rr, axis=0)
         ori = (rr[1, :] - rr[0, :]) / np.linalg.norm(rr[1, :] - rr[0, :])
         len_rod = np.linalg.norm(rr[1, :] - rr[0, :])
-        return create_output(cen, np.inf, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, [])
+        return create_output(cen, np.nan, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, [])
 
     # Main fitting process for n > 2
-    centroid = np.mean(rr, axis=0)
+    centroid = np.mean(rr, axis=0) ###
     rr_centered = rr - centroid
 
     # SVD for least-squares fit of coalescing plane
@@ -108,57 +158,55 @@ def fit_rod(rr, DEBUG_FLAG=False):
     slist = np.dot((rr - centroid), orientation)
     sorted_indices = np.argsort(slist)
     rr_sorted = rr_centered[sorted_indices]
-    # if DEBUG_FLAG:
-        # plt.scatter(np.dot(rr_sorted, v1), np.dot(rr_sorted, v2), marker='o')
-        # plt.axis('equal')
-        # plt.show()
-
-    # Check if points are co-linear
-    if np.max(np.abs(np.cross(rr_sorted[1:] - rr_sorted[:-1], v3))) < 1e-10:
+    svd_line = slist[:, None] * orientation
+    line_fit_error = rr_sorted - svd_line
+    
+    # Circle fit using Taubin's method for n > 2
+    # Project points onto v1 and v2
+    rr_projected = rr_sorted @ np.column_stack([v1, v2])
+    local_cen = np.mean(rr_projected, axis=0)
+    xm,ym,r0 = CircleFitByTaubin(rr_projected,local_cen) # numba jit make it 10 times faster.
+    
+    if np.isnan(r0):
         s1, s2 = np.min(slist), np.max(slist)
         r1 = centroid + s1 * v1
         r2 = centroid + s2 * v1
         best_estimation = centroid + np.outer(slist, v1)
-        err = np.mean((rr - best_estimation)**2, axis=1)
+        err = np.mean( np.sqrt(np.sum((rr - best_estimation)**2,axis=1)) )
         return create_output(centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err))
-
-    # Circle fit using Taubin's method for n > 2
-    # Project points onto v1 and v2
-    
-    rr_projected = rr_sorted @ np.column_stack([v1, v2])
-    local_cen = np.mean(rr_projected, axis=0)
-    
-    xm,ym,r0 = CircleFitByTaubin(rr_projected,local_cen) # numba jit make it 10 times faster.
     
     x_projected = rr_sorted @ v1 - xm
     y_projected = rr_sorted @ v2 - ym
-    # Compute atan2 for these projections
+    # Compute atan2 for these projections and unwrap phi_list to prevent discontinuities
     phi_list = np.arctan2(y_projected, x_projected)
-    # Unwrap phi_list to prevent discontinuities
     phi_list = np.unwrap(phi_list)
 
     min_th = np.min(phi_list)
     max_th = np.max(phi_list)
     xpt = xm + r0 * np.cos(phi_list)
     ypt = ym + r0 * np.sin(phi_list)
-    
+
+    circle_fit_error = np.vstack((x_projected - r0*np.cos(phi_list),y_projected - r0*np.sin(phi_list))).T
     th = np.linspace(min_th,max_th,phi_list.size//3)
     xpt2 = xm+r0*np.cos(th)
     ypt2 = ym+r0*np.sin(th)
+    
+    if  (np.sqrt(np.mean(line_fit_error**2)) < linearity_threshold) or (r0 > radius_curvature_threshold):
+        s1, s2 = np.min(slist), np.max(slist)
+        r1 = centroid + s1 * v1
+        r2 = centroid + s2 * v1
+        best_estimation = centroid + np.outer(slist, v1)
+        err = np.mean( np.sqrt(np.sum((rr - best_estimation)**2,axis=1)) )
+        return create_output(centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err))
     
     even_reconstruction =  centroid + np.outer(xpt2, v1) + np.outer(ypt2, v2)
     best_estimation = centroid + np.outer(xpt, v1) + np.outer(ypt, v2)
     err = np.mean( np.sqrt(np.sum((centroid + rr_sorted - best_estimation)**2,axis=1)) )
     
-    if DEBUG_FLAG:
-        fig,ax = set_3d_plot()
-        plot_3d(rr,ax, 'Original points', {'marker': '.', 'color': 'b'})
-        plot_3d(even_reconstruction, ax,'Rod fitting visualization', {'color': 'r', 'marker': '.'})
-        plt.legend()
-        plt.show()
-        print()
-
-    return create_output(centroid, r0, np.column_stack([v1, v2, v3]), even_reconstruction, phi_list, r0 * (np.max(phi_list) - np.min(phi_list)), even_reconstruction, err)
+    # r0 * (np.max(phi_list) - np.min(phi_list))
+    rod_length = np.sum( np.diff(rr_sorted,axis=0)**2, axis=1).sum()**0.5
+    
+    return create_output(centroid, r0, np.column_stack([v1, v2, v3]), even_reconstruction, phi_list, rod_length, even_reconstruction, err)
 
 # @jit(nopython=True)
 def fit_rod_error(rr_centered, DEBUG_FLAG=False):
@@ -322,7 +370,56 @@ def get_principal_axis_length(rr):
 
     
 if __name__ == '__main__':
-    test()    
+    # test()    
+    
+    # 3d line
+    noise_level = 0.0001
+    
+    
+    x = np.linspace(0,1,30)
+    y = np.linspace(0,1,30)
+    z = np.linspace(0,1,30)
+    rr = np.vstack([x,y,z]).T
+    
+    noise = np.random.randn(*rr.shape)*noise_level
+    np.max(np.sqrt(np.sum(noise**2,axis=1)))
+    
+    rr = rr + noise
+    
+    # y = np.cos(x)
+    # z = np.sin(x)
+    # rr = np.vstack([x,y,z]).T
+    # rr = rr + noise
+    
+    # np.max(np.sqrt(np.sum(noise**2,axis=1)))
+    # np.median(np.sqrt(np.sum(noise**2,axis=1)))
+    # np.mean(np.sqrt(np.sum(noise**2,axis=1)))
+    
+    # np.mean(noise)
+    # np.median(noise)
+    # np.max(noise)
+    
+    # 3d plot
+    fig,ax = plt.subplots(1,1,subplot_kw={'projection':'3d'})
+    ax.plot(rr[:,0],rr[:,1],rr[:,2],'o')
+    
+    linearity_threshold = 0.01
+    radius_curvature_threshold = 100
+    
+    fr1 = fit_rod(rr,linearity_threshold, radius_curvature_threshold)
+    fr1['err']
+    fr1['len']
+
+    
+    centroid = np.mean(rr,axis=0)
+    rr_centered = rr - centroid
+    # fr2 = fit_rod_light(rr_centered,centroid,linearity_threshold, radius_curvature_threshold)
+    
+    # fig,ax = plt.subplots(1,1,subplot_kw={'projection':'3d'})
+    # ax.plot(rr[:,0],rr[:,1],rr[:,2],'o')
+    # ax.plot(fr1['rec'][:,0],fr1['rec'][:,1],fr1['rec'][:,2],'o')
+    # ax.plot(fr2[:,0],fr2[:,1],fr2[:,2],'o')
+    
     
     
     
