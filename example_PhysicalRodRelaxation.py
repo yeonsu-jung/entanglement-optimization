@@ -240,7 +240,7 @@ def lumelsky_dist(point1s, point1e, point2s, point2e):
             u = uf
     else:  # general case
         t = fixbound((S1 * D2 - S2 * R) / den)
-        u = fixbound((t * R - S2) / D2)
+        u = ((t * R - S2) / D2)
         uf = fixbound(u)
         if uf != u:
             t = fixbound((uf * R + S1) / D1)
@@ -283,7 +283,7 @@ def lumelsky_dist_vec(point1s, point1e, point2s, point2e):
             u = uf
     else:  # general case
         t = fixbound((S1 * D2 - S2 * R) / den)
-        u = fixbound((t * R - S2) / D2)
+        u = ((t * R - S2) / D2)
         uf = fixbound(u)
         if uf != u:
             t = fixbound((uf * R + S1) / D1)
