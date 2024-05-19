@@ -231,6 +231,46 @@ print(f'Number of good clusters: ', len(good_clusters))
 print(f'Number of not yet nodes: ', len(not_yet_nodes))
 
 
+def sort_curve(rr):
+    centroid = np.mean(rr,axis=0)
+    rr_centered = rr - centroid        
+    _,_, V = np.linalg.svd(rr_centered, full_matrices=False)
+    v1 = V[0,:]
+    orientation = v1 * np.sign(np.sum(v1 * (rr_centered[-1, :] - rr_centered[0, :])))
+    slist = np.dot((rr - centroid), orientation)
+    sorted_indices = np.argsort(slist)
+    return centroid + rr_centered[sorted_indices]
+
+good_segments = []
+for i_gcl in range(len(good_clusters)):
+    gcl = good_clusters[i_gcl]
+    joined = np.vstack([segments[i] for i in gcl])
+    good_segments.append(sort_curve(joined))
+    
+not_yet_segments = []
+for i_ny in range(len(not_yet_nodes)):
+    rr = segments[not_yet_nodes[i_ny]]
+    not_yet_segments.append(rr)
+    
+len(not_yet_nodes)
+
+segments_next_round = good_segments + not_yet_segments
+len(segments_next_round)
+
+
+from example_get_adjij import calculate_alignment_adjacency_numba
+
+
+svd_cylinders,centroids,orientations = prep_svd_cylinder(segments_next_round,scale_factor=0.98)
+
+start = time.time()
+adjij = calculate_alignment_adjacency_numba(svd_cylinders,orientations,threshold=0.15)
+print(f'Elapsed time: {time.time()-start} sec')
+
+pickle_in = open('adjacency_distance_scale0p98_threshold0p3_ij_score_next.pkl','wb')
+pickle.dump(adjij,pickle_in)
+
+# below is an attempt, but wouldn't work
 
 fig,ax=set_3d_plot()
 rr_len_list = np.zeros((3000,2))
@@ -276,7 +316,37 @@ plt.savefig('/Users/yeonsu/Figures/good_clusters_length_list.png')
 
 
 
-Graph0.remove_nodes_from(good_nodes)
+
 Graph0.number_of_nodes()
 
+
+distance_threshold = 50
+alignment_threshold = 0.05
+
+initial_maks = (align_score < 0.05) & (dist_score < 200)
+
+Graph1 = nx.Graph()
+Graph1.add_nodes_from(range(N_segments))
+Graph1.add_weighted_edges_from(zip(ijs[initial_maks,0],ijs[initial_maks,1],dist_score[initial_maks]))
+Graph1.remove_nodes_from(good_nodes)
+
+clusters_after = print_connected_components(Graph1)
+
+# check if common elements exist between clusters_after
+if np.hstack(clusters_after).size != len(np.unique(np.hstack(clusters_after))):
+    print('Common elements exist between clusters_after')
+        
+cluster_size_list = [len(x) for x in clusters_after]
+max_cluster_size = np.max(cluster_size_list)
+print(f'Number of clusters_after: {len(clusters_after)}')
+print(f'Max cluster size: {max_cluster_size}')
+
+
+np.argmax(cluster_size_list)
+
+cluster = clusters_after[np.argmax(cluster_size_list)]
+
+fig,ax=set_3d_plot()
+for i in range(len(cluster)):
+    plot_single_rod(segments[cluster[i]],ax=ax)
 
