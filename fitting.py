@@ -137,15 +137,15 @@ def fit_rod_light(rr_centered,centroid,linearity_threshold, radius_curvature_thr
 def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
     n = rr.shape[0]  # number of data points
     if rr.size == 0:
-        return create_output([], np.nan, np.nan, [], [], 0, rr, [])
+        return create_output([], np.inf, np.nan, [], [], 0, rr, [])
     if n == 1:
         temp = rr / np.linalg.norm(rr, axis=1, keepdims=True)
-        return create_output(rr, np.nan, np.tile(temp, (1, 3)), [], [], 0, rr, [])
+        return create_output(rr, np.inf, np.tile(temp, (1, 3)), [], [], 0, rr, [])
     if n == 2:
         cen = np.mean(rr, axis=0)
         ori = (rr[1, :] - rr[0, :]) / np.linalg.norm(rr[1, :] - rr[0, :])
         len_rod = np.linalg.norm(rr[1, :] - rr[0, :])
-        return create_output(cen, np.nan, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, [])
+        return create_output(cen, np.inf, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, [])
 
     # Main fitting process for n > 2
     centroid = np.mean(rr, axis=0) ###
