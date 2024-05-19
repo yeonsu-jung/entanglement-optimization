@@ -19,6 +19,27 @@ from potentials import dist_lin_seg_nonjax
 from sklearn.cluster import KMeans
 from sklearn_extra.cluster import KMedoids
 
+def local_clustering_by_kmedoids(segments,a_cluster,N_rods_estimate,align_connectivity):
+    fitting_score_over_trials = np.full(N_rods_estimate+1,np.inf)
+    for i in range(1,N_rods_estimate+1):
+        km = KMedoids(n_clusters=i, random_state=0).fit(align_connectivity)
+        cluster_fit_errors = []
+        cluster_lengths = []
+        
+        for ii in range(km.labels_.max() + 1):
+            idx = np.where(km.labels_ == ii)[0]
+            joined = np.vstack([segments[j] for j in idx])
+            res = fit_rod(joined)
+            cluster_fit_errors.append(res['err']**5)
+            cluster_lengths.append(res['len']**2)
+        
+        fitting_score_over_trials[i] = np.sum(cluster_fit_errors)/np.mean(cluster_lengths)
+    
+    j_min = np.argmin(fitting_score_over_trials)
+    km = KMedoids(n_clusters=j_min, random_state=0).fit(align_connectivity)
+    
+    return km,fitting_score_over_trials[j_min]
+
 def get_cluster_properties(connected_component_list,segments,segment_length_list,max_nodes_each_cluster=500):
     cluster_size_list = [len(x) for x in connected_component_list]
     max_cluster_size = np.max(cluster_size_list)
