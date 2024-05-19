@@ -233,7 +233,7 @@ def lumelsky_dist(point1s, point1e, point2s, point2e):
             t = u = 0
     elif den == 0:  # lines are parallel
         t = 0
-        u = fixbound(-S2 / D2)
+        u = (-S2 / D2)
         uf = fixbound(u)
         if uf != u:
             t = fixbound((uf * R + S1) / D1)
@@ -276,7 +276,7 @@ def lumelsky_dist_vec(point1s, point1e, point2s, point2e):
             t = u = 0
     elif den == 0:  # lines are parallel
         t = 0
-        u = fixbound(-S2 / D2)
+        u = (-S2 / D2)
         uf = fixbound(u)
         if uf != u:
             t = fixbound((uf * R + S1) / D1)
