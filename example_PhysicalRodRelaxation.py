@@ -1,4 +1,9 @@
 # %%
+from distances import fast_lumelsky_dist_mat
+import filamentprocessing
+from data_io import load_xray_data
+from visualizations import plot_single_rod
+from fitting import fit_rod
 import numpy as np
 from utils import parse_filename
 import glob
@@ -13,6 +18,26 @@ import time
 import networkx as nx
 import pickle
 from fitting import fit_rod_error, fit_rod
+from scipy.spatial import distance
+from scipy.cluster import hierarchy
+    
+def rowwise_norm(x):
+    return np.sqrt(np.sum(x**2, axis=1))
+    
+def create_mask(ind,sz):
+    mask = np.zeros(sz,dtype=bool)
+    mask[ind] = True
+    return mask
+    
+def sort_curve(rr):
+    centroid = np.mean(rr, axis=0)
+    rr_centered = rr - centroid
+    _, _, V = np.linalg.svd(rr_centered, full_matrices=False)
+    v1 = V[0, :]
+    orientation = v1 * np.sign(np.sum(v1 * (rr_centered[-1, :] - rr_centered[0, :])))
+    slist = np.dot((rr - centroid), orientation)
+    sorted_indices = np.argsort(slist)
+    return centroid + rr_centered[sorted_indices]
 
 class logger:
     def __init__(self):
@@ -99,49 +124,6 @@ def main():
     return 0
 
 
-def prep_svd_cylinder(cl,scale_factor = 1.5):
-    N = len(cl)
-    svd_cylinders = np.zeros((N,7))
-    centroids = np.zeros((N,3))
-    orientations = np.zeros((N,3))
-    for i,c in enumerate(cl):
-        center = c.mean(axis=0)
-        centered = c - center
-        
-        # mu000 = np.sum(centered ** 0)
-        # mu200 = np.sum(centered[:, 0] ** 2) / mu000 + 1/12
-        # mu020 = np.sum(centered[:, 1] ** 2) / mu000 + 1/12
-        # mu002 = np.sum(centered[:, 2] ** 2) / mu000 + 1/12
-        # mu110 = np.sum(centered[:, 0] * centered[:, 1]) / mu000
-        # mu011 = np.sum(centered[:, 1] * centered[:, 2]) / mu000
-        # mu101 = np.sum(centered[:, 2] * centered[:, 0]) / mu000
-        
-        # num_points = centered.shape[0]
-        # cov_mat = np.array([
-        #     [mu200, mu110, mu101],
-        #     [mu110, mu020, mu011],
-        #     [mu101, mu011, mu002]
-        # ]) / num_points
-        
-        # U,S,V = np.linalg.svd(centered)
-        # S,V = np.linalg.eig(cov_mat)
-        
-        u,s,v = np.linalg.svd(centered,full_matrices=False)
-        orientation = v[0,:]
-        slist = np.dot(centered, orientation)
-        max_s = np.max(slist)
-        min_s = np.min(slist)
-        
-        e1 = center + min_s*(v[0,:])*scale_factor 
-        e2 = center + max_s*(v[0,:])*scale_factor 
-        r1 = s[1]*max_s/s[0]*2*scale_factor
-        
-        
-        svd_cylinders[i,:] = np.hstack((e1,e2,r1))
-        centroids[i,:] = center
-        orientations[i,:] = orientation
-        
-    return svd_cylinders,centroids,orientations
 
 @jit(nopython=True)
 def fast_prep_svd_cylinder_engine(centered_centerlines):
@@ -196,130 +178,7 @@ def fast_prep_svd_cylinder_engine(centered_centerlines):
 
 
 
-@jit(nopython=True)
-def fixbound(x):
-    if x < 0.:
-        return 0.
-    elif x > 1:
-        return 1.
-    else:
-        return x
-    
-    
 
-@jit(nopython=True)
-def lumelsky_dist(point1s, point1e, point2s, point2e):
-    """ Calculate the shortest distance between two line segments. """
-    d1 = point1e - point1s
-    d2 = point2e - point2s
-    d12 = point2s - point1s
-
-    D1 = np.dot(d1, d1)
-    D2 = np.dot(d2, d2)
-    S1 = np.dot(d1, d12)
-    S2 = np.dot(d2, d12)
-    R = np.dot(d1, d2)
-
-    den = D1 * D2 - R**2
-
-    if D1 == 0 or D2 == 0:
-        if D1 != 0:  # line1 is a segment and line2 is a point
-            u = 0
-            t = fixbound(S1 / D1)
-        elif D2 != 0:  # line2 is a segment and line1 is a point
-            t = 0
-            u = fixbound(-S2 / D2)
-        else:  # both segments are points
-            t = u = 0
-    elif den == 0:  # lines are parallel
-        t = 0
-        u = (-S2 / D2)
-        uf = fixbound(u)
-        if uf != u:
-            t = fixbound((uf * R + S1) / D1)
-            u = uf
-    else:  # general case
-        t = fixbound((S1 * D2 - S2 * R) / den)
-        u = ((t * R - S2) / D2)
-        uf = fixbound(u)
-        if uf != u:
-            t = fixbound((uf * R + S1) / D1)
-            u = uf
-
-    # Compute distance
-    dist = np.linalg.norm(d1 * t - d2 * u - d12)
-    return dist
-
-@jit(nopython=True)
-def lumelsky_dist_vec(point1s, point1e, point2s, point2e):
-    """ Calculate the shortest distance between two line segments. """
-    d1 = point1e - point1s
-    d2 = point2e - point2s
-    d12 = point2s - point1s
-
-    D1 = np.dot(d1, d1)
-    D2 = np.dot(d2, d2)
-    S1 = np.dot(d1, d12)
-    S2 = np.dot(d2, d12)
-    R = np.dot(d1, d2)
-
-    den = D1 * D2 - R**2
-
-    if D1 == 0 or D2 == 0:
-        if D1 != 0:  # line1 is a segment and line2 is a point
-            u = 0
-            t = fixbound(S1 / D1)
-        elif D2 != 0:  # line2 is a segment and line1 is a point
-            t = 0
-            u = fixbound(-S2 / D2)
-        else:  # both segments are points
-            t = u = 0
-    elif den == 0:  # lines are parallel
-        t = 0
-        u = (-S2 / D2)
-        uf = fixbound(u)
-        if uf != u:
-            t = fixbound((uf * R + S1) / D1)
-            u = uf
-    else:  # general case
-        t = fixbound((S1 * D2 - S2 * R) / den)
-        u = ((t * R - S2) / D2)
-        uf = fixbound(u)
-        if uf != u:
-            t = fixbound((uf * R + S1) / D1)
-            u = uf
-
-    # # Compute distance
-    # dist = np.linalg.norm(d1 * t - d2 * u - d12)
-    return t,u,d1,d2,d12
-
-@jit(nopython=True)
-def calculate_lumelsky_dist_mat(centerlines,neighbors):
-    N = len(centerlines)
-    ultimate_dist_mat = np.ones((N,N))*np.inf
-    for i in range(N):
-        if not neighbors[i]:
-            continue
-        
-        rr_i = centerlines[i]
-        for j in neighbors[i]:
-            rr_j = centerlines[j]
-            ultimate_dist_mat[i,j] = fast_lumelsky_dist(rr_i,rr_j)
-
-
-@jit(nopython=True)
-def compute_cylinder_distance_matrix(svd_cylinders):
-    N = svd_cylinders.shape[0]
-    distances = np.zeros((N, N))
-    for i in range(N):
-        p1 = svd_cylinders[i, 0:3]
-        q1 = svd_cylinders[i, 3:6]
-        for j in range(i+1, N):
-            p2 = svd_cylinders[j, 0:3]
-            q2 = svd_cylinders[j, 3:6]
-            distances[i, j] = lumelsky_dist(p1, q1, p2, q2)
-    
-    return distances
 
 def plot_centerline_with_container(centerlines,svd_cylinders,i,ax):
     cl = centerlines[i]
@@ -559,17 +418,7 @@ def fast_lumelsky_dist(rr_i,rr_j):
             
     return min_dist
 
-@jit(nopython=True)
-def fast_lumelsky_dist_mat(rr_i,rr_j):
-    dist_mat = np.zeros((len(rr_i)-1,len(rr_j)-1))            
-    for i in range(len(rr_i)-1):
-        p1 = rr_i[i]
-        q1 = rr_i[i+1]
-        for j in range(len(rr_j)-1):
-            p2 = rr_j[j]
-            q2 = rr_j[j+1]
-            dist_mat[i,j] = lumelsky_dist(p1,q1,p2,q2)
-    return dist_mat
+
     
 def export_centerlines(centerlines,filename):
     data_rearranged = []
@@ -586,7 +435,7 @@ def export_centerlines(centerlines,filename):
         data_rearranged.append(rr_new.flatten())
     
     np.savetxt(filename,data_rearranged)
-    return 0
+    return data_rearranged
     
 def trim_centerlines():
     pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat')
@@ -1099,13 +948,34 @@ def overlapping_labels():
     
     with open('group_labels.pkl','wb') as f:
         pickle.dump(group_labels,f)
-    
-if __name__ == '__main__':
-    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
-    centerlines,_ = load_xray_data(pth)    
-    for i,cl in enumerate(centerlines):
-        centerlines[i] = np.unique(cl,axis=0)
         
+def find_overlapping_segments(unpacked):
+    unq,unique_indices,inverses,counts = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    dup = unq[counts > 1]
+    # N_dup = dup.shape[0]
+    dup_labels = np.unique(labels[(counts > 1)[inverses]])    
+    duplicates_list_on_the_image = np.where(counts > 1)[0]    
+    duplicate_groups = []
+    group_labels = []    
+    while duplicates_list_on_the_image.size > 0:
+        idx = duplicates_list_on_the_image[0]
+        neighbor_labels = labels[inverses == idx]        
+        all_neighbor_points = unpacked[np.isin(labels,neighbor_labels)]
+        all_neighbor_indices = np.where(np.isin(labels,neighbor_labels))[0] # this is simply a map        
+        for ii in np.where(inverses == idx)[0]:
+            assert(neighbor_labels.size == counts[ inverses[ii] ])
+        assert(np.isin(neighbor_labels,dup_labels).all())
+        
+        utmp,idtmp,ivtmp,ctmp = np.unique(all_neighbor_points,axis=0,return_counts=True,return_index=True,return_inverse=True)
+        mask = create_mask(all_neighbor_indices[(ctmp > 1)[ivtmp]],labels.size)
+        idx_to_remove = np.where(mask[unique_indices])[0] # these are what I want to remove, fudging complicated!
+        duplicates_list_on_the_image = np.setdiff1d(duplicates_list_on_the_image,idx_to_remove)
+        duplicate_groups.append(idx_to_remove)
+        group_labels.append(np.unique(labels[np.isin(inverses, idx_to_remove)]))
+        
+    return group_labels
+
+def unpack_centerlines(centerlines):
     unpacked = np.vstack(centerlines)
     labels = np.zeros(unpacked.shape[0],dtype=np.int64)
     start_idx = 0
@@ -1113,124 +983,152 @@ if __name__ == '__main__':
         end_idx = start_idx + cl.shape[0]
         labels[start_idx:end_idx] = i
         start_idx = end_idx
+    return unpacked,labels
         
-    unq,ind,inv,cnt = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
-    nonoverlap_labels = np.unique(labels[(cnt == 1)[inv]])
-    fig,ax = set_3d_plot()
-    for lb in nonoverlap_labels:
-        rr = centerlines[lb]
+def prune_segments(dirty_segments):    
+    group_labels = find_overlapping_segments(dirty_segments)
+    new_centerlines = []
+    not_good = []
+    for i in range(len(group_labels)):
+        glb = group_labels[i]        
+        group_segments = [centerlines[lb] for lb in glb]
+        for gs in group_segments:
+            fit_result = fit_rod(gs,1e-10,1e10)
+            new_centerlines.append(fit_result['rec'])
+    
+    fp = filamentprocessing.FilamentProcessing(new_centerlines,30,1,0.99)
+    fp.get_svd_ij()
+    ij = np.array(fp.get_svd_ij())
+    scores = np.array(fp.get_svd_scores())
+    dist_score = scores[:,0]
+    
+    mask = dist_score < 3
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(new_centerlines)))
+    graph.add_edges_from(zip(ij[mask,0],ij[mask,1]))
+    
+    cc = list(nx.connected_components(graph))
+    
+    length_list = [seg_len(nc) for nc in new_centerlines]
+    nonoverlap_centerlines = [centerlines[lb] for lb in nonoverlap_labels] # how effective is this?
+    total_combined = nonoverlap_centerlines + new_centerlines    
+    total_length_list = [seg_len(nc) for nc in total_combined]
+    total_length_list = np.array(total_length_list)
+    true_centerlines = [nc/650 for nc in total_combined if seg_len(nc) > 550 and seg_len(nc) < 750]
+
+    total_combined = [nc/650 for nc in total_combined]
+    data_return = export_centerlines(total_combined,'test.txt')
+    
+    fig,ax= set_3d_plot()
+    for dr in data_return:
+        rr = dr.reshape(-1,3)
         plot_single_rod(rr,'-',ax=ax)
         
-    print('done')
-    # read duplicate_groups.pkl
-    # read group_labels.pkl
-    pickle_in = open('duplicate_groups.pkl','rb')
-    duplicate_groups = pickle.load(pickle_in)
-    pickle_in = open('group_labels.pkl','rb')
-    group_labels = pickle.load(pickle_in)
+    data_return_in_seg = []
+    for dr in data_return:
+        rr = dr.reshape(-1,3)
+        data_return_in_seg.append(rr)
     
-    from scipy.spatial import distance
-    from scipy.cluster import hierarchy
+    fp = filamentprocessing.FilamentProcessing(data_return_in_seg,0.01,1,0.95)
+    fp.calculate_filament_distance_matrix(10,1)    
+    ij = np.array(fp.get_ij())
+    scores = np.array(fp.get_scores())    
+    dist_score = scores[:,0]    
+    print(np.min(dist_score))
     
-    i = 32
-    glb = group_labels[i]
-    group_vertices = np.vstack([centerlines[lb] for lb in glb])
-    group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
+    np.min(dist_score)
+    nonoverlapped = np.where(dist_score >= 0.01)[0]
+    overlapped = np.where(dist_score < 0.01)[0]
+    print(f'Number of overlapped: {len(overlapped)}')
+    
+    start = time.time()
+    overlap_score = []
+    for i in overlapped:        
+        idx = ij[i,0]
+        jdx = ij[i,1]
+        seg_i = data_return_in_seg[idx]
+        seg_j = data_return_in_seg[jdx]
+        dist_mat = fast_lumelsky_dist_mat(seg_i,seg_j)        
+        dist_mat[np.diag_indices(dist_mat.shape[0])] = np.inf
+        min_dists = np.min(dist_mat,axis=0)        
+        overlap_score.append(np.min(min_dists))        
+    print("Elapsed time: ",time.time()-start)
+    
+    cutoff = 0.002
+    np.where(np.array(overlap_score) < cutoff)[0]
+    np.where(np.array(overlap_score) < cutoff)[0].shape   
+    
+    overlap_score = np.array(overlap_score)
+    
+    fig,ax=plt.subplots(1,1)
+    ax.hist(overlap_score[overlap_score<cutoff],bins=100)
+    overlap_score = np.array(overlap_score)
+    
+    np.count_nonzero(overlap_score < cutoff)
+    
+    plt.close()    
+    fig,ax= set_3d_plot()
+    
+    take_out = []
+    for i in overlapped[overlap_score<cutoff]:
+        idx = ij[i,0]
+        jdx = ij[i,1]
+        seg_i = data_return_in_seg[idx]
+        seg_j = data_return_in_seg[jdx] + np.array([0.001,0.001,0.001])
         
-    # Step 1: Calculate the pairwise distance matrix
-    dist_matrix = distance.pdist(group_unq, 'euclidean')
-    square_dist_matrix = distance.squareform(dist_matrix)
-
-    # Step 2: Perform hierarchical clustering
-    linked = hierarchy.linkage(dist_matrix, 'single')
-
-    # Step 3: Plot the dendrogram to help decide the cut-off
-    plt.figure(figsize=(10, 7))
-    dendrogram = hierarchy.dendrogram(linked)
-    plt.title('Hierarchical Clustering Dendrogram')
-    plt.xlabel('Sample index')
-    plt.ylabel('Distance')
-    plt.show()
+        take_out.append(idx)
+        
+        clr = np.random.rand(3)
+        plot_single_rod(seg_i,'-',ax=ax,color=clr)
+        plot_single_rod(seg_j,'-',ax=ax,color=clr)
+        
+    np.unique(take_out).shape
     
-    fig,ax = set_3d_plot()
-    plot_single_rod(group_unq,'.',ax=ax,markersize=0.5)
-
-    # Step 4: Cut the dendrogram to form flat clusters
-    # Choosing a cutoff at distance 0.2, for example
-    clusters = hierarchy.fcluster(linked, 8, criterion='distance')
-
-    # clusters now contains the cluster labels for each point
-    print(clusters)
+    to_export = [data_return_in_seg[i].reshape(-1,3) for i in range(len(data_return_in_seg)) if i not in take_out]
+    len(to_export)
     
-    fig,ax = set_3d_plot()
-    for i in range(1,clusters.max()+1):
-        idx = np.where(clusters == i)[0]
-        plot_single_rod(group_unq[idx],'.',ax=ax,markersize=0.5,color=np.random.rand(3))
+    true_centerlines2 = [nc for nc in to_export if seg_len(nc) > 550/650 and seg_len(nc) < 750/650]
     
-    
-    # Step 1: Calculate the pairwise distance matrix
-    dist_matrix = distance.pdist(group_unq, 'euclidean')
-    
-    square_dist_matrix = distance.squareform(dist_matrix)
-
-    # Step 2: Perform hierarchical clustering
-    linked = hierarchy.linkage(dist_matrix, 'single')
-
-    N_group = len(duplicate_groups)
-    
-    for i in range(N_group):
-        glb = group_labels[i]
-        group_vertices = np.vstack([centerlines[lb] for lb in glb])
-        group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
+    for i,tc in enumerate(true_centerlines2):
+        # shorten
+        cen = tc.mean(axis=0)
+        tc2 = tc - cen
+        tc2 = tc2*0.95
+        true_centerlines2[i] = tc2 + cen
         
     
+    fp = filamentprocessing.FilamentProcessing(true_centerlines2,0.01,1,0.99)
+    fp.calculate_filament_distance_matrix(10,1)
+    ij = np.array(fp.get_ij())
+    scores = np.array(fp.get_scores())
+    dist_score = scores[:,0]
+    print(f'Minimum distance score: {np.min(dist_score)}')
     
-    visualize = 0
-    if visualize:
-        fig,ax = set_3d_plot()
-        for i in range(N_group):
-            glb = group_labels[i]
-            group_vertices = np.vstack([centerlines[lb] for lb in glb])
-            group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)
-            
-            result = fit_rod(group_unq)
-            fitpts = result['pts']
-            plot_single_rod(fitpts,'-',ax=ax)
-            plot_single_rod(group_unq,'.',ax=ax,markersize=0.2)
-            plt.savefig(f'/Users/yeonsu/Figures/fitting/fitting_{i}.png',dpi=150)
-            ax.clear()
-            
-            if result['err'] < 10:
-                print(i, result['err'])
-                
-            if i % 10 == 0:
-                print(i)
+    fig,ax= set_3d_plot()
+    for tc in true_centerlines2:
+        plot_single_rod(tc,'-',ax=ax)
+    tst = export_centerlines(true_centerlines2,'test2.txt')
+    
+    return clean_segments
 
-    print('Done')
-    # fig,ax = set_3d_plot()
-    # num_labels = 0
-    # for i in range(N_group):
-    #     glb = group_labels[i]
-    #     num_labels += len(glb)
-    #     group_vertices = np.vstack([centerlines[lb] for lb in glb])
-    #     group_unq,group_count = np.unique(group_vertices,axis=0,return_counts=True)        
-    #     plot_single_rod(group_unq,'.',ax=ax,markersize=0.2)
+def seg_len(seg):
+    return np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
 
-    fig,ax = set_3d_plot()
-    for lb in group_labels[max_group]:
-        plot_single_rod(centerlines[lb],'.-',ax=ax)
-    plot_single_rod(group_unq[group_count>1],'.',ax=ax)
-    plt.show()
+def do_pruning(pth):
+    centerlines,_ = load_xray_data(pth)
+    for i,cl in enumerate(centerlines):
+        centerlines[i] = np.unique(cl,axis=0)
+    unpacked,labels = unpack_centerlines(centerlines)        
+    unq,ind,inv,cnt = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    nonoverlap_labels = np.unique(labels[(cnt == 1)[inv]])        
+    pruned = prune_segments(centerlines)    
+    # check visually
+    # fig,ax= set_3d_plot()
+    # for tc in tst:
+    #     rr = tc.reshape(-1,3)
+    #     plot_single_rod(rr,'-',ax=ax)
     
-    print(f'Number of duplicate groups: {len(duplicate_groups)}')
-    # pruning()
-    
-    
-    
-    
-    # clustering()
-    # nudge_by_random_kick() # <-- 
-        
-    print()
+if __name__ == '__main__':
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')   
 
-    # main()  
+
