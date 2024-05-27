@@ -1,3 +1,4 @@
+import numpy as np
 from typing import List, Set, Tuple
 
 def partition(collection: List[int], k: int, enemies: List[Tuple[int, int]]) -> List[List[Set[int]]]:
@@ -123,7 +124,7 @@ if __name__ == '__main__':
     from scipy.io import loadmat
     import pickle
     import numpy as np
-    from example_PhysicalRodRelaxation import prep_svd_cylinder
+    from fitting import prep_svd_cylinder
     import networkx as nx
     from visualizations import set_3d_plot,plot_single_rod
     from sklearn_extra.cluster import KMedoids
@@ -131,7 +132,7 @@ if __name__ == '__main__':
     from sklearn.cluster import KMeans
     from matplotlib import pyplot as plt
     
-    from example_PhysicalRodRelaxation import lumelsky_dist_vec
+    from distances import lumelsky_dist_vec
     from visualizations import plot_centerline_with_container
     import itertools
     from scipy.spatial import ConvexHull, convex_hull_plot_2d
