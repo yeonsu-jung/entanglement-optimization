@@ -288,42 +288,71 @@ def foo():
     plot_many_curves(nodes_at_a_time,num_rods,ax)
     plt.show()
     
+def import_all_log(alllog_pth):
+    with open(alllog_pth) as f:
+        lines = f.readlines()
+        
+    time_line = []
+    node_list = []
+    contact_list = []
+    for i,line in enumerate(lines):
+        if 'Time' in line:
+            time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
+            
+        if 'Node' in line:
+            next_line = lines[i+1]                       
+            node_list.append(np.array([float(x) for x in next_line.split(',')]))
+            
+        if 'Force' in line:
+            next_line = lines[i+1]
+            if next_line == "\n":
+                contact_list.append(np.array([]))
+            else:
+                contact_list.append(np.array([float(x) for x in next_line.split(',')]))
+                
+    return time_line, node_list, contact_list
+    
+    
 if __name__ == '__main__':
+    import re
+    alllog_pth = '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N500-AR50-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-021012.csv'
     
-    pth = '/Users/yeonsu/Documents/GitHub/entanglement-optimization/centerlines_alpha100_epsilon00.mat'
-    data = scipy.io.loadmat(pth)
+    def parse_path_string(pth):
+        
+        filename = pth.split('/')[-1]        
+        file_id = filename.split('-mu')[0]
+        
+        surfix_match = re.search(r'\d{8}-\d{6}', filename)
+        surfix = surfix_match.group(0) if surfix_match else None
+        
+        num_rods_match = re.search(r'-N(\d+)-', filename)
+        num_rods = int(num_rods_match.group(1)) if num_rods_match else None
+        
+        return file_id, surfix, num_rods
     
-        
-    data_rearranged = []
-    for i in range(data['centerlines'].shape[0]):
-        rr = data['centerlines'][i][0]
-        # interpolate to have 10 points.
-        rr = np.array(rr)
-        N = rr.shape[0]
-        t = np.linspace(0,1,N)
-        t_new = np.linspace(0,1,10)
-        rr_new = np.zeros((10,3))
-        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
-                           np.interp(t_new,t,rr[:,1]),
-                           np.interp(t_new,t,rr[:,2])]).T
-        
-        data_rearranged.append(rr_new)
-        
-    fig,ax = set_3d_plot()
-    for d in data_rearranged:
-        ax.plot(d[:,0]/650,d[:,1]/650,d[:,2]/650)
-        
-    # pixel_size_in_um = 78.22*1e-6;
-    pixel_size_in_um = 1/650
-    num_rods = len(data_rearranged)
-    data_rearranged = np.array(data_rearranged)
-    data_rearranged = np.array(data_rearranged)*pixel_size_in_um
-    data_rearranged = data_rearranged.reshape(num_rods,-1)
+    file_id,surfix,num_rods = parse_path_string(alllog_pth)    
     
-    print(data_rearranged.shape)
-    export_dir = '/Users/yeonsu/Data/export/xray-scan-data'
-    if not os.path.exists(export_dir):
-        os.makedirs(export_dir,exist_ok=True)
-    np.savetxt(f'{export_dir}/centerlines_alpha100_epsilon00.txt',data_rearranged)
-
-    plt.show()
+    time_line, node_list, contact_list = import_all_log(alllog_pth)
+    
+    output_path = f'/Users/yeonsu/Videos/Hatban/{file_id}_{surfix}'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    
+    print(f'Size of time_line: {len(time_line)}')
+    print(f'Number of rods: {num_rods}')
+    
+    fig,ax=plt.subplots(figsize=(8,6),subplot_kw={'projection':'3d'})
+    for i in range(0,len(node_list),1):
+        nodes_in_matrix = node_list[i].reshape((num_rods,-1))
+        for node in nodes_in_matrix:
+            rr = node.reshape((-1,3))
+            ax.plot(rr[:,0],rr[:,1],rr[:,2])
+        ax.set_xlim(-2,2)
+        ax.set_ylim(-2,2)
+        ax.set_zlim(-2,2)
+        ax.view_init(elev=0,azim=0)
+        ax.text(1,1,1,f'time: {time_line[i]}')
+        plt.savefig(f'{output_path}/frames_{i:04d}.png',dpi=300)
+        ax.clear()
+        
+    print
