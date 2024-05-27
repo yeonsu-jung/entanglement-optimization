@@ -213,15 +213,16 @@ def fit_rod_light(rr_centered,centroid,linearity_threshold, radius_curvature_thr
 def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
     n = rr.shape[0]  # number of data points
     if rr.size == 0:
-        return create_output([], np.inf, np.nan, [], [], 0, rr, 0)
+        return create_output(np.nan,[], np.inf, np.nan, [], [], 0, rr, 0, 0)
     if n == 1:
         temp = rr / np.linalg.norm(rr, axis=1, keepdims=True)
-        return create_output(rr, np.inf, np.tile(temp, (1, 3)), [], [], 0, rr, 0)
+        return create_output(np.nan,rr, np.inf, np.tile(temp, (1, 3)), [], [], 0, rr, 0, 0)
     if n == 2:
         cen = np.mean(rr, axis=0)
         ori = (rr[1, :] - rr[0, :]) / np.linalg.norm(rr[1, :] - rr[0, :])
         len_rod = np.linalg.norm(rr[1, :] - rr[0, :])
-        return create_output(cen, np.inf, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, 0)
+        slopes = np.vstack((-ori,ori))
+        return create_output(slopes,cen, np.inf, np.column_stack([ori]*3), linspace_vector(rr[0], rr[1], 1000), [], len_rod, rr, 0, 0)
 
     # Main fitting process for n > 2
     centroid = np.mean(rr, axis=0) ###
@@ -250,7 +251,10 @@ def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
         r2 = centroid + s2 * v1
         best_estimation = centroid + np.outer(slist, orientation)
         err = np.mean( np.sqrt(np.sum((rr - best_estimation)**2,axis=1)) )
-        return create_output(centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err))
+        
+        slopes = np.vstack((-orientation,orientation))
+        
+        return create_output(slopes,centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err), 0)
     
     x_projected = rr_sorted @ v1 - xm
     y_projected = rr_sorted @ v2 - ym
@@ -263,21 +267,40 @@ def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
     xpt = xm + r0 * np.cos(phi_list)
     ypt = ym + r0 * np.sin(phi_list)
     
-    # end slope
-    
 
     circle_fit_error = np.vstack((x_projected - r0*np.cos(phi_list),y_projected - r0*np.sin(phi_list))).T
     th = np.linspace(min_th,max_th,phi_list.size//3)
     xpt2 = xm+r0*np.cos(th)
     ypt2 = ym+r0*np.sin(th)
     
+    # end slopes
+    end_slope1_proj = -r0*np.sin(phi_list[-1])
+    end_slope2_proj = r0*np.cos(phi_list[-1])
+    
+    # start slopes
+    start_slope1_proj = -r0*np.sin(phi_list[0])
+    start_slope2_proj = r0*np.cos(phi_list[0])
+    
+    start_slope_3d = start_slope1_proj*v1 + start_slope2_proj*v2
+    start_slope_3d = start_slope_3d/np.linalg.norm(start_slope_3d)
+    start_slope_3d *= -np.sign(np.sum(start_slope_3d * (rr_centered[-1, :] - rr_centered[0, :])))    
+    
+    end_slope_3d = end_slope1_proj*v1 + end_slope2_proj*v2
+    end_slope_3d = end_slope_3d/np.linalg.norm(end_slope_3d)
+    end_slope_3d *= +np.sign(np.sum(end_slope_3d * (rr_centered[-1, :] - rr_centered[0, :])))
+    slopes = np.vstack((start_slope_3d,end_slope_3d))
+    
     if  (np.sqrt(np.mean(line_fit_error**2)) < linearity_threshold) or (r0 > radius_curvature_threshold) or (np.sqrt(np.mean(line_fit_error**2)) < np.sqrt(np.mean(circle_fit_error**2))):
+        # print(f'Linearity error: {np.sqrt(np.mean(line_fit_error**2))} < {linearity_threshold}')
+        # print(f'Curvature error: {np.sqrt(np.mean(circle_fit_error**2))}')
+        
         s1, s2 = np.min(slist), np.max(slist)
         r1 = centroid + s1 * v1
         r2 = centroid + s2 * v1
         best_estimation = centroid + np.outer(slist, orientation)
         err = np.mean( np.sqrt(np.sum((rr - best_estimation)**2,axis=1)) )
-        return create_output(centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err))
+        planarity = np.mean((rr_sorted @ v3)**2)
+        return create_output(slopes,centroid, np.inf, np.column_stack([v1, v2, v3]), linspace_vector(r1, r2, 1000), slist, s2 - s1, best_estimation, np.linalg.norm(err), planarity)
     
     even_reconstruction =  centroid + np.outer(xpt2, v1) + np.outer(ypt2, v2)
     best_estimation = centroid + np.outer(xpt, v1) + np.outer(ypt, v2)
@@ -286,7 +309,10 @@ def fit_rod(rr,linearity_threshold, radius_curvature_threshold):
     # r0 * (np.max(phi_list) - np.min(phi_list))
     rod_length = np.sum( np.diff(rr_sorted,axis=0)**2, axis=1).sum()**0.5
     
-    return create_output(centroid, r0, np.column_stack([v1, v2, v3]), even_reconstruction, phi_list, rod_length, even_reconstruction, err)
+    z_projected = rr_sorted @ v3
+    planarity = np.mean(z_projected**2)
+    
+    return create_output(slopes,centroid, r0, np.column_stack([v1, v2, v3]), even_reconstruction, phi_list, rod_length, even_reconstruction, err, planarity)
 
 # @jit(nopython=True)
 def fit_rod_error(rr_centered, DEBUG_FLAG=False):
@@ -349,7 +375,7 @@ def fit_rod_error(rr_centered, DEBUG_FLAG=False):
 
 
 
-def create_output(cen, r, u, pts, philist, len_rod, rec, err):
+def create_output(slopes,cen, r, u, pts, philist, len_rod, rec, err, planarity):
     return {
         'cen': cen,  # Center of the fitted model
         'r': r,      # Radius of the circle (or inf for line)
@@ -358,7 +384,9 @@ def create_output(cen, r, u, pts, philist, len_rod, rec, err):
         'philist': philist,  # Angular coordinates of points
         'len': len_rod,      # Length of the rod or circumference
         'rec': rec,  # Reconstructed points
-        'err': err   # Errors of fit
+        'err': err,   # Errors of fit
+        'slopes': slopes,
+        'planarity': planarity
     }
 
 def linspace_vector(start, end, num):
