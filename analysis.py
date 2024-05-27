@@ -1,7 +1,6 @@
 import numpy as np
 import jax.numpy as jnp
 import jax
-
 from jax import jit
 from potentials import create_pairs, all_pairwise_distances, dist_lin_seg, all_distances_between_curves2
 from matplotlib import pyplot as plt
@@ -22,11 +21,6 @@ import glob
 import networkx as nx
 
 jax.config.update("jax_enable_x64", True)
-
-def find_general_contacts(q,rod_radius):
-    # q is an one dimensional array, having multiple node points.    
-    return 1
-    
 
 def find_contacts(q,rod_radius):
     # q is an one dimensional array
@@ -507,11 +501,29 @@ def create_animation_images(pth,nodes_over_time,timepoints,zoom=1,offset=[0,0,0]
         if 'amp' in token:
             title_string += f'{token}'    
     num_frames = nodes_over_time.shape[0]
+        
     cluster_size_list = []
     
-    outpath = f'/Users/yeonsu/Videos/{parsed_info["batch_id"]}/{parsed_info["date_time"]}/XRAY100_mu0.2'
-    if not os.path.exists(outpath):
-        os.makedirs(outpath)
+    def create_folder_with_numbering(outpath):
+        if not os.path.exists(outpath):
+            os.makedirs(outpath)
+        else:
+            # Regular expression to match the base path and the numbering
+            match = re.match(r"^(.*?)(?: \(([0-9]+)\))?$", outpath)
+            base_path = match.group(1)
+            index = 1 if match.group(2) is None else int(match.group(2)) + 1
+            
+            # Find the next available numbered folder
+            while os.path.exists(f"{base_path} ({index})"):
+                index += 1
+            
+            # Create the new folder with the next available number
+            os.makedirs(f"{base_path} ({index})")
+            outpath = f"{base_path} ({index})"
+        return outpath
+    
+    outpath = f'/Users/yeonsu/Videos/{parsed_info["sim_id"]}'
+    outpath = create_folder_with_numbering(outpath)
         
     fig,ax=set_3d_plot()
     for frame in range(num_frames):
@@ -759,20 +771,72 @@ def main():
     
     return 1
 
+def seg_len(seg):
+    return np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
+    
+def last_frame_analysis(last_frame):
+    new_cl = []
+    for i in range(last_frame.shape[0]):
+        rr = last_frame[i,:].reshape(-1,3)
+        rr_len = seg_len(rr)
+        if np.isnan(rr).any():            
+            pass
+        if rr_len < 1.5:
+            new_cl.append(rr)
+            
+    flattend_again = []
+    for rr in new_cl:
+        flattend_again.append(rr.flatten())
+    
+    flattend_again = np.array(flattend_again)
+    return flattend_again
+
+
+def check_last_frame():
+    dta = np.loadtxt(pth,delimiter=',',max_rows=10000)
+    print(f'Number of rows: {dta.shape[0]}')
+    print(f'Number of columns: {dta.shape[1]}')
+    
+    num_rods = (dta.shape[1] - 1)//30
+    
+    last_frame = dta[-1,1:].reshape(num_rods,-1)
+    
+    to_export = last_frame_analysis(last_frame)
+    N = to_export.shape[0]
+    
+    # nan check
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    min_z = 1e10
+    for i in range(N):
+        rr = to_export[i,:].reshape(-1,3)
+        ax.plot(rr[:,0],rr[:,1],rr[:,2])
+        
+        if np.min(rr[:,2]) < min_z:
+            min_z = np.min(rr[:,2])
+            i_z = i
+        
+    
+    deleted = np.delete(to_export,i_z,axis=0)
+    deleted.shape
+    
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    for i in range(N-1):
+        rr = deleted[i,:].reshape(-1,3)
+        ax.plot(rr[:,0],rr[:,1],rr[:,2])
+        
+    np.savetxt(f'prunedCenterlines-N{N-1}-AR200-Scale1.txt',deleted)   
+    
+
 if __name__ == '__main__':
-    pth = '/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale1-mu0.20-visc0.00-amp0.00_node_20240515-203222.csv'
+    pth = '/Users/yeonsu/Data/from-cluster/relaxedCenterlines2-N4365-AR200-Scale1-mu0.20-visc0.00-amp10.0_node_20240525-135325.csv'
+    
     parsed_info = parse_filename(pth)
     start_column = 1
     max_rows = 10000000
     row_skip = 1
-    nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,parsed_info["num_rods"],start_col = start_column, max_rows = max_rows, row_skip=row_skip)
-    print(nodes_over_time.shape)
-    # nodes_over_time[0,:]
     
-    # last_frame = nodes_over_time[-1,:].reshape(parsed_info['num_rods'],-1)
-    # np.savetxt('relaxedCenterlines-N6995-AR38-Scale1_lastFrame.txt',last_frame)
-    
-    create_animation_images(pth,nodes_over_time,timepoints,zoom=0.7,offset=[1.5,1.5,1],params={'linewidth': 0.5})
+    nodes_over_time, timepoints, num_vertices = import_from_dismech_hook(pth,parsed_info["num_rods"],start_col = start_column, max_rows = max_rows, row_skip=row_skip)   
+    create_animation_images(pth,nodes_over_time,timepoints,zoom=0.7,offset=[0,0,0],params={'linewidth': 0.5})
     
     
     # analyze_single_data(pth)
