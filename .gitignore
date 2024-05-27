@@ -21,3 +21,4 @@ pg/*
 *.so
 
 *.txt
+scripting_download_dismech.py
