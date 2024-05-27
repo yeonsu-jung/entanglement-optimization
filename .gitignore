@@ -13,4 +13,11 @@ xray_raw_data/*
 *.zip
 *.mat
 
+test_*
+*.bin
+
 pg/*
+
+*.so
+
+*.txt
