@@ -20,6 +20,8 @@ import potentials as pt
 import glob, os, shutil
 
 import numba
+from pathlib import Path
+import os
 
 @numba.jit(nopython=True)
 def fixbound_nonjax(num):
@@ -193,12 +195,172 @@ def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container
 
     return q
 
-    # circles = np.zeros((n, 4))
-    
-    
-    
-    return q0
-    
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods_contained_in_box(num_rods, rod_diameter, container_size, max_attempts=10000):
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-container_size/2, container_size/2)
+            y = onp.random.uniform(-container_size/2, container_size/2)
+            z = onp.random.uniform(-container_size/2, container_size/2)
+            phi = onp.random.uniform(0, onp.pi)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            # Check if the rod's endpoints are within the box boundaries
+            if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
+                onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
+                intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+                
+                # Check if the rod's endpoints are within the box boundaries
+                if (onp.any(p_j < -container_size/2) or onp.any(p_j > container_size/2) or
+                    onp.any(p_jj < -container_size/2) or onp.any(p_jj > container_size/2)):
+                    intersect = True
+                    break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000):
+    assert(len(container_size) == 3)
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-container_size[0]/2, container_size[0]/2)
+            y = onp.random.uniform(-container_size[1]/2, container_size[1]/2)
+            z = onp.random.uniform(-container_size[2]/2, container_size[2]/2)
+            phi = onp.random.uniform(0, onp.pi)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            # Check if the rod's endpoints are within the box boundaries
+            if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
+                onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
+                intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+                
+                # Check if the rod's endpoints are within the box boundaries
+                if (onp.any(p_j < -container_size/2) or onp.any(p_j > container_size/2) or
+                    onp.any(p_jj < -container_size/2) or onp.any(p_jj > container_size/2)):
+                    intersect = True
+                    break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diameter,container_size,max_attempts=10000):
+    print('create_nonintersecting_random_rods whose centroids in a container')        
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-1,1)
+            y = onp.random.uniform(-1,1)
+            z = onp.random.uniform(-1,1)
+            phi = onp.random.uniform(0, onp.pi)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + 1 * onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            com_i = (p_i + p_ii)/2
+            
+            if (i == 0) & (onp.linalg.norm(com_i) > container_size):
+                intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + 1 * onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                com_j = (p_j + p_jj)/2
+                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+                
+                # print([onp.linalg.norm(p_i), onp.linalg.norm(p_ii), onp.linalg.norm(p_j), onp.linalg.norm(p_jj)])
+                if (onp.linalg.norm(com_i) > container_size or onp.linalg.norm(com_j) > container_size):
+                    intersect = True
+                    break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
 def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3):
     # f = total_effective_potential # bad name...    
     q0 = create_random_rods(num_rods)
@@ -1290,9 +1452,8 @@ def random_nonintersection_contained_protocol():
     packing_id = f'RandomNonintersectingPackingContained-N{num_rods}-AR{AR}-Scale{scale_factor}-Container{container_size}'
     # length is fixed 1
     
-    q = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=max_attempts)    
+    q = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=max_attempts)
     plot_many_rods(q.reshape(-1,5))
-    
     plt.savefig(f"/Users/yeonsu/Figures/{packing_id}.png",dpi=300)
     
     pairs = create_pairs(q.reshape(-1,5))
@@ -1412,18 +1573,185 @@ def batch_process():
             plt.xlabel('Distance')
             plt.ylabel('Frequency')
             plt.savefig(f"{export_folder}/figures/{dt_string}_histogram_N{num_rods}_AR{AR}_Scale{scale_factor}.png",dpi=300)
+            
+def example_nibox():
+    num_rods = 100
+    container_size = 2
+    rod_diameter = 0.01
+    q = create_nonintersecting_random_rods_contained_in_box(num_rods,rod_diameter,container_size,max_attempts=10000000)
+    print(q.shape)
+    
+    fig,ax= set_3d_plot()
+    plot_many_rods(q.reshape(-1,5))
+    print
+    
+def sanity_check():
+    q = create_nonintersecting_random_rods_contained_in_box(num_rods=num_rods,
+                                                                    rod_diameter=rod_diameter,
+                                                                    container_size=container_size,
+                                                                    max_attempts=1000000)
+    x = q_to_x(q)    
+    x = onp.array(x)
+    
+    num_rods = 300
+    rod_diameter = 1/20/2
+    container_size = 1.5
+    density_factor = num_rods/container_size**3*rod_diameter*1**2
+    print(f'Density factor: {density_factor}')
+    
+    @numba.jit(nopython=True)    
+    def fast_dist_calc(x,num_rods):
+        for i in range(num_rods):
+            p_i = x[i,:3]
+            p_f = x[i,3:]
+            for j in range(i+1,num_rods):
+                q_i = x[j,:3]
+                q_f = x[j,3:]
+                d = dist_lin_seg_nonjax(p_i,p_f,q_i,q_f)
+                if d < 0.01:
+                    print(f"Distance between {i} and {j}: {d}")
+                    
+        return d
+    
+    fast_dist_calc(x,num_rods)
+
+def McFlurry():
+    batch_id = 'MacFlurry'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+    
+    density_factor = 5
+    container_size = 1.5
+    for AR in [20,50,100,200,300,500]:
+        for num_rods in [100]:
+            rod_diameter = (1./AR)
+            # num_rods = int(container_size**3*density_factor/rod_diameter)
+            # print(f'Num rods: {num_rods}')
+            density_factor = num_rods/(container_size-1/2)**3*rod_diameter*1**2
+            
+            q = create_nonintersecting_random_rods_contained_in_box(num_rods=num_rods,
+                                                                    rod_diameter=rod_diameter,
+                                                                    container_size=container_size,
+                                                                    max_attempts=1000000)
+            x = q_to_x(q)
+            onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+            fig,ax= set_3d_plot()
+            plot_edges(x,ax=ax)
+            ax.set_title(f'Num rods: {x.shape[0]}')
+            plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+            plt.close()
+            
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+            
+    print
+    
+def Hatban():
+    batch_id = 'Hatban'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+    
+    density_factor = 5
+    container_size = 1
+    for AR in [20,50,100,200,300,500]:
+        for num_rods in [100]:
+            rod_diameter = (1./AR)
+            # num_rods = int(container_size**3*density_factor/rod_diameter)
+            # print(f'Num rods: {num_rods}')
+            density_factor = num_rods/(container_size-1/2)**3*rod_diameter*1**2
+            
+            q = create_nonintersecting_random_rods_com_contained_sphere(num_rods=num_rods,
+                                                                    rod_diameter=rod_diameter,
+                                                                    container_size=container_size,
+                                                                    max_attempts=1000000)
+            x = q_to_x(q)
+            onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+            fig,ax= set_3d_plot()
+            plot_edges(x,ax=ax)
+            ax.set_title(f'Num rods: {x.shape[0]}')
+            plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+            plt.close()
+            
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+def Powerade():
+    batch_id = 'Powerade'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+    
+    density_factor = 5
+    container_size = onp.array([1.2,1.2,2])
+    for AR in [50,100,200,300,500]:
+        for num_rods in [100,500]:
+            rod_diameter = (1./AR)
+            # num_rods = int(container_size**3*density_factor/rod_diameter)
+            # print(f'Num rods: {num_rods}')
+            container_volume = (container_size[0] - 1/2)*(container_size[1] - 1/2)*(container_size[2] - 1/2)
+            density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+            print(density_factor)
+            
+            q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                    rod_diameter=rod_diameter,
+                                                                    container_size=container_size,
+                                                                    max_attempts=1000000)
+            x = q_to_x(q)
+            onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+            fig,ax= set_3d_plot()
+            plot_edges(x,ax=ax)
+            ax.set_title(f'Num rods: {x.shape[0]}')
+            plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+            plt.close()
 
 if __name__ == "__main__":
-    pth_xray_data_ar100 = '/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale1.txt'
-    dta = onp.loadtxt(pth_xray_data_ar100)
+    # time for makikng a batch
+    # Chuck    
+    batch_id = 'Powerade'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
     
-    dta.shape
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
     
-    dta *= 0.05
-    
-    onp.savetxt('/Users/yeonsu/Data/export/xray-scan-data/PhysicalEpsilon00ContinuedPruned-N4410-AR100-Scale0.05.txt',dta)
-    
-    
-    
+    density_factor = 5
+    container_size = onp.array([1.2,1.2,2])
+    for AR in [50,100,200,300,500]:
+        for num_rods in [100,500]:
+            rod_diameter = (1./AR)
+            # num_rods = int(container_size**3*density_factor/rod_diameter)
+            # print(f'Num rods: {num_rods}')
+            container_volume = (container_size[0] - 1/2)*(container_size[1] - 1/2)*(container_size[2] - 1/2)
+            density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+            print(density_factor)
+            
+            q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                    rod_diameter=rod_diameter,
+                                                                    container_size=container_size,
+                                                                    max_attempts=1000000)
+            x = q_to_x(q)
+            onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+            fig,ax= set_3d_plot()
+            plot_edges(x,ax=ax)
+            ax.set_title(f'Num rods: {x.shape[0]}')
+            plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+            plt.close()
+            
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+            
     print
     
