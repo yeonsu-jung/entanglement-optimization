@@ -146,6 +146,14 @@ def plot_centerline_with_container(centerlines,svd_cylinders,i,ax):
     # ax.set_xlim(bounding_box[:,0])
     # ax.set_ylim(bounding_box[:,1])
     # ax.set_zlim(bounding_box[:,2])
+    
+def draw_sphere():
+    u = np.linspace(0, 2 * np.pi, 100)
+    v = np.linspace(0, np.pi, 100)
+    x = np.outer(np.cos(u), np.sin(v))
+    y = np.outer(np.sin(u), np.sin(v))
+    z = np.outer(np.ones(np.size(u)), np.cos(v))
+    ax.plot_surface(x, y, z, color='b', alpha=0.1)
 
 def data_for_cylinder_along_z(center_x, center_y, radius, height_z):
     z = np.linspace(-height_z, height_z, 50)
