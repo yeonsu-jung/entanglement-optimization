@@ -12,8 +12,7 @@ def get_local_fields_at_a_point(centerlines, point, R, rod_diameter, visualize=F
     ee_list = collect_local_edges(edges_all_in_one,labels,unique_labels_in_sphere)        
     
     if len(ee_list) == 0:
-        print('No local curves found')
-        return
+        return np.nan, np.nan, np.nan, np.nan
     
     total_edges = np.vstack(ee_list)
     edge_length = np.linalg.norm(total_edges[:,3:6] - total_edges[:,:3],axis=1)                
@@ -31,10 +30,10 @@ def get_local_fields_at_a_point(centerlines, point, R, rod_diameter, visualize=F
         for ee in ee_list:
             ax.plot(ee[:,0],ee[:,1],ee[:,2])
     
-    print(f'Number of local curves: {number_of_local_curves}')
-    print(f'Local volume fraction: {local_volume_fraction}')
-    print(f'Local orientational order: {local_orientational_order}')
-    print(f'Local average crossing number: {local_average_crossing_number}')
+    # print(f'Number of local curves: {number_of_local_curves}')
+    # print(f'Local volume fraction: {local_volume_fraction}')
+    # print(f'Local orientational order: {local_orientational_order}')
+    # print(f'Local average crossing number: {local_average_crossing_number}')
     
     return number_of_local_curves, local_volume_fraction, local_orientational_order, local_average_crossing_number
     
