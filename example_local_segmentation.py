@@ -81,13 +81,13 @@ dist_score = scores[:,0]
 align_score = scores[:,1]
 fit_score = scores[:,2]
 mask = align_score < 0.01
-
+mask2 = (dist_score < 5) & (align_score < 0.1)
 
 
 G = nx.Graph()
 for i in range(len(segments)):    
     G.add_node(i,weight=int(seg_len(segments[i])))
-G.add_weighted_edges_from(zip(ij[mask,0],ij[mask,1],dist_score[mask]))
+G.add_weighted_edges_from(zip(ij[mask2,0],ij[mask2,1],dist_score[mask2]))
 
 # svd_cylinders,_,_ = prep_svd_cylinder(segments,scale_factor=1)
 fig,ax=plt.subplots(1,1)
