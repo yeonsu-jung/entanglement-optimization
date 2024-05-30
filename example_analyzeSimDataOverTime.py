@@ -5,11 +5,12 @@ import re
 import os
 from data_io import import_all_log
 from fields import get_local_fields_at_a_point
+from pathlib import Path
 
 def sample_nodes_locally(nodes,center,R):
     I1 = np.linalg.norm((nodes[:,:3] - center), axis=1) < R
     I2 = np.linalg.norm((nodes[:,3:6] - center), axis=1) < R
-    I_sphere_segments = I1 & I2    
+    I_sphere_segments = I1 & I2
     return nodes[I_sphere_segments]
 
 def label_nodes(nodes):
@@ -50,19 +51,35 @@ def parse_path_string(pth):
 
 
 # '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-193121.csv'
-alllog_pth ='/Users/yeonsu/GitHub/dismech-rods-main/runs/20240528-0112_RUN_PerturbCarrotCake_N1000_AR200/log_files/CarrotCakeLastFrame-N1000-AR200-Scale1-20240527-193121-mu0.20-visc0.00-amp0.00_allLog_20240528-011231.csv'
+folder_path ='/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05/'
+folder_path = Path(folder_path)
+protocol_id = 'CarrotCake2-ExciteEntangle'
 
-protocol_id = 'CarrotCake2'
-file_id,surfix,num_rods,AR = parse_path_string(alllog_pth)
-time_line, node_list, contact_list = import_all_log(alllog_pth,max_rows=10000)
 
+
+possible_paths = []
+for pth in folder_path.glob('**/*.csv'):
+    if 'lastFrame' in str(pth):
+        continue
+    possible_paths.append(pth)
+    
+if len(possible_paths) == 0:
+    print('No csv files found in the folder')
+    exit()
+elif len(possible_paths) > 1:
+    print('Multiple csv files found in the folder')
+    exit()
+    
+pth = str(possible_paths[0])
+
+file_id,surfix,num_rods,AR = parse_path_string(pth)
+time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
 
 output_folder = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_twoPlots_highResolution/'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 else:
     print(f'Folder already exists: {output_folder}')
-    
 
 print(f'Size of time_line: {len(time_line)}')
 print(f'Number of rods: {num_rods}')
@@ -106,13 +123,6 @@ for frame in range(0,len(sampling_points),1):
         phi_fields[iterator] = fF.return_volume_fraction()
         S_fields[iterator] = fF.return_orientational_order_parameter()
         e_fields[iterator] = fF.return_entanglement()
-        
-        # result = get_local_fields_at_a_point(curves, sampling_point, R_omega, rod_diameter, visualize=False)
-        # number_of_local_curves, local_volume_fraction, local_orientational_order, local_average_crossing_number = result
-        # n_fields[iterator] = number_of_local_curves
-        # phi_fields[iterator] = local_volume_fraction
-        # S_fields[iterator] = local_orientational_order
-        # e_fields[iterator] = local_average_crossing_number
     
     e_fields_img = e_fields.reshape(num_grids,num_grids)
     e_fields_img = np.flipud(e_fields_img.T)
