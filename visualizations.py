@@ -181,3 +181,23 @@ def rotate_grid(X, Y, Z, rotation_matrix):
     rotated_grid = rotation_matrix @ grid
     X_rot, Y_rot, Z_rot = rotated_grid.reshape(3, *shape)
     return X_rot, Y_rot, Z_rot
+
+def show_rods_and_fields():
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6))
+    # axs[1].imshow(e_fields_img, extent=[-2, 2, -1, 1],vmin=0,vmax=60)
+    fig.colorbar(axs[1].imshow(e_fields_img, extent=[xlim[0], xlim[1], zlim[0], zlim[1]],vmin=0,vmax=240), ax=axs[1])
+    
+    for curve in curves:
+        axs[0].plot(curve[:, 0], curve[:, 2], alpha=1)
+    for ax in axs:
+        ax.set_xlim([-2, 2])
+        ax.set_ylim([-1, 1])
+        ax.set_aspect('equal')  # Ensure aspect ratio is equal
+    axs[0].set_title('Rods')
+    axs[1].set_title('Entanglement field')
+    axs[0].text(-1.5, 0.8, f'Time: {time_line[frame]} sec', fontsize=12)
+    plt.tight_layout()
+    plt.savefig(f'{output_folder}/frames_{frame:04d}.png', dpi=300)
+    plt.close('all')
+    
+    print(f'Elapsed time: {time.time()-start}')
