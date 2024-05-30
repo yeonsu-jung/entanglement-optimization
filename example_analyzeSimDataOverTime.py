@@ -49,13 +49,15 @@ def parse_path_string(pth):
     return file_id, surfix, num_rods, AR
 
 
-alllog_pth = '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-193121.csv'
+# '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-193121.csv'
+alllog_pth ='/Users/yeonsu/GitHub/dismech-rods-main/runs/20240528-0112_RUN_PerturbCarrotCake_N1000_AR200/log_files/CarrotCakeLastFrame-N1000-AR200-Scale1-20240527-193121-mu0.20-visc0.00-amp0.00_allLog_20240528-011231.csv'
+
 protocol_id = 'CarrotCake2'
 file_id,surfix,num_rods,AR = parse_path_string(alllog_pth)
 time_line, node_list, contact_list = import_all_log(alllog_pth,max_rows=10000)
 
 
-output_folder = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_twoPlots/'
+output_folder = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_twoPlots_highResolution/'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 else:
@@ -72,10 +74,23 @@ R_omega = np.sqrt(2*rod_length*rod_diameter)
 # %%
 mid_y = 0
 num_grids = 30
-mg = np.meshgrid(np.linspace(-2,2,num_grids),mid_y,np.linspace(-1,1,num_grids))
+xlim = [-0.5,0.5]
+zlim = [-1,1]
+
+mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),mid_y,np.linspace(zlim[0],zlim[1],num_grids))
 sampling_points = np.array([mg[0].flatten(),mg[1].flatten(),mg[2].flatten()]).T
 
-for frame in range(0,len(time_line),1):
+import importlib
+import fields
+importlib.reload(fields)
+from fields import get_local_fields_at_a_point
+
+import time
+start = time.time()
+import filamentFields
+# %%
+start = time.time()
+for frame in range(0,len(sampling_points),1):
     curves = node_list[frame]
     curves = curves.reshape(num_rods, -1, 3)
 
@@ -83,22 +98,28 @@ for frame in range(0,len(time_line),1):
     phi_fields = np.zeros(len(sampling_points))
     S_fields = np.zeros(len(sampling_points))
     e_fields = np.zeros(len(sampling_points))
+    fF = filamentFields.filamentFields(curves)
 
     for iterator,sampling_point in enumerate(sampling_points):
-        result = get_local_fields_at_a_point(curves, sampling_point, R_omega, rod_diameter, visualize=False)
-        number_of_local_curves, local_volume_fraction, local_orientational_order, local_average_crossing_number = result
-        n_fields[iterator] = number_of_local_curves
-        phi_fields[iterator] = local_volume_fraction
-        S_fields[iterator] = local_orientational_order
-        e_fields[iterator] = local_average_crossing_number
+        fF.analyzeLocalVolume(sampling_point, R_omega*2, rod_diameter)
+        n_fields[iterator] = fF.return_number_of_labels()
+        phi_fields[iterator] = fF.return_volume_fraction()
+        S_fields[iterator] = fF.return_orientational_order_parameter()
+        e_fields[iterator] = fF.return_entanglement()
+        
+        # result = get_local_fields_at_a_point(curves, sampling_point, R_omega, rod_diameter, visualize=False)
+        # number_of_local_curves, local_volume_fraction, local_orientational_order, local_average_crossing_number = result
+        # n_fields[iterator] = number_of_local_curves
+        # phi_fields[iterator] = local_volume_fraction
+        # S_fields[iterator] = local_orientational_order
+        # e_fields[iterator] = local_average_crossing_number
     
     e_fields_img = e_fields.reshape(num_grids,num_grids)
     e_fields_img = np.flipud(e_fields_img.T)
-
     
     fig, axs = plt.subplots(1, 2, figsize=(12, 6))
     # axs[1].imshow(e_fields_img, extent=[-2, 2, -1, 1],vmin=0,vmax=60)
-    fig.colorbar(axs[1].imshow(e_fields_img, extent=[-2, 2, -1, 1],vmin=0,vmax=120), ax=axs[1])
+    fig.colorbar(axs[1].imshow(e_fields_img, extent=[xlim[0], xlim[1], zlim[0], zlim[1]],vmin=0,vmax=240), ax=axs[1])
     
     for curve in curves:
         axs[0].plot(curve[:, 0], curve[:, 2], alpha=1)
@@ -110,6 +131,10 @@ for frame in range(0,len(time_line),1):
     axs[1].set_title('Entanglement field')
     axs[0].text(-1.5, 0.8, f'Time: {time_line[frame]} sec', fontsize=12)
     plt.tight_layout()
-    plt.savefig(f'{output_folder}/frames_{frame}.png', dpi=300)
+    plt.savefig(f'{output_folder}/frames_{frame:04d}.png', dpi=300)
     plt.close('all')
+    
+    print(f'Elapsed time: {time.time()-start}')
 
+
+# %%
