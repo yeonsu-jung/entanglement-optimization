@@ -2,6 +2,7 @@ from numpy import loadtxt, savetxt
 import jax.numpy as jnp
 import numpy as np
 import datetime
+import re
 
 from visualizations import set_3d_plot, plot_many_rods
 from matplotlib import pyplot as plt
@@ -12,6 +13,23 @@ import scipy.io
 import os
 from pathlib import Path
 from scipy.io import loadmat
+
+
+def parse_path_string(pth):    
+    filename = pth.split('/')[-1]        
+    file_id = filename.split('-mu')[0]
+    
+    surfix_match = re.search(r'\d{8}-\d{6}', filename)
+    surfix = surfix_match.group(0) if surfix_match else None
+    
+    num_rods_match = re.search(r'-N(\d+)-', filename)
+    num_rods = int(num_rods_match.group(1)) if num_rods_match else None
+    
+    AR_match = re.search(r'-AR(\d+)-', filename)
+    AR = int(AR_match.group(1)) if AR_match else None
+    
+    return file_id, surfix, num_rods, AR
+
 
 def load_xray_data(pth):
     pth = Path(pth)
@@ -288,9 +306,10 @@ def foo():
     plot_many_curves(nodes_at_a_time,num_rods,ax)
     plt.show()
     
-def import_all_log(alllog_pth):
+def import_all_log(alllog_pth, max_rows = 10):
     with open(alllog_pth) as f:
         lines = f.readlines()
+    lines = lines[:max_rows]
         
     time_line = []
     node_list = []
@@ -312,37 +331,35 @@ def import_all_log(alllog_pth):
                 
     return time_line, node_list, contact_list
     
-    
 if __name__ == '__main__':
-    import re
-    alllog_pth = '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N500-AR50-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-021012.csv'
     
-    def parse_path_string(pth):
-        
-        filename = pth.split('/')[-1]        
-        file_id = filename.split('-mu')[0]
-        
-        surfix_match = re.search(r'\d{8}-\d{6}', filename)
-        surfix = surfix_match.group(0) if surfix_match else None
-        
-        num_rods_match = re.search(r'-N(\d+)-', filename)
-        num_rods = int(num_rods_match.group(1)) if num_rods_match else None
-        
-        return file_id, surfix, num_rods
+    pathlist = []
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize4_freq10_amp0.05')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N500_AR100_mu0.2_visc0_boxsize4_freq10_amp0.05')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N1000_AR200_mu0.2_visc0_boxsize4_freq10_amp0.05')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N1500_AR300_mu0.2_visc0_boxsize4_freq10_amp0.05')
     
-    file_id,surfix,num_rods = parse_path_string(alllog_pth)    
     
+    alllog_pth = ''
+    protocol_id = 'CarrotCake2'
+    
+    file_id,surfix,num_rods = parse_path_string(alllog_pth)
     time_line, node_list, contact_list = import_all_log(alllog_pth)
-    
-    output_path = f'/Users/yeonsu/Videos/Hatban/{file_id}_{surfix}'
+    output_path = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_{surfix}'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
+        start_point = 0
+    else:
+        # count number of files in the directory
+        num_files = len(os.listdir(output_path))
+        start_point = num_files
+    start_point -= 10
     
     print(f'Size of time_line: {len(time_line)}')
     print(f'Number of rods: {num_rods}')
     
-    fig,ax=plt.subplots(figsize=(8,6),subplot_kw={'projection':'3d'})
-    for i in range(0,len(node_list),1):
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    for i in range(start_point,len(node_list),1):
         nodes_in_matrix = node_list[i].reshape((num_rods,-1))
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
@@ -352,7 +369,9 @@ if __name__ == '__main__':
         ax.set_zlim(-2,2)
         ax.view_init(elev=0,azim=0)
         ax.text(1,1,1,f'time: {time_line[i]}')
-        plt.savefig(f'{output_path}/frames_{i:04d}.png',dpi=300)
+        plt.tight_layout(pad=0)
+        
+        plt.savefig(f'{output_path}/frames_{i:04d}.png', dpi=300, bbox_inches='tight', pad_inches=0)
         ax.clear()
         
     print
