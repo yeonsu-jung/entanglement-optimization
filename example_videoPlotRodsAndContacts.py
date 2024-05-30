@@ -55,15 +55,6 @@ def plot_contacts(contact_info,scale_factor,ax):
     ax.quiver(contact_point_i[0],contact_point_i[1],contact_point_i[2],log_contact_force_i[0]/scale_factor,log_contact_force_i[1]/scale_factor,log_contact_force_i[2]/scale_factor,color='g',linestyle='-')
     ax.quiver(contact_point_j[0],contact_point_j[1],contact_point_j[2],log_contact_force_j[0]/scale_factor,log_contact_force_j[1]/scale_factor,log_contact_force_j[2]/scale_factor,color='g',linestyle='-')
 
-    # ax.quiver(contact_point_i[0],contact_point_i[1],contact_point_i[2],contact_force_i[0]/scale_factor,contact_force_i[1]/scale_factor,contact_force_i[2]/scale_factor,color='g',linestyle='-')
-    # ax.quiver(contact_point_j[0],contact_point_j[1],contact_point_j[2],contact_force_j[0]/scale_factor,contact_force_j[1]/scale_factor,contact_force_j[2]/scale_factor,color='g',linestyle='-')
-
-    # ax.quiver(ni1[0],ni1[1],ni1[2],fi1[0]/scale_factor,fi1[1]/scale_factor,fi1[2]/scale_factor,color='r',linestyle='--')
-    # ax.quiver(ni2[0],ni2[1],ni2[2],fi2[0]/scale_factor,fi2[1]/scale_factor,fi2[2]/scale_factor,color='r',linestyle='--')
-    # ax.quiver(nj1[0],nj1[1],nj1[2],fj1[0]/scale_factor,fj1[1]/scale_factor,fj1[2]/scale_factor,color='b',linestyle='--')
-    # ax.quiver(nj2[0],nj2[1],nj2[2],fj2[0]/scale_factor,fj2[1]/scale_factor,fj2[2]/scale_factor,color='b',linestyle='--')
-    # ax.axis('equal')
-
 
 def guess_contact_point(fi1,fi2):
     fi1x = fi1[0]
@@ -162,6 +153,8 @@ folder_path ='/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N250
 folder_path = Path(folder_path)
 protocol_id = 'CarrotCake2-ExciteEntangle'
 
+
+
 possible_paths = []
 for pth in folder_path.glob('**/*.csv'):
     if 'lastFrame' in str(pth):
@@ -179,25 +172,28 @@ pth = str(possible_paths[0])
 file_id,surfix,num_rods,AR = parse_path_string(pth)
 
 time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
-output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}_fieldsPlots/'
-if not os.path.exists(output_folder):
-    os.makedirs(output_folder)
-else:
-    print(f'Folder already exists: {output_folder}')
+# output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}_fieldsPlots/'
+# if not os.path.exists(output_folder):
+#     os.makedirs(output_folder)
+# else:
+#     print(f'Folder already exists: {output_folder}')
+    
+contact_output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}_rodsContactsPlots/'
+if not os.path.exists(contact_output_folder):
+    os.makedirs(contact_output_folder)
 
 print(f'Size of time_line: {len(time_line)}')
 print(f'Number of rods: {num_rods}')
 print(f'Aspect ratio: {AR}')
-print(f'Output folder: {output_folder}')
+# print(f'Output folder: {output_folder}')
 
 # %% time evolution
-contact_output_folder = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_contacts/'
-if not os.path.exists(contact_output_folder):
-    os.makedirs(contact_output_folder)
-    
-for curr_time_index in range(0,len(time_line),1):
-    curr_nodes = node_list[curr_time_index].reshape((num_rods,-1,3))
-    curr_force = contact_list[curr_time_index].reshape(-1,18)
+import time
+start = time.time()
+num_frames = len(time_line)
+for frame in range(0,num_frames,1):
+    curr_nodes = node_list[frame].reshape((num_rods,-1,3))
+    curr_force = contact_list[frame].reshape(-1,18)
 
     arrow_scale_factor = 100
     fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
@@ -208,10 +204,14 @@ for curr_time_index in range(0,len(time_line),1):
         contact_info = process_contact_data(single_contact_info,curr_nodes)
         plot_contacts(contact_info,arrow_scale_factor,ax)
         # plot contacts
-    ax.text(0.5,0.5,1,f'time: {time_line[curr_time_index]:.2f}')
+    ax.text(0.5,0.5,1,f'time: {time_line[frame]:.2f}')
     ax.view_init(elev=0, azim=0)
     ax.set_xlim([-0.5,0.5])
     ax.set_ylim([-0.5,0.5])
     ax.set_zlim([-1,1])
-    plt.savefig(f'{contact_output_folder}/frame_{curr_time_index:04d}.png')
+    plt.savefig(f'{contact_output_folder}/frame_{frame:04d}.png')
     plt.close()
+    
+    if (frame % 100 == 0):
+        print(f'Frame {frame:04d} done, elapsed time: {time.time()-start:.2f} sec')
+        
