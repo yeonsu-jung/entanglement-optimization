@@ -4,14 +4,24 @@ from matplotlib import pyplot as plt
 from numba import jit as njit
 import time
 
+import filamentFields
+# from linking import compute_edge_wise_entanglement
+# import linking
+# import importlib
+# importlib.reload(linking)
+
+
+
 def get_local_fields_at_a_point(centerlines, point, R, rod_diameter, visualize=False):
     _,labels,edges_all_in_one = get_edges_labels_from_centerlines(centerlines)
     
     I_local = sample_edges_locally_and_return_indices(edges_all_in_one,point,R)
-    unique_labels_in_sphere = np.unique(labels[I_local])    
-    ee_list = collect_local_edges(edges_all_in_one,labels,unique_labels_in_sphere)        
+    unique_labels_in_sphere = np.unique(labels[I_local])
+    local_edges = edges_all_in_one[I_local,:]
+    local_labels = labels[I_local]
+    ee_list = collect_local_edges(local_edges,local_labels,unique_labels_in_sphere)
     
-    if len(ee_list) == 0:
+    if len(ee_list) < 2:
         return np.nan, np.nan, np.nan, np.nan
     
     total_edges = np.vstack(ee_list)
@@ -21,8 +31,9 @@ def get_local_fields_at_a_point(centerlines, point, R, rod_diameter, visualize=F
     local_volume_fraction = np.sum(edge_length)*(np.pi*rod_diameter**2/4)/(4/3*np.pi*R**3)                    
     
     local_orientational_order = compute_local_orientational_order(ee_list)
+    # lk_mat = linking.compute_local_lk(ee_list)
+    lk_mat = compute_local_lk(ee_list)
     
-    lk_mat = compute_local_lk(ee_list)    
     local_average_crossing_number = np.sum(np.abs(lk_mat[np.triu_indices(lk_mat.shape[0],k=1)]))
     
     if visualize:
@@ -54,9 +65,14 @@ def sample_edges_locally_and_return_indices(edges,center,R):
 
 def collect_local_edges(edges,labels,unique_labels_in_sphere):
     ee_list = []
-    for lb in unique_labels_in_sphere:                    
-        I = labels == lb
-        ee_list.append(edges[I,:])
+    for lb in unique_labels_in_sphere:
+        # no, if you do this, then you don't do cropping.
+        # or should we do that?        
+        # I = labels == lb
+        # ee_list.append(edges[I,:])
+        I = unique_labels_in_sphere == lb
+        ee_list.append(edges[labels == lb,:])
+        
     return ee_list
     
 def compute_local_orientational_order(ee_list):                    
@@ -183,7 +199,7 @@ def compute_linking_number_for_edges(e_i,e_j):
     r_ij = e_i[0:3] - e_j[0:3]
     r_ijj = e_i[0:3] - e_j[3:6]
     r_iij = e_i[3:6] - e_j[0:3]
-    r_iijj = e_i[3:6] - e_j[3:6]    
+    r_iijj = e_i[3:6] - e_j[3:6]
 
     tol = 1e-6
     n1 = np.cross(r_ij, r_ijj)
