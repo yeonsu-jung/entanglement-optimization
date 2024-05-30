@@ -123,7 +123,6 @@ else:
 print(f'Size of time_line: {len(time_line)}')
 print(f'Number of rods: {num_rods}')
 print(f'Aspect ratio: {AR}')
-
 print(f'Output folder: {output_folder}')
     
 # %%
@@ -160,9 +159,8 @@ for frame in range(0,len(time_line),1):
         pi = contact_info['contact_point_i']
         pj = contact_info['contact_point_j']
         cij = (pi+pj)/2
-        fij = contact_info['contact_force_i']    
-        
-        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])    
+        fij = contact_info['contact_force_i']        
+        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
 
     n_fields = np.zeros(len(sampling_points))
     phi_fields = np.zeros(len(sampling_points))
