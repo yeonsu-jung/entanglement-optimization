@@ -11,6 +11,8 @@ from fields import get_local_fields_at_a_point
 import time
 import pandas as pd
 import filamentFields
+import argparse
+import datetime
 
 def plot_contacts(contact_info,scale_factor,ax):
     ni1 = contact_info["ni1"]
@@ -122,12 +124,22 @@ def process_contact_data(single_contact_info,curr_nodes):
     return contact_info
 
 def main():
-    R_omega_factor = 2
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('protocol_id', metavar = 'protocol_id', type=str, nargs='?')
+    parser.add_argument('folder_path', metavar = 'folder_path', type=str, nargs='?')
+    args = parser.parse_args()
+    # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
+    protocol_id = args.protocol_id
+    folder_path = args.folder_path
+    
+    print(f'Analyzing the dataset')
+    print(f'Protocol ID: {protocol_id}')
+    print(f'Folder path: {folder_path}')
+    
+    R_omega_factor = 4
     arrow_scale_factor = 100
     
     rod_length = 1
-    rod_diameter = rod_length/AR
-    R_omega = R_omega_factor*np.sqrt(rod_length*rod_diameter)
 
     mid_y = 0
     num_grids = 30
@@ -136,11 +148,11 @@ def main():
     
     visualize_fields = 1
     visualize_rods_contacts = 1
-    skip_frames = 10
+    skip_frames = 10    
     
-    folder_path ='/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05/'
+    # protocol_id = 'CarrotCake2-ExciteEntangle'    
+    # folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
     folder_path = Path(folder_path)
-    protocol_id = 'CarrotCake2-ExciteEntangle'
 
     possible_paths = []
     for pth in folder_path.glob('**/*.csv'):
@@ -153,20 +165,33 @@ def main():
         exit()
     elif len(possible_paths) > 1:
         print('Multiple csv files found in the folder')
-        exit()
+        # find heaviest file
+        max_size = 0
+        for pth in possible_paths:
+            size = os.path.getsize(pth)
+            if size > max_size:
+                max_size = size
+                heaviest_file = pth
+        possible_paths = [heaviest_file]
         
     pth = str(possible_paths[0])
-    file_id,surfix,num_rods,AR = parse_path_string(pth)
+    file_id,surfix,num_rods,AR,datetime_str = parse_path_string(pth)
+        
+    rod_diameter = rod_length/AR
+    R_omega = R_omega_factor*np.sqrt(rod_length*rod_diameter)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
-    output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}/'
+    data_root = 'analysis-data'
+    output_folder = f'{data_root}/{protocol_id}/{file_id}_{datetime_str}/'
+    
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
     else:
         print(f'Folder already exists: {output_folder}')
 
-    field_output_folder = f'{output_folder}/fieldsPlots/'
-    contact_output_folder = f'{output_folder}/rodsContactPlots/'
+    current_datetime = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    field_output_folder = f'{output_folder}/fieldsPlots_{current_datetime}/'
+    contact_output_folder = f'{output_folder}/rodsContactPlots_{current_datetime}/'
 
     if not os.path.exists(field_output_folder):
         os.makedirs(field_output_folder)
@@ -218,7 +243,7 @@ def main():
             ax.view_init(elev=0, azim=0)
             ax.set_xlim([-0.5,0.5])
             ax.set_ylim([-0.5,0.5])
-            ax.set_zlim([-1,1])
+            ax.set_zlim([-1,1])            
             plt.savefig(f'{contact_output_folder}/frame_{frame:04d}.png',dpi=300)
             plt.close()
 
@@ -271,6 +296,7 @@ def main():
             axs[2].set_title('Entanglement')
             axs[3].set_title('Number of contacts')
             axs[4].set_title('Force sum')
+            axs[0].text(-2,1,f'time: {time_line[frame]:.2f} sec')
             
             plt.tight_layout()
             plt.savefig(f'{field_output_folder}/frame_{frame:04d}.png',dpi=300)
@@ -288,5 +314,5 @@ def main():
                         f_fields_over_time=f_fields_over_time)
     
     
-if __name__ is "__main__":
+if __name__ == "__main__":
     main()
