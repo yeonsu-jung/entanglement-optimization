@@ -216,7 +216,7 @@ def main():
     
     start = time.time()
     for frame in range(0,len(time_line),skip_frames):
-        curr_nodes = node_list[frame].reshape((num_rods,-1,3))
+        curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
         num_total_contacts = len(curr_force_all_info)
 
