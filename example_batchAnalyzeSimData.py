@@ -12,6 +12,36 @@ import time
 import pandas as pd
 import filamentFields
 
+def plot_contacts(contact_info,scale_factor,ax):
+    ni1 = contact_info["ni1"]
+    ni2 = contact_info["ni2"]
+    nj1 = contact_info["nj1"]
+    nj2 = contact_info["nj2"]
+    fi1 = contact_info["fi1"]
+    fi2 = contact_info["fi2"]
+    fj1 = contact_info["fj1"]
+    fj2 = contact_info["fj2"]
+    contact_point_i = contact_info["contact_point_i"]
+    contact_force_i = contact_info["contact_force_i"]
+    contact_point_j = contact_info["contact_point_j"]
+    contact_force_j = contact_info["contact_force_j"]
+    log_contact_force_i = contact_info["log_contact_force_i"]
+    log_contact_force_j = contact_info["log_contact_force_j"]
+    
+    if (np.isnan(contact_point_i).any() or np.isnan(contact_point_j).any()):
+        return
+    
+    ax.plot([ni1[0],ni2[0]],[ni1[1],ni2[1]],[ni1[2],ni2[2]],'r',linewidth=0.5)
+    ax.plot([nj1[0],nj2[0]],[nj1[1],nj2[1]],[nj1[2],nj2[2]],'r',linewidth=0.5)
+    ax.plot(contact_point_i[0],contact_point_i[1],contact_point_i[2],'g.')
+    ax.plot(contact_point_j[0],contact_point_j[1],contact_point_j[2],'g.')
+    
+    # log scale
+    ax.quiver(contact_point_i[0],contact_point_i[1],contact_point_i[2],log_contact_force_i[0]/scale_factor,log_contact_force_i[1]/scale_factor,log_contact_force_i[2]/scale_factor,color='g',linestyle='-')
+    ax.quiver(contact_point_j[0],contact_point_j[1],contact_point_j[2],log_contact_force_j[0]/scale_factor,log_contact_force_j[1]/scale_factor,log_contact_force_j[2]/scale_factor,color='g',linestyle='-')
+
+
+
 def guess_contact_point(fi1,fi2):
     fi1x = fi1[0]
     fi1y = fi1[1]
@@ -114,11 +144,20 @@ pth = str(possible_paths[0])
 file_id,surfix,num_rods,AR = parse_path_string(pth)
 
 time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
-output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}_fieldsPlots/'
+output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}/'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 else:
     print(f'Folder already exists: {output_folder}')
+
+field_output_folder = f'{output_folder}/fieldsPlots/'
+contact_output_folder = f'{output_folder}/rodsContactPlots/'
+
+if not os.path.exists(field_output_folder):
+    os.makedirs(field_output_folder)
+    
+if not os.path.exists(contact_output_folder):
+    os.makedirs(contact_output_folder)
 
 print(f'Size of time_line: {len(time_line)}')
 print(f'Number of rods: {num_rods}')
@@ -128,7 +167,7 @@ print(f'Output folder: {output_folder}')
 # %%
 rod_length = 1
 rod_diameter = rod_length/AR
-R_omega = np.sqrt(2*rod_length*rod_diameter)
+R_omega = 2*np.sqrt(rod_length*rod_diameter)
 
 mid_y = 0
 num_grids = 30
@@ -137,7 +176,7 @@ zlim = [-1,1]
 
 mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),mid_y,np.linspace(zlim[0],zlim[1],num_grids))
 sampling_points = np.array([mg[0].flatten(),mg[1].flatten(),mg[2].flatten()]).T
-
+        
 # %%
 n_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
 phi_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
@@ -146,8 +185,11 @@ e_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
 c_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
 f_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
 
+
+skip_frames = 100
+visualize_rods_contacts = 1
 start = time.time()
-for frame in range(0,len(time_line),1):
+for frame in range(0,len(time_line),skip_frames):
     curr_nodes = node_list[frame].reshape((num_rods,-1,3))
     curr_force_all_info = contact_list[frame].reshape(-1,18)
     num_total_contacts = len(curr_force_all_info)
@@ -161,6 +203,24 @@ for frame in range(0,len(time_line),1):
         cij = (pi+pj)/2
         fij = contact_info['contact_force_i']        
         curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
+        
+    if visualize_rods_contacts:
+        arrow_scale_factor = 100
+        fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
+        for rod in curr_nodes:
+            ax.plot(rod[:,0],rod[:,1],rod[:,2],'k',linewidth=0.2)
+        for query_index in range(0,len(curr_force_all_info),1):
+            single_contact_info = curr_force_all_info[query_index]
+            contact_info = process_contact_data(single_contact_info,curr_nodes)
+            plot_contacts(contact_info,arrow_scale_factor,ax)
+            # plot contacts
+        ax.text(0.5,0.5,1,f'time: {time_line[frame]:.2f}')
+        ax.view_init(elev=0, azim=0)
+        ax.set_xlim([-0.5,0.5])
+        ax.set_ylim([-0.5,0.5])
+        ax.set_zlim([-1,1])
+        plt.savefig(f'{contact_output_folder}/frame_{frame:04d}.png',dpi=300)
+        plt.close()
 
     n_fields = np.zeros(len(sampling_points))
     phi_fields = np.zeros(len(sampling_points))
@@ -170,9 +230,9 @@ for frame in range(0,len(time_line),1):
     f_fields = np.zeros(len(sampling_points))
     
     fF = filamentFields.filamentFields(curr_nodes,curr_force_essentials)
-
+    # R_omega = 30.
     for iterator,sampling_point in enumerate(sampling_points):
-        fF.analyzeLocalVolume(sampling_point, R_omega*2, rod_diameter)
+        fF.analyzeLocalVolume(sampling_point, R_omega, rod_diameter)
         n_fields[iterator] = fF.return_number_of_labels()
         phi_fields[iterator] = fF.return_volume_fraction()
         S_fields[iterator] = fF.return_orientational_order_parameter()
@@ -215,13 +275,13 @@ for frame in range(0,len(time_line),1):
         axs[4].set_title('Force sum')
         
         plt.tight_layout()
-        plt.savefig(f'{output_folder}/frame_{frame:04d}.png')
+        plt.savefig(f'{field_output_folder}/frame_{frame:04d}.png',dpi=300)
         plt.close()
     
     if (frame % 10 == 0):
         print(f'Evaluating frame {frame} took {time.time()-start} seconds')
         
-np.savez_compressed('output_folder/all_fields_over_time.npz',
+np.savez_compressed(f'{output_folder}/all_fields_over_time.npz',
                     n_fields_over_time=n_fields_over_time,
                     phi_fields_over_time=phi_fields_over_time,
                     S_fields_over_time=S_fields_over_time,
