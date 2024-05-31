@@ -26,3 +26,5 @@ adjij
 scripting_download_dismech.py
 imgui.ini
 .polyscope.ini
+
+runs/*

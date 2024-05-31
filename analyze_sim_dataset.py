@@ -1,6 +1,6 @@
 # %%
-import numpy as np
 from matplotlib import pyplot as plt
+import numpy as np
 import re
 import os
 from data_io import import_all_log, parse_path_string
@@ -13,6 +13,9 @@ import pandas as pd
 import filamentFields
 import argparse
 import datetime
+
+# mamba create -n simdata-analysis numpy scipy numba pandas matplotlib jax jaxlib
+# use python lower version
 
 def plot_contacts(contact_info,scale_factor,ax):
     ni1 = contact_info["ni1"]
@@ -181,7 +184,7 @@ def main():
     R_omega = R_omega_factor*np.sqrt(rod_length*rod_diameter)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
-    data_root = 'analysis-data'
+    data_root = '../../analysis-data'
     output_folder = f'{data_root}/{protocol_id}/{file_id}_{datetime_str}/'
     
     if not os.path.exists(output_folder):
