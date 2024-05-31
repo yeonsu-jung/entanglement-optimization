@@ -151,7 +151,7 @@ def main():
     
     visualize_fields = 1
     visualize_rods_contacts = 1
-    skip_frames = 10    
+    skip_frames = 1
     
     # protocol_id = 'CarrotCake2-ExciteEntangle'    
     # folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
