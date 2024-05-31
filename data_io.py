@@ -28,7 +28,10 @@ def parse_path_string(pth):
     AR_match = re.search(r'-AR(\d+)-', filename)
     AR = int(AR_match.group(1)) if AR_match else None
     
-    return file_id, surfix, num_rods, AR
+    datetime_match = re.search(r'\d{8}-\d{6}', filename)
+    datetime_str = datetime_match.group(0) if datetime_match else None
+    
+    return file_id, surfix, num_rods, AR, datetime_str
 
 
 def load_xray_data(pth):
@@ -333,11 +336,6 @@ def import_all_log(alllog_pth, max_rows = 10):
     
 if __name__ == '__main__':
     
-    pathlist = []
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize4_freq10_amp0.05')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N500_AR100_mu0.2_visc0_boxsize4_freq10_amp0.05')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N1000_AR200_mu0.2_visc0_boxsize4_freq10_amp0.05')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1557_RUN_CarrotCake2,N1500_AR300_mu0.2_visc0_boxsize4_freq10_amp0.05')
     
     
     alllog_pth = ''
