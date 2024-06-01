@@ -131,7 +131,7 @@ def main():
     visualize_fields = 1
     visualize_rods_contacts = 1
     skip_frames = 10
-    max_rows = 100
+    max_rows = 100000
     overlap_factor = 5
     
     folder_path = Path(folder_path)
@@ -225,6 +225,7 @@ def main():
     fF = filamentFields.filamentFields([],[])    
     start = time.time()
     last_frame = len(time_line)-1
+    print(f'Last frame: {last_frame}')
     for frame in range(0,len(time_line),1):
         curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
