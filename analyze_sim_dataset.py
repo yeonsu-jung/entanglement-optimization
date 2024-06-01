@@ -131,7 +131,7 @@ def main():
     visualize_fields = 1
     visualize_rods_contacts = 1
     skip_frames = 10
-    max_rows = 10000
+    max_rows = 100
     overlap_factor = 5
     
     folder_path = Path(folder_path)
@@ -165,6 +165,9 @@ def main():
     num_grids = int((xlim[1]-xlim[0])/h_omega*2)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
+    time_line = np.array(time_line)
+    time_line = time_line[time_line <= 10]
+    
     
     # find analysis-data
     TF_found = False
@@ -221,6 +224,7 @@ def main():
     
     fF = filamentFields.filamentFields([],[])    
     start = time.time()
+    last_frame = len(time_line)-1
     for frame in range(0,len(time_line),1):
         curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
@@ -316,7 +320,7 @@ def main():
             plt.savefig(f'{field_output_folder}/frame_{frame:04d}.png',dpi=300)
             plt.close()
         
-        if (frame % 100 == 0 or frame == len(time_line)-1):
+        if (frame % 100 == 0 or frame == last_frame):
             print(f'Evaluated {frame} frames so far. Elapsed time: {time.time()-start:.2f} sec')
             
             save_start = time.time()
