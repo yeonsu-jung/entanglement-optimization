@@ -131,7 +131,7 @@ def main():
     visualize_fields = 1
     visualize_rods_contacts = 1
     skip_frames = 10
-    max_rows = 100    
+    max_rows = 100
     overlap_factor = 5
     
     folder_path = Path(folder_path)
@@ -165,6 +165,9 @@ def main():
     num_grids = int((xlim[1]-xlim[0])/h_omega*2)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
+    time_line = np.array(time_line)
+    time_line = time_line[time_line <= 10]
+    
     
     # find analysis-data
     TF_found = False
@@ -216,11 +219,13 @@ def main():
     e_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
     c_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
     f_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
+    Q_fields_over_time = np.zeros((len(time_line),len(sampling_points),9))
     total_entanglement_over_time = np.zeros(len(time_line))
     
     fF = filamentFields.filamentFields([],[])    
     start = time.time()
-    for frame in range(900,920,1):
+    last_frame = len(time_line)-1
+    for frame in range(0,len(time_line),1):
         curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
         curr_force_essentials = get_curr_force_essentials(curr_force_all_info,curr_nodes)
@@ -245,6 +250,7 @@ def main():
         n_fields = np.zeros(len(sampling_points))
         phi_fields = np.zeros(len(sampling_points))
         S_fields = np.zeros(len(sampling_points))
+        Q_fields = np.zeros((len(sampling_points),9))
         e_fields = np.zeros(len(sampling_points))
         c_fields = np.zeros(len(sampling_points))
         f_fields = np.zeros(len(sampling_points))
@@ -270,6 +276,7 @@ def main():
             e_fields[iterator] = fF.return_entanglement()
             c_fields[iterator] = fF.return_number_of_local_contacts()
             f_fields[iterator] = fF.return_force_sum()
+            Q_fields[iterator] = fF.return_local_Q_tensor()
         print(f'Elapsed time for local sampling and adding: {time.time()-another_start}')        
         
         n_fields_over_time[frame] = n_fields
@@ -278,6 +285,7 @@ def main():
         e_fields_over_time[frame] = e_fields
         c_fields_over_time[frame] = c_fields
         f_fields_over_time[frame] = f_fields
+        Q_fields_over_time[frame] = Q_fields
         total_entanglement_over_time[frame] = fF.return_total_entanglement()
         
         
@@ -312,8 +320,10 @@ def main():
             plt.savefig(f'{field_output_folder}/frame_{frame:04d}.png',dpi=300)
             plt.close()
         
-        if (frame % 1 == 0):
+        if (frame % 100 == 0 or frame == last_frame):
             print(f'Evaluated {frame} frames so far. Elapsed time: {time.time()-start:.2f} sec')
+            
+            save_start = time.time()
             np.savez_compressed(f'{data_output_folder}/all_fields_over_time.npz',
                         n_fields_over_time=n_fields_over_time,
                         phi_fields_over_time=phi_fields_over_time,
@@ -321,7 +331,11 @@ def main():
                         e_fields_over_time=e_fields_over_time,
                         c_fields_over_time=c_fields_over_time,
                         f_fields_over_time=f_fields_over_time,
+                        Q_fields_over_time=Q_fields_over_time,
                         total_entanglement_over_time=total_entanglement_over_time)
+            print(f'Saved data at frame {frame}. Elapsed time: {time.time()-save_start:.2f} sec')
+            
+    print('Done!')
     
 if __name__ == "__main__":
     main()
