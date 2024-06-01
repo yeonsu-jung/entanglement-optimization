@@ -131,9 +131,15 @@ def main():
     parser.add_argument('protocol_id', metavar = 'protocol_id', type=str, nargs='?')
     parser.add_argument('folder_path', metavar = 'folder_path', type=str, nargs='?')
     args = parser.parse_args()
-    # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
     protocol_id = args.protocol_id
     folder_path = args.folder_path
+    
+    if args.protocol_id is None:
+        protocol_id = 'CarrotCake2-ExciteEntangle'
+        folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
+    
+    # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
+    
     
     print(f'Analyzing the dataset')
     print(f'Protocol ID: {protocol_id}')
@@ -145,16 +151,15 @@ def main():
     rod_length = 1
 
     mid_y = 0
-    num_grids = 30
+    num_grids = 50
     xlim = [-0.5,0.5]
     zlim = [-1,1]
     
     visualize_fields = 1
     visualize_rods_contacts = 1
-    skip_frames = 10    
+    skip_frames = 1
+    max_rows = 100
     
-    # protocol_id = 'CarrotCake2-ExciteEntangle'    
-    # folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
     folder_path = Path(folder_path)
 
     possible_paths = []
@@ -183,8 +188,23 @@ def main():
     rod_diameter = rod_length/AR
     R_omega = R_omega_factor*np.sqrt(rod_length*rod_diameter)
 
-    time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
-    data_root = '../../analysis-data'
+    time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
+    
+    # find analysis-data
+    TF_found = False
+    for pth in Path(os.getcwd()).parent.glob('./analysis-data'):
+        if pth.is_dir():
+            data_root = str(pth)
+            TF_found = True
+            break
+        
+    if not TF_found:
+        for pth in Path(os.getcwd()).parent.parent.glob('./analysis-data'):
+            if pth.is_dir():
+                data_root = str(pth)
+                TF_found = True
+                break
+    
     output_folder = f'{data_root}/{protocol_id}/{file_id}_{datetime_str}/'
     
     if not os.path.exists(output_folder):
@@ -216,6 +236,9 @@ def main():
     e_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
     c_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
     f_fields_over_time = np.zeros((len(time_line),len(sampling_points)))
+    total_entanglement_over_time = np.zeros(len(time_line))
+    
+    fF = filamentFields.filamentFields([],[])
     
     start = time.time()
     for frame in range(0,len(time_line),skip_frames):
@@ -233,7 +256,7 @@ def main():
             fij = contact_info['contact_force_i']        
             curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
             
-        if visualize_rods_contacts:            
+        if visualize_rods_contacts and (frame % skip_frames == 0):
             fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
             for rod in curr_nodes:
                 ax.plot(rod[:,0],rod[:,1],rod[:,2],'k',linewidth=0.2)
@@ -257,9 +280,15 @@ def main():
         c_fields = np.zeros(len(sampling_points))
         f_fields = np.zeros(len(sampling_points))
         
-        fF = filamentFields.filamentFields(curr_nodes,curr_force_essentials)        
+        fF.updateFilamentNodesList(curr_nodes)
+        fF.updateContactArray(curr_force_essentials)
+        
+        another_start = time.time()
+        fF.compute_total_linking_matrix()
+        print(f'Elapsed time for computing total linking matrix: {time.time()-another_start}')
+        
         for iterator,sampling_point in enumerate(sampling_points):
-            fF.analyzeLocalVolume(sampling_point, R_omega, rod_diameter)
+            fF.analyzeLocalVolumeFromPrecomputed(sampling_point, R_omega, rod_diameter)
             n_fields[iterator] = fF.return_number_of_labels()
             phi_fields[iterator] = fF.return_volume_fraction()
             S_fields[iterator] = fF.return_orientational_order_parameter()
@@ -275,7 +304,9 @@ def main():
         f_fields_over_time[frame] = f_fields
         
         
-        if visualize_fields:
+        total_entanglement_over_time[frame] = fF.return_total_entanglement()
+        
+        if visualize_fields and (frame % skip_frames == 0):
             phi_image = phi_fields.reshape((num_grids,num_grids))
             phi_image = np.flipud(phi_image.T)
             S_image = S_fields.reshape((num_grids,num_grids))
@@ -306,16 +337,17 @@ def main():
             plt.close()
         
         if (frame % 10 == 0):
-            print(f'Evaluating frame {frame} took {time.time()-start} seconds')
+            print(f'Evaluated {frame} frames so far. Elapsed time: {time.time()-start:.2f} sec')
             
+    
     np.savez_compressed(f'{output_folder}/all_fields_over_time.npz',
                         n_fields_over_time=n_fields_over_time,
                         phi_fields_over_time=phi_fields_over_time,
                         S_fields_over_time=S_fields_over_time,
                         e_fields_over_time=e_fields_over_time,
                         c_fields_over_time=c_fields_over_time,
-                        f_fields_over_time=f_fields_over_time)
-    
+                        f_fields_over_time=f_fields_over_time,
+                        total_entanglement_over_time=total_entanglement_over_time)
     
 if __name__ == "__main__":
     main()
