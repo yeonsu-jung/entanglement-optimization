@@ -8,6 +8,38 @@ import numpy as np
 from matplotlib import pyplot as plt
 import time
 
+
+def plot_contacts(contact_info,scale_factor,ax):
+    ni1 = contact_info["ni1"]
+    ni2 = contact_info["ni2"]
+    nj1 = contact_info["nj1"]
+    nj2 = contact_info["nj2"]
+    fi1 = contact_info["fi1"]
+    fi2 = contact_info["fi2"]
+    fj1 = contact_info["fj1"]
+    fj2 = contact_info["fj2"]
+    contact_point_i = contact_info["contact_point_i"]
+    contact_force_i = contact_info["contact_force_i"]
+    contact_point_j = contact_info["contact_point_j"]
+    contact_force_j = contact_info["contact_force_j"]
+    log_contact_force_i = contact_info["log_contact_force_i"]
+    log_contact_force_j = contact_info["log_contact_force_j"]
+    
+    if (np.isnan(contact_point_i).any() or np.isnan(contact_point_j).any()):
+        return
+    
+    ax.plot([ni1[0],ni2[0]],[ni1[1],ni2[1]],[ni1[2],ni2[2]],'r',linewidth=0.5)
+    ax.plot([nj1[0],nj2[0]],[nj1[1],nj2[1]],[nj1[2],nj2[2]],'r',linewidth=0.5)
+    ax.plot(contact_point_i[0],contact_point_i[1],contact_point_i[2],'g.')
+    ax.plot(contact_point_j[0],contact_point_j[1],contact_point_j[2],'g.')
+    
+    # log scale
+    ax.quiver(contact_point_i[0],contact_point_i[1],contact_point_i[2],log_contact_force_i[0]/scale_factor,log_contact_force_i[1]/scale_factor,log_contact_force_i[2]/scale_factor,color='g',linestyle='-')
+    ax.quiver(contact_point_j[0],contact_point_j[1],contact_point_j[2],log_contact_force_j[0]/scale_factor,log_contact_force_j[1]/scale_factor,log_contact_force_j[2]/scale_factor,color='g',linestyle='-')
+
+
+
+
 def set_3d_plot():
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -17,13 +49,13 @@ def set_3d_plot():
     
     return fig,ax
 
-def plot_contacts(q,i,neighbors):
-    qs = jnp.reshape(q,(-1,5))
-    # 3d plots    
-    plot_many_rods(jnp.reshape(qs[i,:],(-1,5)),opt_dict={"color":'r','linewidth':2})
-    plot_many_rods(qs[neighbors,:])
+# def plot_contacts(q,i,neighbors):
+#     qs = jnp.reshape(q,(-1,5))
+#     # 3d plots    
+#     plot_many_rods(jnp.reshape(qs[i,:],(-1,5)),opt_dict={"color":'r','linewidth':2})
+#     plot_many_rods(qs[neighbors,:])
     
-    return 1
+#     return 1
 
 def plot_many_rods(q,ax=None,opt_dict={}):
     if ax is None:
