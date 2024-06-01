@@ -157,7 +157,7 @@ def main():
     
     visualize_fields = 1
     visualize_rods_contacts = 1
-    skip_frames = 100
+    skip_frames = 10
     max_rows = 10000
     
     folder_path = Path(folder_path)
@@ -204,6 +204,8 @@ def main():
                 data_root = str(pth)
                 TF_found = True
                 break
+            
+    data_root = '../../analysis-data'
     
     output_folder = f'{data_root}/{protocol_id}/{file_id}_{datetime_str}/'
     
@@ -241,7 +243,7 @@ def main():
     fF = filamentFields.filamentFields([],[])
     
     start = time.time()
-    for frame in range(0,len(time_line),skip_frames):
+    for frame in range(900,920,1):
         curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
         num_total_contacts = len(curr_force_all_info)
@@ -307,8 +309,10 @@ def main():
         total_entanglement_over_time[frame] = fF.return_total_entanglement()
         
         if visualize_fields and (frame % skip_frames == 0):
-            phi_image = phi_fields.reshape((num_grids,num_grids))
-            phi_image = np.flipud(phi_image.T)
+            # phi_image = phi_fields.reshape((num_grids,num_grids))
+            # phi_image = np.flipud(phi_image.T)
+            n_image = n_fields.reshape((num_grids,num_grids))
+            n_image = np.flipud(n_image.T)
             S_image = S_fields.reshape((num_grids,num_grids))
             S_image = np.flipud(S_image.T)
             e_image = e_fields.reshape((num_grids,num_grids))
@@ -319,13 +323,13 @@ def main():
             f_image = np.flipud(f_image.T)            
         
             fig,axs=plt.subplots(1,5,figsize=(20,4))
-            fig.colorbar(axs[0].imshow(phi_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[0])
+            fig.colorbar(axs[0].imshow(n_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[0])
             fig.colorbar(axs[1].imshow(S_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[1])
             fig.colorbar(axs[2].imshow(e_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[2])
             fig.colorbar(axs[3].imshow(c_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[3])
             fig.colorbar(axs[4].imshow(f_image, extent=[xlim[0], xlim[1], zlim[0], zlim[1]]), ax=axs[4])
             
-            axs[0].set_title('Volume fraction')
+            axs[0].set_title('Number of local rods')
             axs[1].set_title('Orientational order parameter')
             axs[2].set_title('Entanglement')
             axs[3].set_title('Number of contacts')
