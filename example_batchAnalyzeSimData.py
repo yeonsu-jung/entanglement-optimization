@@ -123,7 +123,8 @@ def process_contact_data(single_contact_info,curr_nodes):
 
 
 # '/Users/yeonsu/Data/from-cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240527-193121.csv'
-folder_path ='/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05/'
+# folder_path ='/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05/'
+folder_path = '/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
 folder_path = Path(folder_path)
 protocol_id = 'CarrotCake2-ExciteEntangle'
 
@@ -138,10 +139,17 @@ if len(possible_paths) == 0:
     exit()
 elif len(possible_paths) > 1:
     print('Multiple csv files found in the folder')
-    exit()
+    # find heaviest file
+    max_size = 0
+    for pth in possible_paths:
+        size = os.path.getsize(pth)
+        if size > max_size:
+            max_size = size
+            heaviest_file = pth
+    possible_paths = [heaviest_file]
     
 pth = str(possible_paths[0])
-file_id,surfix,num_rods,AR = parse_path_string(pth)
+file_id,surfix,num_rods,AR,datetime_str = parse_path_string(pth)
 
 time_line, node_list, contact_list = import_all_log(pth,max_rows=10000)
 output_folder = f'/Users/yeonsu/Data/disMechSimDataAll/{protocol_id}/{file_id}/'
