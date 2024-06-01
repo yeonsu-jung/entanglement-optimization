@@ -123,9 +123,7 @@ def main():
     arrow_scale_factor = 100
     
     rod_length = 1
-
-    mid_y = 0
-    num_grids = 30
+    
     xlim = [-0.5,0.5]
     ylim = [-0.5,0.5]
     zlim = [-1,1]
@@ -133,7 +131,8 @@ def main():
     visualize_fields = 1
     visualize_rods_contacts = 1
     skip_frames = 10
-    max_rows = 10000
+    max_rows = 100    
+    overlap_factor = 5
     
     folder_path = Path(folder_path)
 
@@ -162,6 +161,8 @@ def main():
         
     rod_diameter = rod_length/AR
     R_omega = R_omega_factor*np.sqrt(rod_length*rod_diameter)
+    h_omega = R_omega/overlap_factor
+    num_grids = int((xlim[1]-xlim[0])/h_omega*2)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
     
