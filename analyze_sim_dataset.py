@@ -111,8 +111,8 @@ def main():
     folder_path = args.folder_path
     
     if args.protocol_id is None:
-        protocol_id = 'CarrotCake2-ExciteEntangle'
-        folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
+        protocol_id = 'CarrotCake5'
+        folder_path ='/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125'
     
     # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
     print(f'Analyzing the dataset')
@@ -165,10 +165,12 @@ def main():
     num_grids = int((xlim[1]-xlim[0])/h_omega*2)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
+    time_line0 = time_line
     time_line = np.array(time_line)
     time_line = time_line[time_line <= 10]
     
     
+        
     # find analysis-data
     TF_found = False
     for pth in Path(os.getcwd()).parent.glob('./analysis-data'):
@@ -208,7 +210,15 @@ def main():
     print(f'Number of rods: {num_rods}')
     print(f'Aspect ratio: {AR}')
     print(f'Output folder: {output_folder}')
-
+    
+    last_curve = node_list[time_line0.index(time_line[-1])].reshape((-1,10,3))
+    fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
+    for rod in last_curve:
+        ax.plot(rod[:,0],rod[:,1],rod[:,2],linewidth=0.5)
+    ax.view_init(elev=0, azim=0)
+    plt.savefig(f'{data_output_folder}/lastFrame.png',dpi=300)
+    np.savetxt(f'{data_output_folder}/lastFrame.txt',last_curve.reshape(-1,30))
+        
     # mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),mid_y,np.linspace(zlim[0],zlim[1],num_grids))
     mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),np.linspace(-ylim[0],ylim[1],num_grids),np.linspace(zlim[0],zlim[1],num_grids))
     sampling_points = np.array([mg[0].flatten(),mg[1].flatten(),mg[2].flatten()]).T
