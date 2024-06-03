@@ -1,3 +1,4 @@
+# %%
 from numpy import loadtxt, savetxt
 import jax.numpy as jnp
 import numpy as np
@@ -16,6 +17,7 @@ from scipy.io import loadmat
 
 
 def parse_path_string(pth):    
+    pth = str(pth)
     filename = pth.split('/')[-1]        
     file_id = filename.split('-mu')[0]
     
@@ -333,32 +335,28 @@ def import_all_log(alllog_pth, max_rows = 10):
                 contact_list.append(np.array([float(x) for x in next_line.split(',')]))
                 
     return time_line, node_list, contact_list
+# %%
+
+def pullout_video_frames_single_file(alllog_pth):
+    log_string = ''
     
-if __name__ == '__main__':
-    
-    
-    
-    alllog_pth = ''
-    protocol_id = 'CarrotCake2'
-    
-    file_id,surfix,num_rods = parse_path_string(alllog_pth)
-    time_line, node_list, contact_list = import_all_log(alllog_pth)
+    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(alllog_pth)
+    time_line, node_list, contact_list = import_all_log(alllog_pth,max_rows=100000)
     output_path = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_{surfix}'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
         start_point = 0
-    else:
-        # count number of files in the directory
-        num_files = len(os.listdir(output_path))
-        start_point = num_files
-    start_point -= 10
     
     print(f'Size of time_line: {len(time_line)}')
     print(f'Number of rods: {num_rods}')
     
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+    
+    start_point = 0
     fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
     for i in range(start_point,len(node_list),1):
-        nodes_in_matrix = node_list[i].reshape((num_rods,-1))
+        nodes_in_matrix = node_list[i].reshape((-1,30))
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
             ax.plot(rr[:,0],rr[:,1],rr[:,2])
@@ -372,4 +370,91 @@ if __name__ == '__main__':
         plt.savefig(f'{output_path}/frames_{i:04d}.png', dpi=300, bbox_inches='tight', pad_inches=0)
         ax.clear()
         
-    print
+    with open(f'{output_path}/log.txt','w') as f:
+        f.write(log_string)
+        
+def batch_pullout_video(pathlist):
+    for folder_path in pathlist:
+        folder_path = Path(folder_path)
+
+        possible_paths = []
+        for pth in folder_path.glob('**/*.csv'):
+            if 'lastFrame' in str(pth):
+                continue
+            else:
+                possible_paths.append(pth)    
+        if len(possible_paths) == 0:
+            print('No csv files found in the folder')
+            exit()
+        elif len(possible_paths) > 1:
+            print('Multiple csv files found in the folder')
+            # find heaviest file
+            max_size = 0
+            for pth in possible_paths:
+                size = os.path.getsize(pth)
+                if size > max_size:
+                    max_size = size
+                    heaviest_file = pth
+            possible_paths = [heaviest_file]
+        data_path = possible_paths[0]
+        protocol_id = 'EatEntangledCarrotCake5'
+        
+        print(f'Processing {folder_path}')
+        print(f'Protocol ID: {protocol_id}')
+        print(f'Data paths: {str(data_path)}')
+        
+        pullout_video_frames_single_file(data_path)
+    
+# %%
+if __name__ == '__main__':
+    pathlist = []
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
+    
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N125_AR25_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N250_AR50_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N375_AR75_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N500_AR100_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N625_AR125_g0.5')
+    
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
+    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
+    protocol_id = 'EatJostledCarrotCake5'
+    
+    folder_path = pathlist[4]
+    folder_path = Path(folder_path)
+    # python data_io.py
+    possible_paths = []
+    for pth in folder_path.glob('**/*.csv'):
+        if 'lastFrame' in str(pth):
+            continue
+        else:
+            possible_paths.append(pth)    
+    if len(possible_paths) == 0:
+        print('No csv files found in the folder')
+        exit()
+    elif len(possible_paths) > 1:
+        print('Multiple csv files found in the folder')
+        # find heaviest file
+        max_size = 0
+        for pth in possible_paths:
+            size = os.path.getsize(pth)
+            if size > max_size:
+                max_size = size
+                heaviest_file = pth
+        possible_paths = [heaviest_file]
+    data_path = possible_paths[0]
+    
+    
+    print(f'Processing {folder_path}')
+    print(f'Protocol ID: {protocol_id}')
+    print(f'Data paths: {str(data_path)}')
+    
+    pullout_video_frames_single_file(data_path)
+    
