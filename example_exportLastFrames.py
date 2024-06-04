@@ -15,10 +15,20 @@ pathlist = []
 # pathlist.append('/Users/yeonsu/Data/from_cluster/20240527-1934_RUN_CarrotCake2,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
 
 
-pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
-pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N500_AR100_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
-pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
-pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N500_AR100_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N1000-AR200')
+# pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N1500-AR300')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N1000-AR200')
+
 
 for folder_path in pathlist:
     folder_path = Path(folder_path)
@@ -43,8 +53,8 @@ for folder_path in pathlist:
         exit()
         
     pth = str(possible_paths[0])
-    file_id,surfix,num_rods,AR = parse_path_string(pth)
-    last_frame_out_path = f'/Users/yeonsu/Data/export/PerturbEECarrotCake4/'
+    file_id,surfix,num_rods,AR,datetime_str = parse_path_string(pth)
+    last_frame_out_path = f'/Users/yeonsu/Data/export/PerturbEECarrotCake5/'
     
     fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
     for i in range(num_rods):
