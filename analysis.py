@@ -1,5 +1,5 @@
 # %%
-%matplotlib qt
+# %matplotlib qt
 import matplotlib
 import numpy as np
 import jax.numpy as jnp
@@ -27,6 +27,89 @@ jax.config.update("jax_enable_x64", True)
 
 
 from numba import jit as njit
+
+
+def guess_contact_point(fi1,fi2):
+    fi1x = fi1[0]
+    fi1y = fi1[1]
+    fi1z = fi1[2]
+    fi2x = fi2[0]
+    fi2y = fi2[1]
+    fi2z = fi2[2]
+    
+    force_tol = 1e-6
+    if ((fi1x**2 + fi1y**2 + fi1z**2) < force_tol) and ((fi2x**2 + fi2y**2 + fi2z**2) < force_tol):
+        return np.nan
+    
+    x_frac = fi2x/(fi1x+fi2x)
+    y_frac = fi2y/(fi1y+fi2y)
+    z_frac = fi2z/(fi1z+fi2z)
+    
+    return x_frac
+
+def process_contact_data(single_contact_info,curr_nodes):
+    # dismech originally computes force as a gradient of potential
+    # thus here we need to change its sign
+    rod_i = int(single_contact_info[4])
+    rod_j = int(single_contact_info[5])
+    node_i1 = int(single_contact_info[0])
+    node_i2 = int(single_contact_info[2])
+    node_j1 = int(single_contact_info[1])
+    node_j2 = int(single_contact_info[3])
+
+    fi1 = -single_contact_info[6:9]
+    fi2 = -single_contact_info[9:12]
+    fj1 = -single_contact_info[12:15]
+    fj2 = -single_contact_info[15:18]
+
+    ni1 = curr_nodes[rod_i][node_i1]
+    ni2 = curr_nodes[rod_i][node_i2]
+    nj1 = curr_nodes[rod_j][node_j1]
+    nj2 = curr_nodes[rod_j][node_j2]
+    
+    contact_point_i = guess_contact_point(fi1,fi2) * (ni2-ni1) + ni1
+    contact_force_i = fi1 + fi2
+    contact_point_j = guess_contact_point(fj1,fj2) * (nj2-nj1) + nj1
+    contact_force_j = fj1 + fj2
+    
+    log_contact_force_i = np.sign(contact_force_i) * np.log(np.abs(contact_force_i) + 1e-6)
+    log_contact_force_j = np.sign(contact_force_j) * np.log(np.abs(contact_force_j) + 1e-6)
+    
+    contact_info = {"rod_i":rod_i,
+                    "rod_j":rod_j,
+                    "node_i1":node_i1,
+                    "node_i2":node_i2,
+                    "node_j1":node_j1,
+                    "node_j2":node_j2,
+                    "contact_point_i":contact_point_i,
+                    "contact_force_i":contact_force_i,
+                    "contact_point_j":contact_point_j,
+                    "contact_force_j":contact_force_j,
+                    "log_contact_force_i":log_contact_force_i,
+                    "log_contact_force_j":log_contact_force_j,
+                    "ni1":ni1,
+                    "ni2":ni2,
+                    "nj1":nj1,
+                    "nj2":nj2,
+                    "fi1":fi1,
+                    "fi2":fi2,
+                    "fj1":fj1,
+                    "fj2":fj2}
+    
+    return contact_info
+
+def get_curr_force_essentials(curr_force_all_info,curr_nodes):
+    num_total_contacts = len(curr_force_all_info)
+    curr_force_essentials = np.zeros((num_total_contacts,6))
+    for query_index in range(num_total_contacts):
+        single_contact_info = curr_force_all_info[query_index]
+        contact_info = process_contact_data(single_contact_info,curr_nodes)        
+        pi = contact_info['contact_point_i']
+        pj = contact_info['contact_point_j']
+        cij = (pi+pj)/2
+        fij = contact_info['contact_force_i']        
+        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
+    return curr_force_essentials        
 
 def get_local_fields_at_a_point(centerlines, point, R, h, rod_diameter, rod_length):    
     _,labels,edges_all_in_one = get_edges_labels_from_centerlines(centerlines)
