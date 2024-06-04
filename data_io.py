@@ -420,36 +420,42 @@ if __name__ == '__main__':
     # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N500_AR100_g0.5')
     # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N625_AR125_g0.5')
     
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
-    pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
-    protocol_id = 'EatJostledCarrotCake5'
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
+    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
+    # protocol_id = 'EatJostledCarrotCake5'
     
-    folder_path = pathlist[4]
-    folder_path = Path(folder_path)
-    # python data_io.py
-    possible_paths = []
-    for pth in folder_path.glob('**/*.csv'):
-        if 'lastFrame' in str(pth):
-            continue
-        else:
-            possible_paths.append(pth)    
-    if len(possible_paths) == 0:
-        print('No csv files found in the folder')
-        exit()
-    elif len(possible_paths) > 1:
-        print('Multiple csv files found in the folder')
-        # find heaviest file
-        max_size = 0
-        for pth in possible_paths:
-            size = os.path.getsize(pth)
-            if size > max_size:
-                max_size = size
-                heaviest_file = pth
-        possible_paths = [heaviest_file]
-    data_path = possible_paths[0]
+    
+    
+    # folder_path = pathlist[4]
+    # folder_path = Path(folder_path)
+    # # python data_io.py
+    # possible_paths = []
+    # for pth in folder_path.glob('**/*.csv'):
+    #     if 'lastFrame' in str(pth):
+    #         continue
+    #     else:
+    #         possible_paths.append(pth)    
+    # if len(possible_paths) == 0:
+    #     print('No csv files found in the folder')
+    #     exit()
+    # elif len(possible_paths) > 1:
+    #     print('Multiple csv files found in the folder')
+    #     # find heaviest file
+    #     max_size = 0
+    #     for pth in possible_paths:
+    #         size = os.path.getsize(pth)
+    #         if size > max_size:
+    #             max_size = size
+    #             heaviest_file = pth
+    #     possible_paths = [heaviest_file]
+    # data_path = possible_paths[0]
+        
+    data_path = '/Users/yeonsu/Data/from_cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240602-211541.csv'
+    folder_path = Path(data_path).parent
+    protocol_id = 'EatEntangledCarrotCake5'
     
     
     print(f'Processing {folder_path}')
