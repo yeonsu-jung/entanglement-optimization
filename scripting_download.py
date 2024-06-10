@@ -22,6 +22,8 @@ pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_ep
 pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon05')
 pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon00')
 
+/n/home01/yjung/Github/entanglement-optimization/analysis-data
+
 with open('downloaded_list.txt','a') as f:
     for pth in pathlist:
         f.write(f"{pth}\n") # TO DO: remove duplicates
