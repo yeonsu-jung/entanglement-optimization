@@ -360,9 +360,9 @@ def pullout_video_frames_single_file(alllog_pth):
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
             ax.plot(rr[:,0],rr[:,1],rr[:,2])
-        ax.set_xlim(-2,2)
-        ax.set_ylim(-2,2)
-        ax.set_zlim(-2,2)
+        ax.set_xlim(-0.1,0.1)
+        ax.set_ylim(-0.1,0.1)
+        ax.set_zlim(-0.1,0.1)
         ax.view_init(elev=0,azim=0)
         ax.text(1,1,1,f'time: {time_line[i]}')
         plt.tight_layout(pad=0)
@@ -408,41 +408,41 @@ def batch_pullout_video(pathlist):
 # %%
 if __name__ == '__main__':
     pathlist = []
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0125-ar025')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0250-ar050')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0375-ar075')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0500-ar100')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0625-ar125')
     
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N125_AR25_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N250_AR50_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N375_AR75_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N500_AR100_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240602-0259_RUN_PerturbEECarrotCake5_N625_AR125_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n125_ar25_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n250_ar50_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n375_ar75_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n500_ar100_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n625_ar125_g0.5')
     
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
-    # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
-    # protocol_id = 'EatJostledCarrotCake5'
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0125_ar025_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0250_ar050_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0375_ar075_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0500_ar100_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0625_ar125_g0.5')
+    # protocol_id = 'eatjostledcarrotcake5'
     
     
     
     # folder_path = pathlist[4]
-    # folder_path = Path(folder_path)
+    # folder_path = path(folder_path)
     # # python data_io.py
     # possible_paths = []
     # for pth in folder_path.glob('**/*.csv'):
-    #     if 'lastFrame' in str(pth):
+    #     if 'lastframe' in str(pth):
     #         continue
     #     else:
     #         possible_paths.append(pth)    
     # if len(possible_paths) == 0:
-    #     print('No csv files found in the folder')
+    #     print('no csv files found in the folder')
     #     exit()
     # elif len(possible_paths) > 1:
-    #     print('Multiple csv files found in the folder')
+    #     print('multiple csv files found in the folder')
     #     # find heaviest file
     #     max_size = 0
     #     for pth in possible_paths:
@@ -453,14 +453,14 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/Data/from_cluster/NonIntersectingBox-N1000-AR200-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240602-211541.csv'
+    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240608-0142_RUN_EntangleTostitos1_AR50/log_files/NonIntersectingBox-N250-AR50-Scale0.05-mu0.20-visc0.00-amp0.00_allLog_20240608-014300.csv'
     folder_path = Path(data_path).parent
-    protocol_id = 'EatEntangledCarrotCake5'
+    protocol_id = 'RealScale'
     
     
-    print(f'Processing {folder_path}')
-    print(f'Protocol ID: {protocol_id}')
-    print(f'Data paths: {str(data_path)}')
+    print(f'processing {folder_path}')
+    print(f'protocol id: {protocol_id}')
+    print(f'data paths: {str(data_path)}')
     
     pullout_video_frames_single_file(data_path)
     
