@@ -363,6 +363,64 @@ def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diamete
 
     return q
 
+@numba.jit(nopython=True)
+def create_nonintersecting_random_rods_contained_in_cylinder(num_rods, rod_diameter, container_radius, container_height, max_attempts=1000000):
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            # uniform in a cylinder
+            r = onp.sqrt(onp.random.uniform(0, container_radius**2))
+            theta_2d = onp.random.uniform(0, 2 * onp.pi)
+            x = r * onp.cos(theta_2d)
+            y = r * onp.sin(theta_2d)
+                        
+            z = onp.random.uniform(-container_height/2, container_height/2)            
+            tmp = onp.random.uniform(-1, 1)
+            phi = onp.arccos(tmp)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            # Check if the rod's endpoints are within the cylinder boundaries
+            if (onp.linalg.norm(p_i[:2]) > container_radius or onp.linalg.norm(p_ii[:2]) > container_radius or
+                p_i[2] < -container_height/2 or p_i[2] > container_height/2 or p_ii[2] < -container_height/2 or p_ii[2] > container_height/2):
+                continue
+            
+            intersect = False
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                if distance < rod_diameter:
+                    intersect = True
+                    break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+            
+        if i == num_rods-1:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
+
 def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3):
     # f = total_effective_potential # bad name...    
     q0 = create_random_rods(num_rods)
@@ -1896,8 +1954,7 @@ def CarrotCake4():
         f.write(log_string)
     print
     
-
-if __name__ == "__main__":
+def CarrotCake5():
     # time for makikng a batch
     # Chuck    
     batch_id = 'CarrotCake5'
@@ -1959,3 +2016,312 @@ if __name__ == "__main__":
         f.write(log_string)
     print
     
+def CarrotCake6():
+# time for makikng a batch
+    # Chuck    
+    batch_id = 'CarrotCake6'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    container_size = onp.array([1,1,1])
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    container_size = onp.array([0.9,0.9,2])
+    
+    for AR in [105,110,115,120]: # [25,50,75,100,125,200,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        num_rods = int(container_volume*density_factor/rod_diameter)
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_size=container_size,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container size: {container_size}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
+    
+    
+def Tostitos1():
+    # time for makikng a batch
+    # Chuck    
+    batch_id = 'Tostitos1'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    scale = 0.05
+    container_size = onp.array([1,1,1])
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    container_size = onp.array([0.9,0.9,2])
+    
+    for AR in [25,50,75,100,105,110,115,120,125,200,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        num_rods = int(container_volume*density_factor/rod_diameter)
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_size=container_size,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)*scale
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale{scale}.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container size: {container_size}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
+    
+def Tostitos2():
+    # time for makikng a batch
+    # Chuck    
+    batch_id = 'Tostitos2'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    scale = 0.05
+    
+    container_radius = 0.45
+    container_height = 2
+    
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    for AR in [25,50,75,100,105,110,115,120,125,200,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        num_rods = int(container_volume*density_factor/rod_diameter)
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_cylinder(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_radius=container_radius,
+                                                                container_height=container_height,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)*scale
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale{scale}.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container radius: {container_radius}\n'
+        log_string += f'Container height: {container_height}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingCylinder-N{num_rods}-AR{AR}-Scale{scale}.png',dpi=300)
+        
+        ax.view_init(90,0)
+        plt.savefig(visual_folder / f'NonIntersectingCylinder-N{num_rods}-AR{AR}-Scale{scale}-top.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
+    
+def CarrotCake8():
+    batch_id = 'CarrotCake8'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    container_size = onp.array([1,1,1])
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    container_size = onp.array([0.9,0.9,2])
+    
+    for AR in [123]: # [25,50,75,100,125,200,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        # num_rods = int(container_volume*density_factor/rod_diameter)
+        num_rods = AR*5
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_size=container_size,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container size: {container_size}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods}-AR{AR}-Scale1.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
+    
+    
+    
+
+if __name__ == "__main__":
+    batch_id = 'Modelo4'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    container_size = onp.array([1,1,1])
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    container_size = onp.array([0.9,0.9,2])
+    
+    for AR in [25,50,75,100,105,110,115,120,125,150,175,200,250,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        # num_rods = int(container_volume*density_factor/rod_diameter)
+        num_rods = AR*5
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_size=container_size,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods:04d}-AR{AR:03d}-Scale1.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container size: {container_size}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods:03d}-AR{AR:03d}-Scale1.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
