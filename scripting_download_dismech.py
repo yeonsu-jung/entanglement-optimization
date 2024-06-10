@@ -1,26 +1,53 @@
 import os
 
-
 pathlist = []
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240515-2032_RUN_xray_AR100_mu0.2_g1')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240515-0233_RUN_xray38_mu0.2')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2131_RUN_xray38')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2113_COMPILE_debug')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2109_RUN_xray38')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2053_COMPILE_')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2048_RUN_XRAY_AR38')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240514-2045_RUN_XRAY_AR38')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-2045_COMPILE_')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-1338_RUN_mu0_g10_density70_floorStanding_XRAY100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-1216_RUN_mu0_g10_density70_floorStanding_XRAY100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-0429_RUN_mu0_g10_floorStanding_XRAY100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-0429_RUN_mu0.2_g10_floorStanding_XRAY100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-0353_COMPILE_random-kick-with-floor')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240513-0350_COMPILE_random-kick-with-floor')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240512-2315_RUN_Brownie_N300_AR200_mu1_amp0.1')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240512-2249_COMPILE_')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0125_AR025')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0250_AR050')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0375_AR075')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0500_AR100')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0525_AR105')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0550_AR110')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0575_AR115')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0600_AR120')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0625_AR125')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1000_AR200')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0750_AR150')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0875_AR175')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0125_AR025')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0250_AR050')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0500_AR100')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0375_AR075')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0600_AR120')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0575_AR115')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0525_AR105')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0550_AR110')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1500_AR300')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1250_AR250')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1250_AR250')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0875_AR175')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0625_AR125')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1000_AR200')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0750_AR150')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1500_AR300')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0250_AR050')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0500_AR100')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0375_AR075')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0525_AR105')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0550_AR110')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0575_AR115')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0600_AR120')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0875_AR175')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0750_AR150')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0625_AR125')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1250_AR250')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1000_AR200')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1500_AR300')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1051_RUN_PerturbEEModelo1_N0125_AR025')
 
-with open('downloaded_list.txt','a') as f:
+# /n/holylabs/LABS/mahadevan_lab/Users/yjung/rod-packing-data-archive/20240531-2228_RUN_JostleCarrotCake5_N1000_AR200_g0.5
+# /n/holylabs/LABS/mahadevan_lab/Users/yjung/rod-packing-data-archive/20240531-2228_RUN_JostleCarrotCake5_N1500_AR300_g0.5
+
+with open('downloaded_list_dismech.txt','a') as f:
     for pth in pathlist:
         f.write(f"{pth}\n") # TO DO: remove duplicates
 
@@ -33,15 +60,102 @@ with open('download.sh', 'w') as f:
     for pth in pathlist:
             
         folder_name = pth.split('/')[-1]
-        data_root = "/Users/yeonsu/Data/from_cluster"
+        data_root = "/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/"        
         local_path = f"{data_root}/{folder_name}"
         
         print(local_path)        
         os.makedirs(local_path, exist_ok=True)
         # f.write(f"get -r {pth}/log_files/*.csv {local_path}/.\n")
         
-        f.write(f"get {pth}/log_files/*.csv {local_path}/.\n")
+        f.write(f"get {pth}/log_files/*.csv '{local_path}/.'\n")
         
         
     f.write('quit\n')
     f.write('EOT\n')
+    
+    
+    
+
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR500_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR300_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR200_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR20_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR100_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2125_RUN_Chuck,N1000_AR50_mu0.2_visc0_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2121_RUN_Chuck,N1000_AR300_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2121_RUN_Chuck,N1000_AR200_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2121_RUN_Chuck,N1000_AR100_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2121_RUN_Chuck,N1000_AR500_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2000_RUN_Chuck,N1000_AR300_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2000_RUN_Chuck,N1000_AR500_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2000_RUN_Chuck,N1000_AR200_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-2000_RUN_Chuck,N1000_AR100_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1956_RUN_Chuck,N1000_AR50_mu0.2_visc0.5_boxsize4_freq10_amp0.1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1945_RUN_Chuck,N1000_AR20_mu0.2_visc0.5_amp0.0')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1535_RUN_McFlurry_4_10_0.1_AR20_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1535_RUN_McFlurry_4_10_0.1_AR50_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1535_RUN_McFlurry_4_10_0.1_AR100_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1535_RUN_McFlurry_4_10_0.1_AR200_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1534_RUN_McFlurry_4_10_0.1_AR300_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1534_RUN_McFlurry_4_10_0.1_AR500_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1340_RUN_McFlurry_2_10_0.1_AR100_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1340_RUN_McFlurry_2_10_0.1_AR500_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-1340_RUN_McFlurry_2_10_0.1_AR20_viscosity5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0605_RUN_McFlurry_2_10_0.1_AR20')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0605_RUN_McFlurry_2_10_0.1_AR50')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0605_RUN_McFlurry_2_10_0.1_AR100')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0603_RUN_McFlurry_2_10_0.1_AR200')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0603_RUN_McFlurry_2_10_0.1_AR300')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240526-0603_RUN_McFlurry_2_10_0.1_AR500')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-0210_RUN_,N500_AR50_mu0.2_visc0_boxsize1.05_freq10_amp1e-4')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-0209_RUN_,N500_AR300_mu0.2_visc0_boxsize1.05_freq10_amp1e-4')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-0209_RUN_,N500_AR200_mu0.2_visc0_boxsize1.05_freq10_amp1e-4')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-0209_RUN_,N500_AR500_mu0.2_visc0_boxsize1.05_freq10_amp1e-4')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-0209_RUN_,N500_AR100_mu0.2_visc0_boxsize1.05_freq10_amp1e-4')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1557_RUN_CarrotCake2,N1500_AR300_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1557_RUN_CarrotCake2,N1000_AR200_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1557_RUN_CarrotCake2,N500_AR100_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1557_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize4_freq10_amp0.05')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-1934_RUN_CarrotCake2,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-1934_RUN_CarrotCake2,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-1934_RUN_CarrotCake2,N500_AR100_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240527-1934_RUN_CarrotCake2,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1716_RUN_JostleCarrotCake4,N1500_AR300_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1716_RUN_JostleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1716_RUN_JostleCarrotCake4,N500_AR100_mu0.2_visc0_boxsize4_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1716_RUN_JostleCarrotCake4,N250_AR50_mu0.2_visc0_boxsize4_freq10_amp0.05')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N500_AR100_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N1500_AR300_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N500_AR100_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240528-1714_RUN_EntangleCarrotCake4,N250_AR50_mu0.2_visc0_boxsize0.5_freq10_amp0.05')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2227_RUN_EntangleCarrotCake5_N0625_AR125_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2227_RUN_EntangleCarrotCake5_N0500_AR100_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2227_RUN_EntangleCarrotCake5_N0375_AR075_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2227_RUN_EntangleCarrotCake5_N0250_AR050_g0.5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2227_RUN_EntangleCarrotCake5_N0125_AR025_g0.5')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
