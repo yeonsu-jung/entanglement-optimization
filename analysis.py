@@ -103,7 +103,7 @@ def get_curr_force_essentials(curr_force_all_info,curr_nodes):
     curr_force_essentials = np.zeros((num_total_contacts,6))
     for query_index in range(num_total_contacts):
         single_contact_info = curr_force_all_info[query_index]
-        contact_info = process_contact_data(single_contact_info,curr_nodes)        
+        contact_info = process_contact_data(single_contact_info,curr_nodes)
         pi = contact_info['contact_point_i']
         pj = contact_info['contact_point_j']
         cij = (pi+pj)/2
@@ -424,7 +424,31 @@ def compute_linking_number(p_i,p_ii,p_j,p_jj):
                                + np.arcsin(my_clip(my_dot(n2,n3),-1.+tol,1.-tol))
                                + np.arcsin(my_clip(my_dot(n3,n4),-1.+tol,1.-tol))
                                + np.arcsin(my_clip(my_dot(n4,n1),-1.+tol,1.-tol)))
+
+def compute_linking_number_jax(p_i1,p_i2,p_j1,p_j2):
+    r_i1j1 = p_i1 - p_j1
+    r_i1j2 = p_i1 - p_j2
+    r_i2j1 = p_i2 - p_j1
+    r_i2j2 = p_i2 - p_j2
+
+    tol = 1e-6
+    n1 = jnp.cross(r_i1j1, r_i1j2)
+    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n2 = jnp.cross(r_i1j2, r_i2j2)
+    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n3 = jnp.cross(r_i2j2, r_i2j1)
+    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n4 = jnp.cross(r_i2j1, r_i1j1)
+    n4 = n4/(jnp.linalg.norm(n4)+tol)
     
+    return (-1/4/jnp.pi)*jnp.abs(jnp.arcsin(jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+    
+compute_linking_number_jax_batched = jax.jit(jax.vmap(jax.vmap(compute_linking_number_jax, (0,0,None,None)), (None,None,0,0)))
+    
+# numba
 
 @njit(nopython=True)
 def my_clip(x, xmin, xmax):
