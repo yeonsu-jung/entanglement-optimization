@@ -14,24 +14,16 @@ from data_io import import_all_log, parse_path_string
 output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
 
 # Jostle
-protocol_id = 'HangEntangledCarrotCake5'
+protocol_id = 'FinePerturbCarrotCake5_rodMotion'
 
 pathlist = []
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N0125_AR025_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N0250_AR050_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N0375_AR075_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N0500_AR100_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N0625_AR125_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N1000_AR200_g0.5')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/JostleCarrotCake5/20240531-2228_RUN_JostleCarrotCake5_N1500_AR300_g0.5')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1808_RUN_PerturbEECarrotCake5_N125_AR25_g0.5')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1823_RUN_PerturbEECarrotCake5_N1500_AR300_g0.5')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1809_RUN_PerturbEECarrotCake5_N500_AR100_g0.5')
 
-pathlist.append('/Users/yeonsu/Data/from_cluster/20240604-0050_RUN_HangEECarrotCake5_N125_AR25')
-# /Users/yeonsu/Data/from_cluster/NonIntersectingBox-N375-AR75-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240604-011053.csv
-
-# pathlist.append('/Users/yeonsu/GitHub/dismech-rods-main/runs/20240603-2216_RUN_N500_AR100/log_files')
 
 for pth in pathlist:
-    
+
     # find csv file
     data_path = None
     for file in Path(pth).rglob('*.csv'):
@@ -45,6 +37,11 @@ for pth in pathlist:
     
     file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
     time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+    
+    time_line = np.array(time_line)
+    time_line = time_line[time_line <= 10]
+    node_list = node_list[:len(time_line)]
+    contact_list = contact_list[:len(time_line)]
     
     print(f'Size of time_line: {len(time_line)}')
     print(f'Number of rods: {num_rods}')
@@ -76,9 +73,10 @@ for pth in pathlist:
         nodes_in_matrix = node_list[i].reshape((-1,30))
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
-            ax.plot(rr[:,0],rr[:,1],rr[:,2],alpha=0.1)
-        for rr in locked_nodes:
-            ax.plot(rr[:,0],rr[:,1],rr[:,2],'k-',linewidth=2)
+            ax.plot(rr[:,0],rr[:,1],rr[:,2])
+            # ax.plot(rr[:,0],rr[:,1],rr[:,2],alpha=0.1)
+        # for rr in locked_nodes:
+        #     ax.plot(rr[:,0],rr[:,1],rr[:,2],'k-',linewidth=2)
             
         ax.set_xlim(-2,2)
         ax.set_ylim(-2,2)
