@@ -232,7 +232,7 @@ def main():
     Q_fields_over_time = np.zeros((len(time_line),len(sampling_points),9))
     total_entanglement_over_time = np.zeros(len(time_line))
     
-    fF = filamentFields.filamentFields([],[])    
+    fF = filamentFields.filamentFields([],[])
     start = time.time()
     last_frame = len(time_line)-1
     print(f'Last frame: {last_frame}')
