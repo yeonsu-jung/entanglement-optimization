@@ -14,60 +14,7 @@ from distances import lumelsky_dist_vec
 
 import filamentFields
 # %%
-def plot_closest_points(contact_entry,curr_nodes):
-    contact_ij = curr_force_all_info[:,4:6].astype(int)
-    contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
-    graph = nx.Graph()
-    graph.add_nodes_from(range(len(curr_nodes)))
-    graph.add_edges_from(contact_ij)
-    
-    graph[10]
-    
-    fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
-    hub_rod_label = 10
-    hub_rod = curr_nodes[hub_rod_label]
-    hub_rod_next = next_nodes[hub_rod_label]
-    ax.plot(hub_rod[:,0],hub_rod[:,1],hub_rod[:,2],'k',linewidth=1)
-    ax.plot(hub_rod_next[:,0],hub_rod_next[:,1],hub_rod_next[:,2],'r',linewidth=1)
-    
-    scale_factor = 100
-    velocity_of_hub_rod = hub_rod_next - hub_rod
-    velocity_of_hub_rod *= scale_factor
-    ax.quiver(hub_rod[0,0],hub_rod[0,1],hub_rod[0,2],velocity_of_hub_rod[0,0],velocity_of_hub_rod[0,1],velocity_of_hub_rod[0,2],color='b')
-    
-    neighbors_of_hub = list(graph[hub_rod_label])
-    for neighbors in neighbors_of_hub:
-        rod = curr_nodes[neighbors]
-        rod_next = next_nodes[neighbors]
-        rod_velolcity = rod_next - rod
-        rod_velolcity *= scale_factor
-        ax.plot(rod[:,0],rod[:,1],rod[:,2],'r',linewidth=0.2)
-        ax.plot(rod_next[:,0],rod_next[:,1],rod_next[:,2],'r',linewidth=0.2)
-        ax.quiver(rod[:,0],rod[:,1],rod[:,2],rod_velolcity[:,0],rod_velolcity[:,1],rod_velolcity[:,2],color='b')
-    ax.view_init(0,0)
-    plt.show()
-    
-# %%
-def get_closest_points(contact_entry,curr_nodes):
-    rodlabel_i = int(contact_entry[4])
-    rodlabel_j = int(contact_entry[5])
-    
-    ind_i1 = int(contact_entry[0])
-    ind_i2 = int(contact_entry[2])
-    ind_j1 = int(contact_entry[1])
-    ind_j2 = int(contact_entry[3])
-    
-    x_i1 = curr_nodes[rodlabel_i][ind_i1]
-    x_i2 = curr_nodes[rodlabel_i][ind_i2]
-    x_j1 = curr_nodes[rodlabel_j][ind_j1]
-    x_j2 = curr_nodes[rodlabel_j][ind_j2]
-    
-    t,u,d1,d2,d12 = lumelsky_dist_vec(x_i1,x_i2,x_j1,x_j2)
-    popt_i = x_i1 + d1*t
-    popt_j = x_j1 + d2*u
-    dvec = d1*t - d2*u - d12
-    
-    return popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2
+
 
 def analyze_a_path(pth):
     data_path = None
