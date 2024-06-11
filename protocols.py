@@ -2265,9 +2265,7 @@ def CarrotCake8():
     print
     
     
-    
-
-if __name__ == "__main__":
+def Modelo4():
     batch_id = 'Modelo4'
     data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
     visual_folder = data_folder/'visuals'
@@ -2289,6 +2287,65 @@ if __name__ == "__main__":
     container_size = onp.array([0.9,0.9,2])
     
     for AR in [25,50,75,100,105,110,115,120,125,150,175,200,250,300]:
+        # for num_rods in [100,500]:
+        container_volume = 1
+        rod_diameter = (1./AR)
+        # num_rods = int(container_volume*density_factor/rod_diameter)
+        num_rods = AR*5
+        # print(f'Num rods: {num_rods}')
+        # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
+        print(num_rods)
+        
+        q = create_nonintersecting_random_rods_contained_in_noncube(num_rods=num_rods,
+                                                                rod_diameter=rod_diameter,
+                                                                container_size=container_size,
+                                                                max_attempts=1000000)
+        x = q_to_x(q)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods:04d}-AR{AR:03d}-Scale1.txt',x)
+        
+        log_string += "============================================\n"
+        log_string += f'Num rods: {num_rods}\n'
+        log_string += f'AR: {AR}\n'
+        log_string += f'Density factor: {density_factor}\n'
+        log_string += f'Rod diameter: {rod_diameter}\n'
+        log_string += f'Container size: {container_size}\n'
+        
+        fig,ax= set_3d_plot()
+        plot_edges(x,ax=ax)
+        ax.set_title(f'Num rods: {x.shape[0]}')
+        ax.view_init(0,0)
+        ax.axis('equal')
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods:03d}-AR{AR:03d}-Scale1.png',dpi=300)
+        plt.close()
+        
+            # onp.savetxt(f'{export_folder}/{packing_id}.txt',x)
+    
+    with open(log_file,'w') as f:
+        f.write(log_string)
+    print
+
+if __name__ == "__main__":
+    batch_id = 'Modelo3a'
+    data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
+    visual_folder = data_folder/'visuals'
+    
+    if not os.path.exists(data_folder):
+        os.makedirs(data_folder)
+    if not os.path.exists(visual_folder):
+        os.makedirs(visual_folder)
+        
+    # copy this file
+    import shutil
+    shutil.copyfile('protocols.py',data_folder/'protocols.py')    
+    
+    density_factor = 5
+    container_size = onp.array([1,1,1])
+    log_file = data_folder/'log.txt'
+    log_string = ''
+    
+    container_size = onp.array([0.9,0.9,2])
+    
+    for AR in [60,70,80,90]:#[25,50,75,100,105,110,115,120,125,150,175,200,250,300]:
         # for num_rods in [100,500]:
         container_volume = 1
         rod_diameter = (1./AR)
