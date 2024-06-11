@@ -7,7 +7,7 @@ import jax
 from jax import jit
 from potentials import create_pairs, all_pairwise_distances, dist_lin_seg, all_distances_between_curves2
 from matplotlib import pyplot as plt
-
+from data_io import import_all_log, parse_path_string
 from visualizations import set_3d_plot, plot_edges, plot_many_curves, plot_many_rods
 from data_io import read_data, import_from_dismech, import_from_dismech_hook
 from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs,vert_to_edge
@@ -22,6 +22,7 @@ import re
 
 import glob
 import networkx as nx
+import filamentFields
 
 jax.config.update("jax_enable_x64", True)
 
@@ -306,43 +307,6 @@ def get_local_fields_over_domain(centerlines, R, h, rod_diameter, rod_length):
 
     return n_field, phi_field, e_field, S_field, center_x, center_y, center_z
 
-
-def import_all_log(alllog_pth):
-    with open(alllog_pth) as f:
-        lines = f.readlines()
-        
-    time_line = []
-    node_list = []
-    contact_list = []
-    for i,line in enumerate(lines):
-        if 'Time' in line:
-            time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
-            
-        if 'Node' in line:
-            next_line = lines[i+1]                       
-            node_list.append(np.array([float(x) for x in next_line.split(',')]))
-            
-        if 'Force' in line:
-            next_line = lines[i+1]
-            if next_line == "\n":
-                contact_list.append(np.array([]))
-            else:
-                contact_list.append(np.array([float(x) for x in next_line.split(',')]))
-                
-    return time_line, node_list, contact_list
-
-def parse_path_string(pth):
-    
-    filename = pth.split('/')[-1]        
-    file_id = filename.split('-mu')[0]
-    
-    surfix_match = re.search(r'\d{8}-\d{6}', filename)
-    surfix = surfix_match.group(0) if surfix_match else None
-    
-    num_rods_match = re.search(r'-N(\d+)-', filename)
-    num_rods = int(num_rods_match.group(1)) if num_rods_match else None
-    
-    return file_id, surfix, num_rods
 
 @njit(nopython=True)
 def compute_linking_number_for_edges(e_i,e_j):
@@ -1352,7 +1316,458 @@ def testLk():
     ax.plot([p1[0],p2[0]],[p1[1],p2[1]],[p1[2],p2[2]],'k')
     ax.plot([p3[0],p4[0]],[p3[1],p4[1]],[p3[2],p4[2]],'r')
     ax.axis('equal')
+    
+def plot_closest_points(contact_entry,curr_nodes):
+    contact_ij = curr_force_all_info[:,4:6].astype(int)
+    contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(curr_nodes)))
+    graph.add_edges_from(contact_ij)
+    
+    graph[10]
+    
+    fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
+    hub_rod_label = 10
+    hub_rod = curr_nodes[hub_rod_label]
+    hub_rod_next = next_nodes[hub_rod_label]
+    ax.plot(hub_rod[:,0],hub_rod[:,1],hub_rod[:,2],'k',linewidth=1)
+    ax.plot(hub_rod_next[:,0],hub_rod_next[:,1],hub_rod_next[:,2],'r',linewidth=1)
+    
+    scale_factor = 100
+    velocity_of_hub_rod = hub_rod_next - hub_rod
+    velocity_of_hub_rod *= scale_factor
+    ax.quiver(hub_rod[0,0],hub_rod[0,1],hub_rod[0,2],velocity_of_hub_rod[0,0],velocity_of_hub_rod[0,1],velocity_of_hub_rod[0,2],color='b')
+    
+    neighbors_of_hub = list(graph[hub_rod_label])
+    for neighbors in neighbors_of_hub:
+        rod = curr_nodes[neighbors]
+        rod_next = next_nodes[neighbors]
+        rod_velolcity = rod_next - rod
+        rod_velolcity *= scale_factor
+        ax.plot(rod[:,0],rod[:,1],rod[:,2],'r',linewidth=0.2)
+        ax.plot(rod_next[:,0],rod_next[:,1],rod_next[:,2],'r',linewidth=0.2)
+        ax.quiver(rod[:,0],rod[:,1],rod[:,2],rod_velolcity[:,0],rod_velolcity[:,1],rod_velolcity[:,2],color='b')
+    ax.view_init(0,0)
+    plt.show()
+    
+def get_closest_points(contact_entry,curr_nodes):
+    rodlabel_i = int(contact_entry[4])
+    rodlabel_j = int(contact_entry[5])
+    
+    ind_i1 = int(contact_entry[0])
+    ind_i2 = int(contact_entry[2])
+    ind_j1 = int(contact_entry[1])
+    ind_j2 = int(contact_entry[3])
+    
+    x_i1 = curr_nodes[rodlabel_i][ind_i1]
+    x_i2 = curr_nodes[rodlabel_i][ind_i2]
+    x_j1 = curr_nodes[rodlabel_j][ind_j1]
+    x_j2 = curr_nodes[rodlabel_j][ind_j2]
+    
+    t,u,d1,d2,d12 = lumelsky_dist_vec(x_i1,x_i2,x_j1,x_j2)
+    popt_i = x_i1 + d1*t
+    popt_j = x_j1 + d2*u
+    dvec = d1*t - d2*u - d12
+    
+    return popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2
+    
+def analyze_csv_file(data_path,skip_frames):
+    
+    
+    log_string = ''
+    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+
+    time_line = np.array(time_line)
+    time_line = time_line[time_line <= 10]
+    node_list = node_list[:len(time_line)]
+    contact_list = contact_list[:len(time_line)]
+
+    time_line = time_line[1:]
+    node_list = node_list[1:]
+    contact_list = contact_list[1:]
+
+    print(f'Size of time_line: {len(time_line)}')
+    print(f'Number of rods: {num_rods}')
+
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+
+    total_number_of_contacts = np.zeros(len(time_line))
+    total_force_sum = np.zeros(len(time_line))
+
+    last_frame = len(time_line)-1
+    print(f'Last frame: {last_frame}')
+    
+    initial_nodes = node_list[0].reshape((-1,10,3))        
+    timeline_checkout = range(0,len(time_line)-1,skip_frames)
+    avg_velocities_over_time = np.zeros( len(timeline_checkout) )
+    centroid_velocities_over_time = np.zeros( len(timeline_checkout) )
+    avg_contact_displacement_over_time = np.zeros( len(timeline_checkout) )
+    avg_initial_centroid_displacement_over_time = np.zeros( len(timeline_checkout) )        
+    fraction_of_nodes_in_largest_cluster_over_time = np.zeros( len(timeline_checkout) )
+    lk_mat_over_time = []
+    
+    fF = filamentFields.filamentFields([],[])
+    
+    for i_frame,frame in enumerate(timeline_checkout):
         
+        curr_nodes = node_list[frame].reshape((-1,10,3))
+        next_nodes = node_list[frame+1].reshape((-1,10,3))
+        curr_force_all_info = contact_list[frame].reshape(-1,18)
+        next_force_all_info = contact_list[frame+1].reshape(-1,18)
+        
+        initial_node_displacement = curr_nodes - initial_nodes
+        avg_initial_centroid_displacement =  np.mean(np.linalg.norm(np.mean(initial_node_displacement,axis=1),axis=1))
+        avg_initial_centroid_displacement_over_time[i_frame] = avg_initial_centroid_displacement
+        
+        contact_displacement_list = np.zeros(len(curr_force_all_info))
+        
+        contact_ij = curr_force_all_info[:,4:6].astype(int)
+        # contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
+        graph = nx.Graph()
+        graph.add_nodes_from(range(len(curr_nodes)))
+        graph.add_edges_from(contact_ij)
+        clusters = list(nx.connected_components(graph))
+        # largest clusters
+        largest_cluster = max(clusters,key=len)
+        fraction_of_nodes_in_largest_cluster = len(largest_cluster)/len(curr_nodes)
+        fraction_of_nodes_in_largest_cluster_over_time[i_frame] = fraction_of_nodes_in_largest_cluster
+        
+        fF.update_filament_nodes_list(curr_nodes)
+        fF.precompute(1000) # arbitrarily large number
+        fF.compute_filament_linking_matrix()
+        lk_mat = fF.return_filament_linking_matrix()        
+        lk_mat_over_time.append(lk_mat)
+        
+        for i_,contact_entry in enumerate(curr_force_all_info):
+            popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2 = get_closest_points(contact_entry,curr_nodes)
+            popt_i_next,popt_j_next,dvec_next,x_i1_next,x_i2_next,x_j1_next,x_j2_next = get_closest_points(contact_entry,next_nodes)
+            contact_displacement = dvec_next - dvec
+            contact_displacement_norm = np.linalg.norm(contact_displacement)
+            contact_displacement_list[i_] = contact_displacement_norm
+            
+        average_contact_displacement = np.mean(contact_displacement_list)
+        avg_contact_displacement_over_time[i_frame] = average_contact_displacement
+        
+        # node velocities
+        rod_velocities = np.zeros((num_rods,10,3))
+        for i_rod in range(0,num_rods,1):
+            curr_rod = curr_nodes[i_rod]
+            next_rod = next_nodes[i_rod]
+            rod_velocities[i_rod] = next_rod - curr_rod
+            
+        avg_velocity_at_the_frame = np.mean(np.linalg.norm(rod_velocities.reshape(-1,3),axis=1))
+        avg_velocities_over_time[i_frame] = avg_velocity_at_the_frame
+        
+        centroid_velocities_at_the_frame = np.mean(rod_velocities,axis=1)
+        centroid_velocities_over_time[i_frame] = np.mean(np.linalg.norm(centroid_velocities_at_the_frame,axis=1))
+        
+    output_dict = {'actual_timeline': time_line[timeline_checkout],
+                   'avg_velocities_over_time': avg_velocities_over_time,
+                     'centroid_velocities_over_time': centroid_velocities_over_time,
+                     'avg_contact_displacement_over_time': avg_contact_displacement_over_time,
+                     'avg_initial_centroid_displacement_over_time': avg_initial_centroid_displacement_over_time,
+                     'lk_mat_over_time': lk_mat_over_time,
+                     'fraction_of_nodes_in_largest_cluster_over_time': fraction_of_nodes_in_largest_cluster_over_time}
+    
+    return output_dict
+    
 # %%
 if __name__ == '__main__':
-    main()
+    import filamentFields
+    from distances import lumelsky_dist_vec    
+    
+    from pathlib import Path
+    
+    parent_folders = []
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
+    
+    output_dict_list_repeated = []
+    for parent_folder in parent_folders:
+        pathlist = [str(x) for x in parent_folder.iterdir() if x.is_dir()]
+        
+        ARs = []
+        for pth in pathlist:
+            search_result = re.search(r'N(\d+)_AR(\d+)',pth)
+            ARs.append(int(search_result.group(2)))
+
+        pathlist = [x for _,x in sorted(zip(ARs,pathlist))]
+        ARs = sorted(ARs)
+        
+        # 0,1,2,3,5,7,8,9,10,11,12,13
+        pathlist = [pathlist[0],pathlist[1],pathlist[2],pathlist[3],pathlist[5],pathlist[7],pathlist[8],pathlist[9],pathlist[10],pathlist[11],pathlist[12],pathlist[13]]
+        ARs = [ARs[0],ARs[1],ARs[2],ARs[3],ARs[5],ARs[7],ARs[8],ARs[9],ARs[10],ARs[11],ARs[12],ARs[13]]
+        
+        # find csv file
+        
+        data_path_list = []
+        for pth in pathlist:        
+            data_path = None
+            for file in Path(pth).rglob('*.csv'):
+                if str(file.stem).endswith('lastFrame'):
+                    continue        
+                data_path = file
+                data_path_list.append(data_path)
+                break
+        
+        skip_frames = 30
+        
+        ##### function implementation below    
+        output_dict_list = []
+        for data_path in data_path_list:
+            output_dict = analyze_csv_file(data_path,skip_frames)
+            output_dict_list.append(output_dict)
+            
+        output_dict_list_repeated.append(output_dict_list)
+        
+# %%
+import pickle
+with open('output_dict_list_repeated_v1.pkl','wb') as f:
+    pickle.dump(output_dict_list_repeated,f)
+
+# %%
+
+# ARs = []
+# for data_path in data_path_list:
+#     stem_str = Path(data_path).stem
+#     search_result = re.search('N(\d+)-AR(\d+)-Scale1',stem_str)
+#     # search_result = re.search(r'\d{8}-\d{6}', stem_str)
+#     N = int(search_result.group(1))
+#     AR = int(search_result.group(2))
+#     ARs.append(AR)
+# %%
+fraction_of_nodes_in_largest_cluster_over_time = output_dict['fraction_of_nodes_in_largest_cluster_over_time']
+# %%
+all_gathered_wrt_reps = []
+for output_dict_list in output_dict_list_repeated:
+    at_each_rep = []
+    for output_dict in output_dict_list:
+        at_each_rep.append(output_dict['fraction_of_nodes_in_largest_cluster_over_time'])
+        # plt.loglog(output_dict['actual_timeline'],output_dict['fraction_of_nodes_in_largest_cluster_over_time'],'o-')
+    all_gathered_wrt_reps.append(at_each_rep)
+        
+timeline = output_dict['actual_timeline']
+        
+# %%
+from scipy.optimize import curve_fit
+def decay(x,a,b):
+    return a*np.exp(-b*x)
+
+dta = np.mean(all_gathered_wrt_reps,axis=0).transpose()
+dta.shape
+err = np.std(all_gathered_wrt_reps,axis=0).transpose()
+
+markers = ['o','s','^','v','<','>','p','P','*','X','D','d']
+decay_constats = []
+fig,ax=plt.subplots(1,1,figsize=(6,6))
+for i_ in range(dta.shape[1]):
+    ax.errorbar(timeline,dta[:,i_],err[:,i_],fmt=markers[i_],label=f'{ARs[i_]}')
+    clr = ax.get_lines()[-1].get_color()
+    popt,pcov = curve_fit(decay,timeline,dta[:,i_])
+    decay_constats.append(popt[1])
+    smoothx = np.linspace(0,5,100)
+    smoothy = decay(smoothx,*popt)
+    ax.plot(smoothx,smoothy,color=clr)
+    
+# ax.set_yscale('log')
+# ax.set_xscale('log')
+
+plt.xlabel('Time (sec)')
+plt.ylabel('Fraction of nodes in the largest cluster')
+plt.legend()
+# %%
+plt.semilogy(ARs,decay_constats,'o')
+# %%
+output_dict_list = output_dict_list_repeated[0]
+xx = output_dict_list[0]['actual_timeline']
+
+decay_constats_repeated = []
+for output_dict_list in output_dict_list_repeated:
+    at_each_rep = []
+    
+    decay_constants = []
+    for output_dict in output_dict_list:        
+        yy = output_dict['fraction_of_nodes_in_largest_cluster_over_time']
+        popt,pcov = curve_fit(decay,xx,yy)
+        decay_constants.append(popt[1])
+        plt.plot(xx,yy)
+        
+    decay_constats_repeated.append(decay_constants)
+    
+ # %%
+decay_constants_avg = np.mean(decay_constats_repeated,axis=0)
+decay_constants_err = np.std(decay_constats_repeated,axis=0)
+
+fig,ax=plt.subplots(1,1,figsize=(12,6))
+ax.errorbar(ARs,decay_constants_avg,decay_constants_err,fmt='o')
+ax.set_yscale('log')
+ax.set_xscale('log')
+
+ax.set_xlabel('AR')
+ax.set_ylabel('Collapse constant')
+
+    
+        
+
+
+
+# %%
+from scipy.optimize import curve_fit
+def sigmoid(x, L ,x0, k, b):
+    y = L / (1 + np.exp(-k*(x-x0)))+b
+    return (y)
+
+# plot sigmoid function
+x = np.linspace(-10,10,100)
+y = sigmoid(x, 1, 0, 1, 0)
+plt.plot(x,y)
+
+# %%
+
+fig,ax=plt.subplots(1,1,figsize=(6,3))
+
+
+
+
+last_values_repeated = []
+untanglement_repeated = []
+for output_dict_list in output_dict_list_repeated:
+    k = 0
+    last_values = []
+    untanglement_list_wrt_AR = []
+    for output_dict in output_dict_list:
+        timeline = output_dict['actual_timeline']
+        lk_mat_over_time = output_dict['lk_mat_over_time']    
+        lk_mat0 = lk_mat_over_time[0]
+        lk_mat0_flatten = lk_mat0[np.triu_indices(lk_mat0.shape[0],k=1)]
+        original_sign = np.sign(lk_mat0_flatten)
+        
+        lk_mat0_sum = np.sum(np.abs(lk_mat0_flatten))
+
+        hamming_dist_list = []
+        untanglement_list = []
+        for lkm in lk_mat_over_time[1:]:
+            lkm_flatten = lkm[np.triu_indices(lkm.shape[0],k=1)]
+            current_sign = np.sign(lkm_flatten)
+            
+            naive_diff = lkm_flatten - lk_mat0_flatten
+            # untanglement = np.abs(lkm_flatten)/np.abs(lk_mat0_flatten)
+            # if original sign was positive, positive naive_diff means increase in entanglement
+            # if original sign was negative, positive naive_diff means decrease in entanglement
+            actual_diff = naive_diff * original_sign
+            hamming_dist = np.sum(current_sign != original_sign)
+            hamming_dist_list.append(hamming_dist/len(lkm_flatten))            
+            untanglement_list.append(np.sum(np.abs(actual_diff))/lk_mat0_sum)
+            
+        # ax.plot(timeline[:-1],hamming_dist_list,label=f'{ARs[k]}')
+        ax.plot(timeline[:-1],untanglement_list,label=f'{ARs[k]}')
+        last_values.append(hamming_dist_list[-1])
+        untanglement_list_wrt_AR.append(untanglement_list)
+        
+        k = k + 1
+    last_values_repeated.append(last_values)
+    untanglement_repeated.append(untanglement_list_wrt_AR)
+    
+ax.set_xlim([0,5])
+# legend outside
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.xlabel('Time (sec)')
+plt.ylabel('Untanglement')
+# %%
+for last_values in last_values_repeated:
+    plt.semilogy(ARs,last_values,'o')
+plt.xlabel('AR')
+plt.ylabel('Fraction of lk# sign changes at t=5s')
+# %%
+def saturation(x,a,b):
+    return a*(1-np.exp(-b*x))
+def power_law(x,a,b):
+    return a*x**b
+
+
+tme = timeline
+dta = np.mean(untanglement_repeated,axis=0).transpose()
+# put 0 for the first time point
+dta = np.vstack([np.zeros(dta.shape[1]),dta])
+err = np.std(untanglement_repeated,axis=0).transpose()
+err = np.vstack([np.zeros(err.shape[1]),err])
+# cutoff
+
+cutoff_point = 5
+tme = tme[cutoff_point:]
+tme = tme - tme[0]
+dta = dta[cutoff_point:]
+dta = dta - dta[0,:]
+err = err[cutoff_point:]
+
+# %%
+
+saturation_constant = []
+power_law_constant = []
+fig,ax=plt.subplots(1,1,figsize=(12,8))
+for i in range(dta.shape[1]):
+    ax.errorbar(tme,dta[:,i],err[:,i],fmt='o',label=f'{ARs[i]}')
+    # get color
+    color = ax.get_lines()[-1].get_color()
+
+    popt,pcov = curve_fit(power_law,tme,dta[:,i])
+    power_law_constant.append(popt[1])
+    
+    popt,pcov = curve_fit(saturation,tme,dta[:,i],bounds=([0,0],[1,1]))
+    saturation_constant.append(popt[1])
+    
+    xx = np.linspace(0,5,100)
+    yy = saturation(xx,*popt)
+    
+    ax.plot(xx,yy,color=color)
+    
+    
+# legend outside
+box = ax.get_position()
+ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+plt.xlabel('Time (sec)')
+plt.ylabel('Untanglement')
+
+# %%
+plt.semilogy(ARs,saturation_constant,'o')
+
+
+# %%
+err = np.std(last_values_repeated,axis=0)
+fig,ax=plt.subplots(1,1,figsize=(6,3))
+ax.errorbar(ARs,last_values,np.array(err),fmt='o')
+# log scale
+# ax.set_yscale('log')
+# ax.set_xscale('log')
+
+
+# %%
+def power_law(x,a,b):
+    return a*x**b
+
+def linear(x,a,b):
+    return a*x + b
+
+ARs_float = np.array(ARs).astype(float)
+popt,pcov = curve_fit(power_law,ARs_float,last_values)
+
+xx = np.log(ARs_float/ARs_float[0])
+yy = np.log(last_values/last_values[0])
+
+popt2,pcov2 = curve_fit(linear, xx, yy)
+
+# popt,pcov = curve_fit(exponential,ARs_float,last_values)
+
+plt.semilogy(ARs_float,last_values,'o')
+plt.xlabel('AR')
+plt.ylabel('Fraction of lk# sign changes at t=5s')
+    
+    
+# %%
+output_dict_list
