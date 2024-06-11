@@ -360,9 +360,9 @@ def pullout_video_frames_single_file(alllog_pth):
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
             ax.plot(rr[:,0],rr[:,1],rr[:,2])
-        ax.set_xlim(-0.1,0.1)
-        ax.set_ylim(-0.1,0.1)
-        ax.set_zlim(-0.1,0.1)
+        ax.set_xlim(-2,2)
+        ax.set_ylim(-2,2)
+        ax.set_zlim(-2,2)
         ax.view_init(elev=0,azim=0)
         ax.text(1,1,1,f'time: {time_line[i]}')
         plt.tight_layout(pad=0)
@@ -453,7 +453,7 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240608-0142_RUN_EntangleTostitos1_AR50/log_files/NonIntersectingBox-N250-AR50-Scale0.05-mu0.20-visc0.00-amp0.00_allLog_20240608-014300.csv'
+    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation/20240609-1052_RUN_PerturbEEModelo1_N0500_AR100/NonIntersectingBox-N0500-AR100-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240609-105242.csv'
     folder_path = Path(data_path).parent
     protocol_id = 'RealScale'
     
