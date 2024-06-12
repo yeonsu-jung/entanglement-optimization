@@ -453,7 +453,7 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation/20240609-1052_RUN_PerturbEEModelo1_N0500_AR100/NonIntersectingBox-N0500-AR100-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240609-105242.csv'
+    data_path = '/Users/yeonsu/Data/from_cluster/20240604-0110_RUN_HangEECarrotCake5_N1500_AR300 copy/log_files/NonIntersectingBox-N1500-AR300-Scale1-mu0.00-visc0.00-amp0.00_allLog_20240608-185418.csv'
     folder_path = Path(data_path).parent
     protocol_id = 'RealScale'
     
