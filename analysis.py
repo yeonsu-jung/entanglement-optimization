@@ -12,6 +12,7 @@ from visualizations import set_3d_plot, plot_edges, plot_many_curves, plot_many_
 from data_io import read_data, import_from_dismech, import_from_dismech_hook
 from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs,vert_to_edge
 import numba
+from distances import lumelsky_dist_vec
 
 import matplotlib.animation as animation
 import sys
@@ -1429,6 +1430,7 @@ def analyze_csv_file(data_path,skip_frames):
         graph.add_nodes_from(range(len(curr_nodes)))
         graph.add_edges_from(contact_ij)
         clusters = list(nx.connected_components(graph))
+        
         # largest clusters
         largest_cluster = max(clusters,key=len)
         fraction_of_nodes_in_largest_cluster = len(largest_cluster)/len(curr_nodes)
@@ -1463,27 +1465,41 @@ def analyze_csv_file(data_path,skip_frames):
         centroid_velocities_at_the_frame = np.mean(rod_velocities,axis=1)
         centroid_velocities_over_time[i_frame] = np.mean(np.linalg.norm(centroid_velocities_at_the_frame,axis=1))
         
-    output_dict = {'actual_timeline': time_line[timeline_checkout],
-                   'avg_velocities_over_time': avg_velocities_over_time,
-                     'centroid_velocities_over_time': centroid_velocities_over_time,
-                     'avg_contact_displacement_over_time': avg_contact_displacement_over_time,
-                     'avg_initial_centroid_displacement_over_time': avg_initial_centroid_displacement_over_time,
-                     'lk_mat_over_time': lk_mat_over_time,
-                     'fraction_of_nodes_in_largest_cluster_over_time': fraction_of_nodes_in_largest_cluster_over_time}
+    output_dict = { 'data_path': data_path,
+                    'num_rods': num_rods,
+                    'AR': AR,
+                    'actual_timeline': time_line[timeline_checkout],
+                    'avg_velocities_over_time': avg_velocities_over_time,
+                    'centroid_velocities_over_time': centroid_velocities_over_time,
+                    'avg_contact_displacement_over_time': avg_contact_displacement_over_time,
+                    'avg_initial_centroid_displacement_over_time': avg_initial_centroid_displacement_over_time,
+                    'lk_mat_over_time': lk_mat_over_time,
+                    'fraction_of_nodes_in_largest_cluster_over_time': fraction_of_nodes_in_largest_cluster_over_time}
     
     return output_dict
     
 # %%
 if __name__ == '__main__':
+    import pickle
     import filamentFields
-    from distances import lumelsky_dist_vec    
-    
+    from distances import lumelsky_dist_vec
     from pathlib import Path
     
     parent_folders = []
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo3'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo1'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))    
+    
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
+    
+    output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
+    analysis_id = 'Micromechanics-HangModelo3'
+    
+    output_path = f'{output_root}/{analysis_id}'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
     
     output_dict_list_repeated = []
     for parent_folder in parent_folders:
@@ -1496,10 +1512,6 @@ if __name__ == '__main__':
 
         pathlist = [x for _,x in sorted(zip(ARs,pathlist))]
         ARs = sorted(ARs)
-        
-        # 0,1,2,3,5,7,8,9,10,11,12,13
-        pathlist = [pathlist[0],pathlist[1],pathlist[2],pathlist[3],pathlist[5],pathlist[7],pathlist[8],pathlist[9],pathlist[10],pathlist[11],pathlist[12],pathlist[13]]
-        ARs = [ARs[0],ARs[1],ARs[2],ARs[3],ARs[5],ARs[7],ARs[8],ARs[9],ARs[10],ARs[11],ARs[12],ARs[13]]
         
         # find csv file
         
@@ -1515,259 +1527,17 @@ if __name__ == '__main__':
         
         skip_frames = 30
         
-        ##### function implementation below    
+        ##### function implementation below
         output_dict_list = []
         for data_path in data_path_list:
             output_dict = analyze_csv_file(data_path,skip_frames)
             output_dict_list.append(output_dict)
             
+            
         output_dict_list_repeated.append(output_dict_list)
         
-# %%
-import pickle
-with open('output_dict_list_repeated_v1.pkl','wb') as f:
-    pickle.dump(output_dict_list_repeated,f)
-
-# %%
-
-# ARs = []
-# for data_path in data_path_list:
-#     stem_str = Path(data_path).stem
-#     search_result = re.search('N(\d+)-AR(\d+)-Scale1',stem_str)
-#     # search_result = re.search(r'\d{8}-\d{6}', stem_str)
-#     N = int(search_result.group(1))
-#     AR = int(search_result.group(2))
-#     ARs.append(AR)
-# %%
-fraction_of_nodes_in_largest_cluster_over_time = output_dict['fraction_of_nodes_in_largest_cluster_over_time']
-# %%
-all_gathered_wrt_reps = []
-for output_dict_list in output_dict_list_repeated:
-    at_each_rep = []
-    for output_dict in output_dict_list:
-        at_each_rep.append(output_dict['fraction_of_nodes_in_largest_cluster_over_time'])
-        # plt.loglog(output_dict['actual_timeline'],output_dict['fraction_of_nodes_in_largest_cluster_over_time'],'o-')
-    all_gathered_wrt_reps.append(at_each_rep)
+        with open(f'{output_path}/output_dict_list_repeated.pkl','wb') as f:
+            pickle.dump(output_dict_list_repeated,f)
         
-timeline = output_dict['actual_timeline']
-        
-# %%
-from scipy.optimize import curve_fit
-def decay(x,a,b):
-    return a*np.exp(-b*x)
-
-dta = np.mean(all_gathered_wrt_reps,axis=0).transpose()
-dta.shape
-err = np.std(all_gathered_wrt_reps,axis=0).transpose()
-
-markers = ['o','s','^','v','<','>','p','P','*','X','D','d']
-decay_constats = []
-fig,ax=plt.subplots(1,1,figsize=(6,6))
-for i_ in range(dta.shape[1]):
-    ax.errorbar(timeline,dta[:,i_],err[:,i_],fmt=markers[i_],label=f'{ARs[i_]}')
-    clr = ax.get_lines()[-1].get_color()
-    popt,pcov = curve_fit(decay,timeline,dta[:,i_])
-    decay_constats.append(popt[1])
-    smoothx = np.linspace(0,5,100)
-    smoothy = decay(smoothx,*popt)
-    ax.plot(smoothx,smoothy,color=clr)
-    
-# ax.set_yscale('log')
-# ax.set_xscale('log')
-
-plt.xlabel('Time (sec)')
-plt.ylabel('Fraction of nodes in the largest cluster')
-plt.legend()
-# %%
-plt.semilogy(ARs,decay_constats,'o')
-# %%
-output_dict_list = output_dict_list_repeated[0]
-xx = output_dict_list[0]['actual_timeline']
-
-decay_constats_repeated = []
-for output_dict_list in output_dict_list_repeated:
-    at_each_rep = []
-    
-    decay_constants = []
-    for output_dict in output_dict_list:        
-        yy = output_dict['fraction_of_nodes_in_largest_cluster_over_time']
-        popt,pcov = curve_fit(decay,xx,yy)
-        decay_constants.append(popt[1])
-        plt.plot(xx,yy)
-        
-    decay_constats_repeated.append(decay_constants)
-    
- # %%
-decay_constants_avg = np.mean(decay_constats_repeated,axis=0)
-decay_constants_err = np.std(decay_constats_repeated,axis=0)
-
-fig,ax=plt.subplots(1,1,figsize=(12,6))
-ax.errorbar(ARs,decay_constants_avg,decay_constants_err,fmt='o')
-ax.set_yscale('log')
-ax.set_xscale('log')
-
-ax.set_xlabel('AR')
-ax.set_ylabel('Collapse constant')
-
-    
-        
-
-
-
-# %%
-from scipy.optimize import curve_fit
-def sigmoid(x, L ,x0, k, b):
-    y = L / (1 + np.exp(-k*(x-x0)))+b
-    return (y)
-
-# plot sigmoid function
-x = np.linspace(-10,10,100)
-y = sigmoid(x, 1, 0, 1, 0)
-plt.plot(x,y)
-
-# %%
-
-fig,ax=plt.subplots(1,1,figsize=(6,3))
-
-
-
-
-last_values_repeated = []
-untanglement_repeated = []
-for output_dict_list in output_dict_list_repeated:
-    k = 0
-    last_values = []
-    untanglement_list_wrt_AR = []
-    for output_dict in output_dict_list:
-        timeline = output_dict['actual_timeline']
-        lk_mat_over_time = output_dict['lk_mat_over_time']    
-        lk_mat0 = lk_mat_over_time[0]
-        lk_mat0_flatten = lk_mat0[np.triu_indices(lk_mat0.shape[0],k=1)]
-        original_sign = np.sign(lk_mat0_flatten)
-        
-        lk_mat0_sum = np.sum(np.abs(lk_mat0_flatten))
-
-        hamming_dist_list = []
-        untanglement_list = []
-        for lkm in lk_mat_over_time[1:]:
-            lkm_flatten = lkm[np.triu_indices(lkm.shape[0],k=1)]
-            current_sign = np.sign(lkm_flatten)
-            
-            naive_diff = lkm_flatten - lk_mat0_flatten
-            # untanglement = np.abs(lkm_flatten)/np.abs(lk_mat0_flatten)
-            # if original sign was positive, positive naive_diff means increase in entanglement
-            # if original sign was negative, positive naive_diff means decrease in entanglement
-            actual_diff = naive_diff * original_sign
-            hamming_dist = np.sum(current_sign != original_sign)
-            hamming_dist_list.append(hamming_dist/len(lkm_flatten))            
-            untanglement_list.append(np.sum(np.abs(actual_diff))/lk_mat0_sum)
-            
-        # ax.plot(timeline[:-1],hamming_dist_list,label=f'{ARs[k]}')
-        ax.plot(timeline[:-1],untanglement_list,label=f'{ARs[k]}')
-        last_values.append(hamming_dist_list[-1])
-        untanglement_list_wrt_AR.append(untanglement_list)
-        
-        k = k + 1
-    last_values_repeated.append(last_values)
-    untanglement_repeated.append(untanglement_list_wrt_AR)
-    
-ax.set_xlim([0,5])
-# legend outside
-box = ax.get_position()
-ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.xlabel('Time (sec)')
-plt.ylabel('Untanglement')
-# %%
-for last_values in last_values_repeated:
-    plt.semilogy(ARs,last_values,'o')
-plt.xlabel('AR')
-plt.ylabel('Fraction of lk# sign changes at t=5s')
-# %%
-def saturation(x,a,b):
-    return a*(1-np.exp(-b*x))
-def power_law(x,a,b):
-    return a*x**b
-
-
-tme = timeline
-dta = np.mean(untanglement_repeated,axis=0).transpose()
-# put 0 for the first time point
-dta = np.vstack([np.zeros(dta.shape[1]),dta])
-err = np.std(untanglement_repeated,axis=0).transpose()
-err = np.vstack([np.zeros(err.shape[1]),err])
-# cutoff
-
-cutoff_point = 5
-tme = tme[cutoff_point:]
-tme = tme - tme[0]
-dta = dta[cutoff_point:]
-dta = dta - dta[0,:]
-err = err[cutoff_point:]
-
-# %%
-
-saturation_constant = []
-power_law_constant = []
-fig,ax=plt.subplots(1,1,figsize=(12,8))
-for i in range(dta.shape[1]):
-    ax.errorbar(tme,dta[:,i],err[:,i],fmt='o',label=f'{ARs[i]}')
-    # get color
-    color = ax.get_lines()[-1].get_color()
-
-    popt,pcov = curve_fit(power_law,tme,dta[:,i])
-    power_law_constant.append(popt[1])
-    
-    popt,pcov = curve_fit(saturation,tme,dta[:,i],bounds=([0,0],[1,1]))
-    saturation_constant.append(popt[1])
-    
-    xx = np.linspace(0,5,100)
-    yy = saturation(xx,*popt)
-    
-    ax.plot(xx,yy,color=color)
     
     
-# legend outside
-box = ax.get_position()
-ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.xlabel('Time (sec)')
-plt.ylabel('Untanglement')
-
-# %%
-plt.semilogy(ARs,saturation_constant,'o')
-
-
-# %%
-err = np.std(last_values_repeated,axis=0)
-fig,ax=plt.subplots(1,1,figsize=(6,3))
-ax.errorbar(ARs,last_values,np.array(err),fmt='o')
-# log scale
-# ax.set_yscale('log')
-# ax.set_xscale('log')
-
-
-# %%
-def power_law(x,a,b):
-    return a*x**b
-
-def linear(x,a,b):
-    return a*x + b
-
-ARs_float = np.array(ARs).astype(float)
-popt,pcov = curve_fit(power_law,ARs_float,last_values)
-
-xx = np.log(ARs_float/ARs_float[0])
-yy = np.log(last_values/last_values[0])
-
-popt2,pcov2 = curve_fit(linear, xx, yy)
-
-# popt,pcov = curve_fit(exponential,ARs_float,last_values)
-
-plt.semilogy(ARs_float,last_values,'o')
-plt.xlabel('AR')
-plt.ylabel('Fraction of lk# sign changes at t=5s')
-    
-    
-# %%
-output_dict_list
