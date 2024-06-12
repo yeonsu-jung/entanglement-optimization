@@ -116,7 +116,7 @@ def analyze_a_path(pth):
 output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
 
 # Entangle
-protocol_id = 'PerturbModelos'
+protocol_id = 'HangModelos'
 
 output_path = f'{output_root}/{protocol_id}'
 if not os.path.exists(output_path):
@@ -124,7 +124,7 @@ if not os.path.exists(output_path):
 
 # %%
 parent_folders = []
-parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
+parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo1'))
 # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
 # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
 # pathlist is subdirs, not including itself
