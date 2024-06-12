@@ -10,16 +10,16 @@ import pickle
 from data_io import import_all_log, parse_path_string    
     
 # %%
-
 output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
 
 # Jostle
-protocol_id = 'FinePerturbCarrotCake5_rodMotion'
+protocol_id = 'SlowExcitation_Modelo1_RodMotion'
 
 pathlist = []
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1808_RUN_PerturbEECarrotCake5_N125_AR25_g0.5')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1823_RUN_PerturbEECarrotCake5_N1500_AR300_g0.5')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CarrotCake5_FineExcitation/20240607-1809_RUN_PerturbEECarrotCake5_N500_AR100_g0.5')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0125_AR025')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0500_AR100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N1500_AR300')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0375_AR075')
 
 
 for pth in pathlist:
