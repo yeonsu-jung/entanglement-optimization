@@ -665,8 +665,368 @@ else:
 # fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
 # for i in range(len(svd_cylinders)):
 #     plot_centerline_with_container(segments,svd_cylinders,i,ax)
+# %%
+
+# %%
+# plt.close('all')
+# fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+# for i in range(len(local_segments)):
+#     ax.plot(local_segments[i][:,0],local_segments[i][:,1],local_segments[i][:,2],'-')
+        
+# %%
+
+
+
+# %%
+import filamentprocessing
+fp = filamentprocessing.FilamentProcessing(segments,50,1,0.99)
+# %%
+fp.calculate_end_to_end_properties(10)
+endpoints = fp.get_end_points()
+endtangents = fp.get_end_tangents()
     
     
+# %%
+fp.calculate_end_to_end_scores(20)
+end_ab = fp.get_end_ab()
+end_scores = fp.get_end_scores()
+
+# %%
+end_ab = np.array(end_ab)
+end_scores = np.array(end_scores)
+dist_score = end_scores[:,0]
+align_score = end_scores[:,1]
+mask = (dist_score < 10) & (align_score < 0.15)
+weighted_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(end_ab) if mask[k]] 
+
+e2e_graph = nx.Graph()
+e2e_graph.add_nodes_from(range(len(segments)*2))
+e2e_graph.add_weighted_edges_from(weighted_edges)
+# %%
+mst = nx.minimum_spanning_tree(e2e_graph)
+pruned_graph = prune_mst(mst)
+conn_comp = list(nx.connected_components(pruned_graph))
+
+cluster_size_list = [len(x) for x in conn_comp]
+print(f'Number of end points: {len(segments)*2}')
+print(f'Number of connected components: {len(conn_comp)}')
+print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
+
+# %%
+# i_max = np.argmax(cluster_size_list)
+i_max = np.argsort(cluster_size_list)[-512]
+cc_max = conn_comp[i_max]
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for i in cc_max:
+    if (i % 2 == 1):
+        continue    
+    rr = segments[i//2]
+    ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+ax.axis('equal')
+# %%
+
+round2 = []
+for cc in conn_comp:
+    cc = list(cc)
+    subgraph = pruned_graph.subgraph(cc)
+    eps = [node for node in subgraph.nodes if subgraph.degree[node] == 1]
+
+    if len(eps) != 2:
+        continue
+        # raise ValueError("The graph does not have exactly two endpoints.")
+    
+
+    # Find the shortest path between the two endpoints
+    path = nx.shortest_path(subgraph, source=eps[0], target=eps[1])    
+    straight_curve = []
+    for i_ in path[::2]:
+        if i_ % 2 == 0:
+            straight_curve.append(segments[i_//2])
+        elif i_ % 2 == 1: 
+            straight_curve.append(segments[i_//2][::-1])            
+    straight_curve = np.vstack(straight_curve)
+    round2.append(straight_curve)
+    
+# %%
+plt.close('all')
+length_list = []
+for rr in round2:
+    length_list.append(seg_len(rr))
+    
+# %%
+log_bins = np.logspace(np.log10(1),np.log10(1000),100)
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+ax.hist(length_list,bins=log_bins)
+ax.set_xscale('log')
+# %%
+# plt.close('all')
+# fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+# for rr in round2:
+#     if seg_len(rr) > 10:
+#         continue
+#     ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+    
+# %%
+np.count_nonzero(np.array(length_list) < 10)
+
+# %%
+round2 = [rr for rr in round2 if seg_len(rr) > 10]
+# %%
+len(segments)
+len(round2)
+
+# %%
+
+fp2 = filamentprocessing.FilamentProcessing(round2,50,1,0.99)
+fp2.calculate_end_to_end_properties(30)
+endpoints = fp2.get_end_points()
+endtangents = fp2.get_end_tangents()
+
+# %%
+scale = 10
+# plt.close('all')
+# fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+# for i in range(len(round2)):
+#     rr = round2[i]
+#     if np.any(np.linalg.norm(rr - np.array([700,700,500]),axis=1) < 200):
+#         ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+    
+    
+    
+# %%
+dist_threshold = 30
+fp2.calculate_end_to_end_scores(dist_threshold)
+end_ab = fp2.get_end_ab()
+end_scores = fp2.get_end_scores()
+
+end_ab = np.array(end_ab)
+end_scores = np.array(end_scores)
+dist_score = end_scores[:,0]
+align_score = end_scores[:,1]
+mask = (dist_score < dist_threshold) & (align_score < 0.15)
+weighted_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(end_ab) if mask[k]] 
+
+e2e_graph = nx.Graph()
+e2e_graph.add_nodes_from(range(len(round2)*2))
+e2e_graph.add_weighted_edges_from(weighted_edges)
+mst = nx.minimum_spanning_tree(e2e_graph)
+pruned_graph = prune_mst(mst)
+conn_comp = list(nx.connected_components(pruned_graph))
+
+cluster_size_list = [len(x) for x in conn_comp]
+print(f'Number of end points: {len(round2)*2}')
+print(f'Number of connected components: {len(conn_comp)}')
+print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
+
+# %%
+# i_max = np.argmax(cluster_size_list)
+i_max = np.argsort(cluster_size_list)[-1]
+cc_max = conn_comp[i_max]
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for i in cc_max:
+    if (i % 2 == 1):
+        continue    
+    rr = round2[i//2]
+    ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+ax.axis('equal')
+
+# %%
+
+round3 = []
+for cc in conn_comp:
+    cc = list(cc)
+    subgraph = pruned_graph.subgraph(cc)
+    eps = [node for node in subgraph.nodes if subgraph.degree[node] == 1]
+
+    if len(eps) != 2:
+        continue
+        # raise ValueError("The graph does not have exactly two endpoints.")
+    
+
+    # Find the shortest path between the two endpoints
+    path = nx.shortest_path(subgraph, source=eps[0], target=eps[1])    
+    straight_curve = []
+    for i_ in path[::2]:
+        if i_ % 2 == 0:
+            straight_curve.append(round2[i_//2])
+        elif i_ % 2 == 1: 
+            straight_curve.append(round2[i_//2][::-1])            
+    straight_curve = np.vstack(straight_curve)
+    round3.append(straight_curve)
+# %%
+length_list = [seg_len(rr) for rr in round3]
+
+log_bins = np.logspace(np.log10(1),np.log10(2000),100)
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+ax.hist(length_list,bins=log_bins)
+ax.set_xscale('log')
+# %%
+np.count_nonzero(np.array(length_list) > 30)
+
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for i in range(len(round3)):
+    if length_list[i] < 30:
+        ax.plot(round3[i][:,0],round3[i][:,1],round3[i][:,2],'-')
+        
+
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for i in np.random.choice(len(round3),1000):
+    rr = round3[i]
+    if seg_len(rr) < 30:
+        continue
+    
+    
+    ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+    
+
+# %%
+class Segments:
+    def __init__(self,segments):
+        import filamentprocessing
+        import networkx as nx
+        
+        self.segments = segments
+        self.fp = filamentprocessing.FilamentProcessing(segments,50,1,0.99)
+        
+    def calculate_end_to_end_properties(self,dist_threshold):
+        self.fp.calculate_end_to_end_properties(dist_threshold)
+        
+    def get_end_points(self):
+        return self.fp.get_end_points()
+    
+    def get_end_tangents(self):
+        return self.fp.get_end_tangents()
+    
+    def calculate_end_to_end_scores(self,dist_threshold):
+        self.fp.calculate_end_to_end_scores(dist_threshold)
+        
+    def get_end_ab(self):
+        return self.fp.get_end_ab()
+    
+    def get_end_scores(self):
+        return self.fp.get_end_scores()
+    
+    def get_svd_ij(self):
+        return self.fp.get_svd_ij()
+    
+    def get_svd_scores(self):
+        return self.fp.get_svd_scores()
+    
+    def get_svd_cylinders(self):
+        return self.fp.get_svd_cylinders()
+    
+    def clustering(self,number_of_endpoint_averaging=10,dist_threshold=30,align_threshold=0.15):
+        self.fp.calculate_end_to_end_properties(number_of_endpoint_averaging)
+        self.endpoints = self.get_end_points()
+        self.endtangents = self.get_end_tangents()
+        
+        self.fp.calculate_end_to_end_scores(dist_threshold)
+        self.end_ab = self.get_end_ab()
+        self.end_scores = self.get_end_scores()
+        
+        self.end_ab = np.array(self.end_ab)
+        self.end_scores = np.array(self.end_scores)
+        
+        dist_score = self.end_scores[:,0]
+        align_score = self.end_scores[:,1]
+        
+        mask = (dist_score < dist_threshold) & (align_score < align_threshold)
+        
+        weighted_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab) if mask[k]]
+        
+        e2e_graph = nx.Graph()
+        e2e_graph.add_nodes_from(range(len(self.segments)*2))
+        e2e_graph.add_weighted_edges_from(weighted_edges)
+        
+        mst = nx.minimum_spanning_tree(e2e_graph)
+        pruned_graph = prune_mst(mst)
+        conn_comp = list(nx.connected_components(pruned_graph))
+        
+        cluster_size_list = [len(x) for x in conn_comp]
+        print(f'Number of end points: {len(self.segments)*2}')        
+        print(f'Number of connected components: {len(conn_comp)}')
+        print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
+        
+        next_round = []
+        
+        for cc in conn_comp:
+            cc = list(cc)
+            subgraph = pruned_graph.subgraph(cc)
+            eps = [node for node in subgraph.nodes if subgraph.degree[node] == 1]
+
+            if len(eps) != 2:
+                continue
+                # raise ValueError("The graph does not have exactly two endpoints.")
+
+
+            # Find the shortest path between the two endpoints
+            path = nx.shortest_path(subgraph, source=eps[0], target=eps[1])    
+            straight_curve = []
+            for i_ in path[::2]:
+                if i_ % 2 == 0:
+                    straight_curve.append(self.segments[i_//2])
+                elif i_ % 2 == 1: 
+                    straight_curve.append(self.segments[i_//2][::-1])            
+            straight_curve = np.vstack(straight_curve)
+            next_round.append(straight_curve)
+            
+        self.graph = pruned_graph
+            
+        return next_round        
+        
+        
+    def inspect_clustering(self):
+        plt.close('all')
+        fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+        for i in range(len(self.segments)):
+            ax.plot(self.segments[i][:,0],self.segments[i][:,1],self.segments[i][:,2],'-')
+        
+        fig,ax=plt.subplots(1,1)
+        length_list = []
+        for rr in self.segments:
+            length_list.append(seg_len(rr))
+        log_bins = np.logspace(np.log10(1),np.log10(2000),100)
+        ax.hist(length_list,bins=log_bins)
+        ax.set_xscale('log')
+        
+        return length_list
+    
+# %%
+
+    
+# %%
+seg3 = Segments(round3)
+round4 = seg3.clustering(number_of_endpoint_averaging=30,dist_threshold=30,align_threshold=0.15)
+# length_list = seg3.inspect_clustering()
+# %%
+
+
+
+
+
+
+# %%
+
+
+# %%
+fp = filamentprocessing.FilamentProcessing(round4,50,1,0.99)
+# %%
+fp.calculate_svd_scores(50,0.05)
+# %%
+ij = fp.get_svd_ij()
+scores = fp.get_svd_scores()
+# %%
+ij = np.array(ij)
+scores = np.array(scores)
+dist_score = scores[:,0]
+align_score = scores[:,1]
 # %%
 dist_score = scores[:,0]
 align_score = scores[:,1]
@@ -674,15 +1034,16 @@ align_score = scores[:,1]
 mask = (dist_score < 50) & (align_score < 0.05)
 
 graph = nx.Graph()
-graph.add_nodes_from(range(len(segments)))
+graph.add_nodes_from(range(len(round4)))
 graph.add_edges_from(ij[mask,:])
 
 connected_components = list(nx.connected_components(graph))
 connected_components = [list(x) for x in connected_components]
 cluster_size_list = [len(x) for x in connected_components]
-print(f'Number of segments: {len(segments)}')
+print(f'Number of segments: {len(round4)}')
 print(f'Number of connected components: {len(connected_components)}')
 print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
+
 # %%
 i_max = np.argmax(cluster_size_list)
 i_max = np.argsort(cluster_size_list)[-510]
@@ -690,7 +1051,7 @@ cc_max = connected_components[i_max]
 plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
 for i_ in cc_max:
-    ax.plot(segments[i_][:,0],segments[i_][:,1],segments[i_][:,2],linewidth=1)
+    ax.plot(round4[i_][:,0],round4[i_][:,1],round4[i_][:,2],linewidth=1)
     ax.axis('equal')
 
 # %%
@@ -803,182 +1164,8 @@ for i_ in range(len(to_be_legit_clusters)):
 len(filtered)
 # %%
 
-# %%
-end_points = []
-for i in range(len(filtered)):
-    end_points.append(np.hstack([filtered[i][0],filtered[i][-1]]))
-end_points = np.array(end_points)
-
-end_points2 = end_points.copy()
-end_points2 = end_points2.reshape(-1,3)
-
-import time
-start = time.time()
-end_dist_mat = calculate_dist_mat(end_points2)
-print(f'Elapsed time: {time.time()-start}')
-
-# %%
 
 
-
-
-
-
-# %%
-end_points = []
-end_tangents = []
-
-for i in range(len(filtered)):
-    end_points.append(np.hstack([filtered[i][0],filtered[i][-1]]))
-    rr = filtered[i]    
-    tan1 = quick_tangent(rr[:5])
-    tan2 = quick_tangent(rr[-5:])    
-    end_tangents.append(np.hstack([tan1,tan2]))
-    
-    # end_tangents.append(np.hstack([filtered[i][1] - filtered[i][0],filtered[i][-1] - filtered[i][-2]]))
-end_points = np.array(end_points)
-end_tangents = np.array(end_tangents)
-# %%
-long_segments = filtered
-
-# %%
-end_points2 = end_points.copy()
-end_points2 = end_points2.reshape(-1,3)
-end_tangents2 = end_tangents.copy()
-end_tangents2 = end_tangents2.reshape(-1,3)
-
-# %%
-import time
-start = time.time()
-end_dist_mat = calculate_dist_mat(end_points2)
-print(f'Elapsed time: {time.time()-start}')
-
-
-# %%
-
-end_dist_mat = np.array(end_dist_mat)
-end_dist_mat = end_dist_mat + end_dist_mat.T
-end_dist_mat[np.diag_indices(len(end_points2))] = np.inf
-# # Set distances between adjacent indices to infinity
-for i in range(len(end_dist_mat) - 1):
-    if i % 2 == 1:
-        continue
-    end_dist_mat[i, i + 1] = -1000
-    end_dist_mat[i + 1, i] = -1000
-
-
-    
-
-# %%
-ij = np.triu_indices(len(end_points2),+1)
-distances = end_dist_mat[ij]
-
-# %%
-mask = distances < 20
-# %%
-end_dist_mat[4756,4758]
-
-# %%
-# Apply the mask to both parts of the indices
-ij_masked = (ij[0][mask], ij[1][mask])
-weights = distances[mask]
-
-alignment_weights = np.zeros(len(ij_masked[0]))
-for it_ in range(len(ij_masked[0])):
-    i = ij_masked[0][it_]
-    j = ij_masked[1][it_]
-    
-    tan_i = end_tangents2[i]
-    tan_j = end_tangents2[j]
-    
-    dvec = end_points2[i] - end_points2[j]
-    dvec = dvec / np.linalg.norm(dvec)
-    
-    alignment = (np.linalg.norm(np.cross(dvec, tan_i)) + np.linalg.norm(np.cross(dvec, tan_j))) / 2
-    alignment_weights[it_] = alignment
-    
-# %%
-
-e2e_graph = nx.Graph()
-e2e_graph.add_nodes_from(range(len(long_segments)*2))
-
-# edges_indices = np.array(np.where(mask)).T
-# weights = end_alig_mat[mask]
-
-# weighted_edges = [(i, j, w) for (i, j), w in zip(ij_masked, alignment_weights)]
-
-weighted_edges = []
-for i in range(len(ij_masked[0])):
-    i_ = ij_masked[0][i]
-    j_ = ij_masked[1][i]
-    w_ = alignment_weights[i]
-    if w_ < 0.1:
-        weighted_edges.append((i_,j_,w_))
-        weighted_edges.append((j_,i_,w_))
-
-e2e_graph.add_weighted_edges_from(weighted_edges)
-e2e_clusters = list(nx.connected_components(e2e_graph))
-
-cluster_size_list = [len(x) for x in e2e_clusters]
-print(f'Number of end points: {len(long_segments)*2}')
-print(f'Number of connected components: {len(e2e_clusters)}')
-print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
-# %%
-mst = nx.minimum_spanning_tree(e2e_graph)
-pruned_graph = prune_mst(mst)
-conn_comp = list(nx.connected_components(pruned_graph))
-
-cluster_size_list = [len(x) for x in conn_comp]
-print(f'Number of end points: {len(long_segments)*2}')
-print(f'Number of connected components: {len(conn_comp)}')
-print(f'Max. cluster size {np.max(cluster_size_list)} at {np.argmax(cluster_size_list)}')
-# %%
-cluster_size_list = [len(x) for x in conn_comp]
-# i_max = np.argmax(cluster_size_list)
-i_max = np.argsort(cluster_size_list)[0]
-cc_max = conn_comp[i_max]
-
-plt.close('all')
-fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
-scale=10
-for i_ in cc_max:
-    # plot each end    
-    if i_ % 2 == 0:
-        clr = np.random.rand(3)
-        ax.plot(long_segments[i_//2][:,0],long_segments[i_//2][:,1],long_segments[i_//2][:,2],linewidth=1,color=clr)        
-    ax.plot(end_points2[i_][0],end_points2[i_][1],end_points2[i_][2],'o',markersize=2,color=clr)
-ax.axis('equal')
-
-
-# %%
-
-
-vectorized_pairwise_alignment_for_ends = vmap(vmap(pairwise_alignment_for_ends, in_axes=(None, 0, None, 0)), in_axes=(0, None, 0, None))
-end_alig_mat = vectorized_pairwise_alignment_for_ends(end_points2, end_points2, end_tangents2, end_tangents2)
-
-end_dist_mat = np.array(end_dist_mat)
-end_dist_mat = end_dist_mat + end_dist_mat.T
-end_dist_mat[np.diag_indices(len(end_points2))] = np.inf
-# Set distances between adjacent indices to infinity
-for i in range(len(end_dist_mat) - 1):
-    if i % 2 == 1:
-        continue
-    end_dist_mat[i, i + 1] = -1000
-    end_dist_mat[i + 1, i] = -1000
-    
-end_alig_mat = np.array(end_alig_mat)
-end_alig_mat = end_alig_mat + end_alig_mat.T
-end_alig_mat[np.diag_indices(len(end_points2))] = np.inf
-# Set distances between adjacent indices to infinity
-for i in range(len(end_alig_mat) - 1):
-    if i % 2 == 1:
-        continue
-    end_alig_mat[i, i + 1] = -1000
-    end_alig_mat[i + 1, i] = -1000
-
-# %%
-# end_alig_mat[4756,4757]
-len(end_dist_mat)
 
 # %%
 
