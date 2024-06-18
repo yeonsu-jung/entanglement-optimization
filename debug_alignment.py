@@ -679,6 +679,8 @@ else:
 
 # %%
 import filamentprocessing
+
+
 fp = filamentprocessing.FilamentProcessing(segments,50,1,0.99)
 # %%
 fp.calculate_end_to_end_properties(10)
