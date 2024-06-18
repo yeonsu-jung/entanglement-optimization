@@ -1086,4 +1086,18 @@ for i in np.where(np.array(seg.length_list) < 30)[0]:
     
 
 # %%
+round2 = seg.next_round
+# %%
+round2 = [rr for rr in round2 if seg_len(rr) > 30]
+# %%
+seg = Segments(round2)
+round3 = seg.end_to_end_clustering(number_of_endpoint_averaging=100,dist_threshold=200,align_threshold=0.05)
 
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+log_bins = np.logspace(np.log10(1),np.log10(1000),100)
+ax.hist(seg.length_list,bins=log_bins)
+ax.set_xscale('log')
+# %%
+seg.plot_large_clusters(32)
