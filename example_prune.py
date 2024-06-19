@@ -122,7 +122,7 @@ if __name__ == '__main__':
         
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
-    adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
+    # adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
 
     mat_obj = loadmat(segments_file_path)
     segments = mat_obj['segments']
