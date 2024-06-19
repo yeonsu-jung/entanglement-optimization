@@ -1371,6 +1371,9 @@ def get_closest_points(contact_entry,curr_nodes):
     dvec = d1*t - d2*u - d12
     
     return popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2
+
+
+
     
 def analyze_csv_file(data_path,skip_frames):
     
@@ -1436,11 +1439,11 @@ def analyze_csv_file(data_path,skip_frames):
         fraction_of_nodes_in_largest_cluster = len(largest_cluster)/len(curr_nodes)
         fraction_of_nodes_in_largest_cluster_over_time[i_frame] = fraction_of_nodes_in_largest_cluster
         
-        fF.update_filament_nodes_list(curr_nodes)
-        fF.precompute(1000) # arbitrarily large number
-        fF.compute_filament_linking_matrix()
-        lk_mat = fF.return_filament_linking_matrix()        
-        lk_mat_over_time.append(lk_mat)
+        # fF.update_filament_nodes_list(curr_nodes)
+        # fF.precompute(1000) # arbitrarily large number
+        # fF.compute_filament_linking_matrix()
+        # lk_mat = fF.return_filament_linking_matrix()
+        # lk_mat_over_time.append(lk_mat)
         
         for i_,contact_entry in enumerate(curr_force_all_info):
             popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2 = get_closest_points(contact_entry,curr_nodes)
@@ -1486,16 +1489,23 @@ if __name__ == '__main__':
     from pathlib import Path
     
     parent_folders = []
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo3'))
     # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo1'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))    
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo2'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo3'))
     
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_SlowExcitation'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_SlowExcitation'))
+    
+    
+    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))    
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
     
     output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
-    analysis_id = 'Micromechanics-HangModelo3'
+    analysis_id = 'Micromechanics-TabModelos'
+    skip_frames = 5
     
     output_path = f'{output_root}/{analysis_id}'
     if not os.path.exists(output_path):
@@ -1507,7 +1517,7 @@ if __name__ == '__main__':
         
         ARs = []
         for pth in pathlist:
-            search_result = re.search(r'N(\d+)_AR(\d+)',pth)
+            search_result = re.search(r'N(\d+)[-_]AR(\d+)', pth)
             ARs.append(int(search_result.group(2)))
 
         pathlist = [x for _,x in sorted(zip(ARs,pathlist))]
@@ -1525,14 +1535,13 @@ if __name__ == '__main__':
                 data_path_list.append(data_path)
                 break
         
-        skip_frames = 30
+        
         
         ##### function implementation below
         output_dict_list = []
         for data_path in data_path_list:
             output_dict = analyze_csv_file(data_path,skip_frames)
             output_dict_list.append(output_dict)
-            
             
         output_dict_list_repeated.append(output_dict_list)
         
