@@ -927,7 +927,7 @@ class Segments:
         self.end_to_end_cluster = list(nx.connected_components(self.pruned_graph))
         self.cluster_size_list = [len(x) for x in self.end_to_end_cluster]
         
-        print(f'Number of end points: {len(self.segments)*2}')        
+        print(f'Number of end points: {len(self.segments)*2}')
         print(f'Number of connected components: {len(self.end_to_end_cluster)}')
         print(f'Max. cluster size {np.max(self.cluster_size_list)} at {np.argmax(self.cluster_size_list)}')
         
@@ -1017,25 +1017,122 @@ class Segments:
         
         mask = (dist1 < search_radius) | (dist2 < search_radius)
         return np.where(mask)[0]
+    
+    def merge_by_fitting(self,distance_threshold=30,fitting_error_threshold=1.5):
+        ab_ = self.fp.get_end_ab()
+        scores_ = self.fp.get_end_scores()
+        
+        ab_ = np.array(ab_)
+        scores_ = np.array(scores_)
+        
+        dist_scores_ = scores_[:,0]
+        # align_scores_ = scores_[:,1] # useless here       
+        
+        test = 0
+        if test:
+            i_min_list = np.argsort(dist_scores_[dist_scores_>0])
+            i_min = i_min_list[321]
+            i_min_global = np.where(dist_scores_>0)[0][i_min]
+            print(scores_[i_min_global,:])                
+        
+            _ij = ab_[i_min_global,:]
+            rr0 = round5[_ij[0]//2]
+            rr = round5[_ij[1]//2]
+            plt.close('all')
+            fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+            ax.plot(rr0[:,0],rr0[:,1],rr0[:,2],'-')
+            ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+            ax.axis('equal')
+            joined = np.vstack([rr0,rr])
+            fr = fit_rod(joined,linearity_threshold=0.0001,radius_curvature_threshold=100000)
+            print(f'Error: {fr["err"]}') # good, merge it.
+
+            ep1 = self.endpoints[_ij[0]]
+            ep2 = self.endpoints[_ij[1]]
+            dvec = ep1 - ep2
+            dvec /= np.linalg.norm(dvec)
+
+            # dist = np.linalg.norm(ep1 - ep2)
+            tan1 = self.endtangents[_ij[0]]
+            tan2 = self.endtangents[_ij[1]]
+
+        # align_score = (np.linalg.norm(np.cross(dvec,tan1)) + np.linalg.norm(np.cross(dvec,tan2))) / 2
+
+        visualize = 0
+        if visualize:
+            plt.close('all')
+            fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+            ax.plot(rr0[:,0],rr0[:,1],rr0[:,2],'-')
+            ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+            ax.plot(ep1[0],ep1[1],ep1[2],'ro')
+            ax.plot(ep2[0],ep2[1],ep2[2],'bo')
+            scale = 100
+            ax.quiver(ep2[0],ep2[1],ep2[2],scale*dvec[0],scale*dvec[1],scale*dvec[2],color='r')
+            ax.quiver(ep1[0],ep1[1],ep1[2],scale*tan1[0],scale*tan1[1],scale*tan1[2],color='b')
+            ax.quiver(ep2[0],ep2[1],ep2[2],scale*tan2[0],scale*tan2[1],scale*tan2[2],color='g')
+            ax.axis('equal')
+
+        merged = []
+        length_list = []
+
+        # union find?
+        parent = {i:i for i in range(len(round5))}
+        
+        def find(i):
+            if parent[i] != i:
+                parent[i] = find(parent[i])
+            return parent[i]
+        
+        def union(i,j):
+            parent[find(i)] = find(j)
+            
+        # def union(node1, node2):
+        #     root1 = find(node1)
+        #     root2 = find(node2)
+        #     if root1 != root2:
+        #         parent[root2] = root1
+            
+
+        for i_ in np.where((dist_scores_ < distance_threshold) & (dist_scores_ > 0))[0]:    
+            _ij = ab_[i_,:]
+            rr0 = round5[_ij[0]//2]
+            rr = round5[_ij[1]//2]
+            
+            joined = np.vstack([rr0,rr])
+            joined = sort_curve(joined)
+            fr = fit_rod(joined,linearity_threshold=0.0001,radius_curvature_threshold=100000)
+            if fr['err'] < fitting_error_threshold:
+                print(f'Error: {fr["err"]}')
+                
+                # connect
+                union(_ij[0]//2,_ij[1]//2)
+                
+                
+                # merged.append(joined)
+                # length_list.append(seg_len(joined))
+                
+            
+                
+                
             
                 
                 
 # %%
-global_centroid = np.mean(np.vstack(segments),axis=0)
+# global_centroid = np.mean(np.vstack(segments),axis=0)
 
-local_segments = []
-for i,segment in enumerate(segments):   
+# local_segments = []
+# for i,segment in enumerate(segments):   
     
-    if np.any(np.linalg.norm(segment - global_centroid,axis=1) < 500):
-        local_segments.append(segment)
+#     if np.any(np.linalg.norm(segment - global_centroid,axis=1) < 500):
+#         local_segments.append(segment)
         
 # %%
-seg = Segments(local_segments)
-local_segments = seg.end_to_end_clustering(number_of_endpoint_averaging=30,dist_threshold=10,align_threshold=0.1)
+seg = Segments(segments)
+segments = seg.end_to_end_clustering(number_of_endpoint_averaging=30,dist_threshold=10,align_threshold=0.1)
 # %%
 
-seg = Segments(local_segments)
-local_segments = seg.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=100,align_threshold=0.05)
+seg = Segments(segments)
+segments = seg.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=100,align_threshold=0.05)
 
 
 # %%
@@ -1096,8 +1193,129 @@ round3 = seg.end_to_end_clustering(number_of_endpoint_averaging=100,dist_thresho
 # %%
 plt.close('all')
 fig,ax=plt.subplots(1,1)
-log_bins = np.logspace(np.log10(1),np.log10(1000),100)
+log_bins = np.logspace(np.log10(10),np.log10(1000),100)
 ax.hist(seg.length_list,bins=log_bins)
 ax.set_xscale('log')
 # %%
 seg.plot_large_clusters(32)
+
+# %%
+seg_3 = Segments(round3)
+round4 = seg_3.end_to_end_clustering(number_of_endpoint_averaging=250,dist_threshold=600,align_threshold=0.025)
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+# log_bins = np.logspace(np.log10(10),np.log10(1000),100)
+# ax.hist(seg.length_list,bins=log_bins)
+ax.hist(seg_3.length_list,bins=np.linspace(10,1000,25))
+# ax.set_xscale('log')
+
+# %%
+seg_3.plot_large_clusters(35)
+# %%
+i_test = np.where(np.array(seg_3.length_list) < 100)[0][0]
+rr = round4[i_test]
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+ax.axis('equal')
+# %%
+seg_4 = Segments(round4)
+round5 = seg_4.end_to_end_clustering(number_of_endpoint_averaging=250,dist_threshold=600,align_threshold=0.025)
+#%%
+seg_4.plot_large_clusters(35)
+#%%
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+# log_bins = np.logspace(np.log10(10),np.log10(1000),100)
+# ax.hist(seg.length_list,bins=log_bins)
+ax.hist(seg_4.length_list,bins=np.linspace(10,1000,25))
+#%%
+# loop over each rod
+# try to find nearby rods
+# merge and assess
+# if not, keep it as it is
+# if yes, merge and assess
+
+seg_5 = Segments(round5)
+round6 = seg_5.end_to_end_clustering(number_of_endpoint_averaging=250,dist_threshold=600,align_threshold=0.025)
+# %%
+
+
+
+        
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1)
+log_bins = np.logspace(np.log10(10),np.log10(1000),100) 
+ax.hist(seg_5.length_list,bins=log_bins)
+
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for rr in merged:
+    ax.plot(rr[:,0],rr[:,1],rr[:,2],'-')
+    
+        
+# %%
+   
+ab_ = seg_5.fp.get_end_ab()
+scores_ = seg_5.fp.get_end_scores()
+
+ab_ = np.array(ab_)
+scores_ = np.array(scores_)
+
+dist_scores_ = scores_[:,0]
+# %%        
+distance_threshold = 30
+fitting_error_threshold = 1.5
+
+parent = {i:i for i in range(len(round5))}
+connections = []
+for i_ in np.where((dist_scores_ < distance_threshold) & (dist_scores_ > 0))[0]:    
+    _ij = ab_[i_,:]
+    rr0 = round5[_ij[0]//2]
+    rr = round5[_ij[1]//2]
+    
+    joined = np.vstack([rr0,rr])
+    joined = sort_curve(joined)
+    
+    
+    fr = fit_rod(joined,linearity_threshold=0.0001,radius_curvature_threshold=100000)
+    if fr['err'] < fitting_error_threshold:
+        connections.append( (_ij[0]//2,_ij[1]//2) )
+        print(f'Error: {fr["err"]}')
+        
+        # connect
+        # union(_ij[0]//2,_ij[1]//2)
+        
+            
+            
+# %%
+merge_graph = nx.Graph()
+merge_graph.add_nodes_from(range(len(round5)))
+merge_graph.add_edges_from(connections)
+
+# %%
+ccs = list(nx.connected_components(merge_graph))
+
+ccs = [list(cc) for cc in ccs]
+len(ccs)
+# %%
+plt.close('all')
+fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+for cc in ccs:
+    joined = []
+    for i_ in cc:
+        joined.append(round5[i_])
+    joined = np.vstack(joined)
+    joined = sort_curve(joined)
+    ax.plot(joined[:,0],joined[:,1],joined[:,2],'-')
+    
+
+    
+
+# %%
+# parallel transport
+
+
