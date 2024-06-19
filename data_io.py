@@ -453,9 +453,9 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/Data/from_cluster/20240604-0110_RUN_HangEECarrotCake5_N1500_AR300 copy/log_files/NonIntersectingBox-N1500-AR300-Scale1-mu0.00-visc0.00-amp0.00_allLog_20240608-185418.csv'
+    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240617-1409_RUN_flipTest/log_files/NonIntersectingBox-N0375-AR075-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240617-140926.csv'
     folder_path = Path(data_path).parent
-    protocol_id = 'RealScale'
+    protocol_id = 'Flip'
     
     
     print(f'processing {folder_path}')
