@@ -13,14 +13,29 @@ from data_io import import_all_log, parse_path_string
 output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
 
 # Jostle
-protocol_id = 'SlowExcitation_Modelo1_RodMotion'
+protocol_id = 'HangModelos_RodMotion'
+
+parent_folders = []
+parent_folders.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo3')
+parent_folders.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo1')
+parent_folders.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo2')
 
 pathlist = []
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0125_AR025')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0500_AR100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N1500_AR300')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0375_AR075')
+# choose AR: 25, 50, 100, 200, 300
+ARs = [75,80,90]
+for parent_folder in parent_folders:
+    pth = Path(parent_folder)
+    
+    for data_container in pth.rglob('*'):
+        search_result = re.search('N(\d+)_AR(\d+)',str(data_container.stem))
+        if search_result is None:
+            continue
+        num_rods = int(search_result.group(1))
+        AR = int(search_result.group(2))
 
+        if AR in ARs:
+            pathlist.append(data_container)
+            
 
 for pth in pathlist:
 
