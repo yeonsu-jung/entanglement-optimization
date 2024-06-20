@@ -1489,22 +1489,11 @@ if __name__ == '__main__':
     from pathlib import Path
     
     parent_folders = []
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo1'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo2'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HangModelo3'))
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HeavyHangModelo1'))
     
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_SlowExcitation'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_SlowExcitation'))
-    
-    
-    # parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation'))    
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation'))
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo3_FineExcitation'))
-    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo2_FineExcitation'))
     
     output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
-    analysis_id = 'Micromechanics-TabModelos'
+    analysis_id = 'Micromechanics-HeavyHangModelos'
     skip_frames = 5
     
     output_path = f'{output_root}/{analysis_id}'
