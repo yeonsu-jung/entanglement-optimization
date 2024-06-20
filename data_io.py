@@ -453,9 +453,9 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240617-1409_RUN_flipTest/log_files/NonIntersectingBox-N0375-AR075-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240617-140926.csv'
+    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240617-1509_RUN_FlipModelo1_N1500_AR300/log_files/NonIntersectingBox-N1500-AR300-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240617-150938.csv'
     folder_path = Path(data_path).parent
-    protocol_id = 'Flip'
+    protocol_id = 'Test'
     
     
     print(f'processing {folder_path}')
