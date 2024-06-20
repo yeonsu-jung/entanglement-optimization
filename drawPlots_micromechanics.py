@@ -176,7 +176,7 @@ five_sec_collapse_avg
 ind_AR100 = np.where(ARs == 100)[0][0] + 1
 
 plt.errorbar(ARs[:ind_AR100],five_sec_collapse_avg[:ind_AR100],five_sec_collapse_err[:ind_AR100],fmt='o')
-# popt,pcov = curve_fit(power_law,ARs[:ind_AR100],five_sec_collapse_avg[:ind_AR100])
+popt,pcov = curve_fit(power_law,ARs[:ind_AR100],five_sec_collapse_avg[:ind_AR100])
 # popt,pcov = curve_fit(,ARs[:ind_AR100],five_sec_collapse_avg[:ind_AR100])
 plt.loglog(ARs[:ind_AR100],power_law(ARs[:ind_AR100],*popt))
 
