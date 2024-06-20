@@ -130,8 +130,8 @@ from jax import vmap, jit, lax
 from scipy.io import loadmat
 
 # dataobj = loadmat('/Users/yeonsu/Dropbox (Harvard University)/Data/prunedGrosbeakScan/segments.mat')
-# dataobj = loadmat('/Users/yeonsu/Dropbox (Harvard University)/Data/prunedMetalNest/segments.mat')
-dataobj = loadmat('/Users/yeonsu/Dropbox (Harvard University)/Data/steel-rods-xray-data/alpha200_epsilon00/segments.mat')
+dataobj = loadmat('/Users/yeonsu/Dropbox (Harvard University)/Data/prunedMetalNest/segments.mat')
+# dataobj = loadmat('/Users/yeonsu/Dropbox (Harvard University)/Data/steel-rods-xray-data/alpha200_epsilon00/segments.mat')
 
 
 segments = dataobj['segments']
@@ -311,14 +311,14 @@ close_ij = np.where(e2e_dist_mat < 5)[0]
 # print(f'Elapsed time: {time.time() - start}')
 
 # %%
-e2e_dist_mat = np.array(e2e_dist_mat)
-e2e_alig_mat = np.array(e2e_alig_mat)
+# e2e_dist_mat = np.array(e2e_dist_mat)
+# e2e_alig_mat = np.array(e2e_alig_mat)
 
-e2e_dist_mat = e2e_dist_mat + e2e_dist_mat.T
-e2e_alig_mat = e2e_alig_mat + e2e_alig_mat.T
+# e2e_dist_mat = e2e_dist_mat + e2e_dist_mat.T
+# e2e_alig_mat = e2e_alig_mat + e2e_alig_mat.T
 
-e2e_dist_mat[np.diag_indices(len(long_segments))] = np.inf
-e2e_alig_mat[np.diag_indices(len(long_segments))] = np.inf
+# e2e_dist_mat[np.diag_indices(len(long_segments))] = np.inf
+# e2e_alig_mat[np.diag_indices(len(long_segments))] = np.inf
 
 # %%
 i_ = 1
@@ -466,7 +466,7 @@ cen = np.mean(np.vstack(long_segments),axis=0)
 plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
 for seg in segmented:
-    if np.all( np.linalg.norm(seg - cen,axis=1) < 500 ):
+    if np.all( np.linalg.norm(seg - cen,axis=1) < 1500 ):
         ax.plot(seg[:,0],seg[:,1],seg[:,2],linewidth=1)
 # %%
 size_list = [len(seg) for seg in segmented]
@@ -476,7 +476,6 @@ for i_,seg in enumerate(segmented):
 
 # %%
 import filamentFields
-
 fF = filamentFields.filamentFields([],[])
 # %%
 R_omega = 200
@@ -518,6 +517,7 @@ e_fields_img = np.flipud(e_fields_maxProj.T)
 
 fig, axs = plt.subplots(1, 1, figsize=(12, 6))
 fig.colorbar(axs.imshow(e_fields_img, extent=[xlim[0], xlim[1], zlim[0], zlim[1]],vmin=0,vmax=np.nanmax(e_fields_vol)), ax=axs)
+
 # %%
 np.nanstd(e_fields)/np.nanmean(e_fields)
 np.nanstd(phi_fields)/np.nanmean(phi_fields)
@@ -572,7 +572,7 @@ for cc in conn_comp:
     
 # %%
 # i_max = np.argmax(cluster_size_list)
-i_max = np.argsort(cluster_size_list)[-2]
+i_max = np.argsort(cluster_size_list)[-15]
 cc = e2e_clusters[i_max]
 plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
@@ -662,6 +662,7 @@ ax.axis('off')
 
 
 # %%
+plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
 for cc in e2e_clusters:
     joined = np.vstack([long_segments[i] for i in cc])
