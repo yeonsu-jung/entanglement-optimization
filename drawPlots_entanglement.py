@@ -17,7 +17,19 @@ plt.rcParams.update({
     "text.usetex": True,
     "font.family": "Helvetica"
 })
-
+# %%
+class data_container:
+    def __init__(self,dataphat,start_row=0,max_rows=100000,skip_rows=1):
+        self.path = Path(dataphat)
+        out = parse_path_string(self.path)
+        # self.file_id,self.surfix,self.num_rods,self.AR,self.datetime_string
+        self.file_id = out[0]
+        self.surfix = out[1]
+        self.num_rods = out[2]
+        self.AR = out[3]
+        self.datetime_string = out[4]
+        self.time_line, self.node_list, self.contact_list = import_all_log(self.path,start_row=start_row,max_rows=max_rows,skip_rows=skip_rows)
+        
 
 # %%
 single_column_size = (2.5,1.75)
@@ -63,17 +75,7 @@ pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/E
 
 
 
-class data_container:
-    def __init__(self,dataphat,max_rows=100000):
-        self.path = Path(dataphat)
-        out = parse_path_string(self.path)
-        # self.file_id,self.surfix,self.num_rods,self.AR,self.datetime_string
-        self.file_id = out[0]
-        self.surfix = out[1]
-        self.num_rods = out[2]
-        self.AR = out[3]
-        self.datetime_string = out[4]
-        self.time_line, self.node_list, self.contact_list = import_all_log(self.path,max_rows=max_rows)
+
         
 max_rows = 1000000
 data_container_list = []
@@ -194,6 +196,7 @@ len(entanglement_data_container_list)
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 # font size
 plt.rcParams.update({'font.size': 8})
+
 for i_,dc in enumerate(entanglement_data_container_list):
     N = Ns[i_]
     plt.plot(dc.time,dc.total_entanglement_over_time/N**2,label=fr'$\alpha={ARs[i_]}$')
@@ -201,6 +204,9 @@ plt.legend(fontsize=6)
 plt.xlabel('Time (sec)')
 plt.ylabel('Normalized total entanglement')
 plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tight')
+
+# %%
+    
 
 # %%
 last_part_averaged = []
@@ -221,7 +227,7 @@ for i_,dc in enumerate(data_container_list):
 plt.xlabel(r'$t$ (sec)')
 plt.ylabel(r'$Z$')
 
-plt.legend(loc='lower right',fontsize=6)
+plt.legend(loc='lower right',fontsize=4)
 # plt.xlim([0,10])
 plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.png',dpi=300,bbox_inches='tight')
 # %%
@@ -234,7 +240,12 @@ plt.savefig(f'{output_dir}/Z-over-alpha.png',dpi=300,bbox_inches='tight')
 
 # %%
 coef_vars = []
+means = []
+ARs = []
 for i_,dc in enumerate(entanglement_data_container_list):
+    AR = int(re.search(r'AR(\d+)',pathlist[i_]).group(1))
+    ARs.append(AR)
+    
     coef_var = {}
     efield = dc.dataobj['e_fields_over_time']
     cfield = dc.dataobj['c_fields_over_time']
@@ -254,6 +265,20 @@ for i_,dc in enumerate(entanglement_data_container_list):
     coef_var['c'] = c_std/c_avg
     
     coef_vars.append(coef_var)
+    means.append(e_avg)
+    
+# %%
+single_column_size = (1.5,1)
+fig,ax=plt.subplots(1,1,figsize=single_column_size)
+#fontsize
+plt.rcParams.update({'font.size': 8})
+tt = np.linspace(0,5,len(efield))
+for e_avg in means:
+    plt.plot(tt,e_avg,label=f'AR={ARs[i_]}',linewidth=0.5)
+ax.set_xlabel(r'$t$ (sec)')
+ax.set_ylabel(r'$\mu(e)$')
+plt.savefig(f'{output_dir}/entanglement-over-time-mean.png',dpi=300,bbox_inches='tight')
+
     
     # plt.plot(tt,e_std/e_avg,label=f'AR={ARs[i_]}',linewidth=0.5)
 # %%
@@ -263,16 +288,17 @@ last_part_averaged = []
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 for i_,cv in enumerate(coef_vars):
     ax.plot(tt,cv['e'],label=rf'$\alpha={ARs[i_]}$',linewidth=0.5)
-    
-    
-    
     last_part_averaged.append(np.mean(cv['e'][tt > 2]))
                               
 ax.set_xlabel(r'$t$ (sec)')
 ax.set_ylabel(r'$\sigma/\mu$')
-plt.legend(loc='lower left',fontsize=6)
+plt.yticks(rotation=90)
+
+# plt.legend(loc='lower left',fontsize=6)
 plt.savefig(f'{output_dir}/coef-var-over-time-e.png',dpi=300,bbox_inches='tight')
 # %%
+
+    
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 plt.plot(ARs,last_part_averaged,'o')
 ax.set_xlabel(r'$\alpha$')
@@ -290,6 +316,7 @@ axs[1].set_xlabel(r'$t$ (sec)')
 axs[1].set_ylabel(r'$\sigma/\mu$')
 axs[1].set_ylim([0,2])
 plt.legend(loc='lower right',fontsize=6)
+
 
 plt.savefig(f'{output_dir}/coef-var-over-time-e-and-c.png',dpi=300,bbox_inches='tight')
 
@@ -331,7 +358,7 @@ ax.set_ylabel(r'$\mu$')
 plt.savefig(f'{output_dir}/entanglement-over-alpha-with-error.png',dpi=300,bbox_inches='tight')
 
 # %%
-single_column_size = (2.5,1.75)
+single_column_size = (1.3,1.1)
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 ax.plot(np.array([25,50,75,100,125,200,300]),std_entanglement/avg_entanglement,'o')
 ax.set_xlabel(r'$\alpha$')
@@ -465,6 +492,7 @@ plt.legend()
 plt.savefig(f'{output_dir}/entanglement-power-law-distribution-big-panel.png',dpi=300,bbox_inches='tight')
 
 # %%
+single_column_size = (1.3,1.1)
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 # fontsize
 plt.rcParams.update({'font.size': 8})
@@ -493,7 +521,11 @@ for i_,hist_result in enumerate(histogram_results):
 
 ax.set_xlabel(r'$e$')
 ax.set_ylabel(r'$p(e)$')
-plt.legend(fontsize=6)
+
+# plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=90, ha='right')
+
+# plt.legend(fontsize=6)
 plt.savefig(f'{output_dir}/entanglement-power-law-distribution.png',dpi=300,bbox_inches='tight')
 
 # %%
@@ -525,7 +557,8 @@ for i_,hist_result in enumerate(histogram_results):
 
 ax.set_xlabel(r'$c$')
 ax.set_ylabel(r'$p(c)$')
-plt.legend(fontsize=6)
+plt.yticks(rotation=90, ha='right')
+plt.legend(fontsize=4)
 plt.savefig(f'{output_dir}/contact-power-law-distribution.png',dpi=300,bbox_inches='tight')
 
     
@@ -673,5 +706,177 @@ with open(pklpath,'rb') as f:
 
 
 # %%
+for i_,dc in enumerate(entanglement_data_container_list):
+    
+    txt = dc.path.parent.parent.stem
+    search_result = re.search(r'N(\d+)[-_]AR(\d+)',txt)
+    N = int(search_result.group(1))
+    AR = int(search_result.group(2))
+    
+    if AR == 50:
+                
+        phi_fields = dc.dataobj['phi_fields_over_time']
+        # phi_fields = phi_fields[:667]
+        e_fields = dc.dataobj['e_fields_over_time']
+        # e_fields = e_fields[:667]
+        c_fields = dc.dataobj['c_fields_over_time']
+        # c_fields = c_fields[:667]
+        
+        phi_field_last_frame = phi_fields[-1]
+        e_field_last_frame = e_fields[-1]
+        c_field_last_frame = c_fields[-1]
+        # dta = e_field_last_frame[~np.isnan(e_field_last_frame)]
+        
+
+        image_size = np.round((e_field_last_frame.shape[0])**(1/3)).astype(int)
+        phi_volume = phi_field_last_frame.reshape(image_size,image_size,image_size)
+        e_volume = e_field_last_frame.reshape(image_size,image_size,image_size)
+        c_volume = c_field_last_frame.reshape(image_size,image_size,image_size)
+
+        c_volume[np.isnan(e_volume)] = np.nan
+
+        phi_image = np.mean(phi_volume,axis=0)
+        phi_image = np.flipud(phi_image.T)
+        e_image = np.mean(e_volume,axis=0)
+        e_image = np.flipud(e_image.T)
+        c_image = np.mean(c_volume,axis=0)
+        c_image = np.flipud(c_image.T)
 
 
+        double_column_size = (5,3.5)
+
+        fig,axs=plt.subplots(1,3,figsize=double_column_size)
+        axs = axs.flatten()
+        # colorbar below
+        fig.colorbar(axs[0].imshow(phi_image,cmap='coolwarm'),
+                    ax=axs[0],orientation='horizontal')
+
+        fig.colorbar(axs[1].imshow(e_image,cmap='coolwarm'),
+                        ax=axs[1],orientation='horizontal')
+
+        fig.colorbar(axs[2].imshow(c_image,cmap='coolwarm'),
+                        ax=axs[2],orientation='horizontal')
+
+        for ax in axs:
+            ax.axis('off')
+
+        plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.png',dpi=300,bbox_inches='tight')
+
+
+# %%
+
+
+
+
+pathlist = []
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq0.1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq3')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq1')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1343_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq0.1')
+
+# class data_container:
+#     def __init__(self,dataphat,max_rows=100000):
+#         self.path = Path(dataphat)
+#         out = parse_path_string(self.path)
+#         # self.file_id,self.surfix,self.num_rods,self.AR,self.datetime_string
+#         self.file_id = out[0]
+#         self.surfix = out[1]
+#         self.num_rods = out[2]
+#         self.AR = out[3]
+#         self.datetime_string = out[4]
+#         self.time_line, self.node_list, self.contact_list = import_all_log(self.path,max_rows=max_rows)
+# %%        
+max_rows = 1000000
+data_container_list = []
+
+# (g, freq)
+data_container_dict = {}
+
+for pth in pathlist:
+    # find csv file
+    data_path = None
+    for file in Path(pth).rglob('*.csv'):
+        if str(file.stem).endswith('lastFrame'):
+            continue
+        
+        # data_container_list.append(data_container(file,max_rows=max_rows))
+        
+        exp_id = pth.split('/')[-1]
+        search_result = re.search(r'N(\d+)[-_]AR(\d+)_g(\d+(\.\d+)?)_freq(\d+(\.\d+)?)', exp_id)
+        
+        N = int(search_result.group(1))
+        AR = int(search_result.group(2))
+        g = float(search_result.group(3))
+        freq = float(search_result.group(5))
+        
+        data_container_list.append(data_container(file,max_rows=500))
+        
+        print(N,AR,g,freq)
+        
+        
+# %%
+data_entry = data_container_list[-1]
+tt = data_entry.time_line
+vv = data_entry.contact_list[-1].reshape(-1,18)
+
+contact_ij = vv[:,4:6].astype(int)
+
+# contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
+curr_nodes = data_entry.node_list[-1]
+graph = nx.Graph()
+graph.add_nodes_from(range(len(curr_nodes)))
+graph.add_edges_from(contact_ij)
+clusters = list(nx.connected_components(graph))
+
+# largest clusters
+largest_cluster = max(clusters,key=len)
+f = len(largest_cluster)/len(curr_nodes)
+
+
+    
+# %%
+
+
+
+            
