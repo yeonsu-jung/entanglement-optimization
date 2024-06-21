@@ -311,10 +311,10 @@ def foo():
     plot_many_curves(nodes_at_a_time,num_rods,ax)
     plt.show()
     
-def import_all_log(alllog_pth, max_rows = 10):
+def import_all_log(alllog_pth, start_row=0,max_rows = 10,skip_rows=1):
     with open(alllog_pth) as f:
         lines = f.readlines()
-    lines = lines[:max_rows]
+    lines = lines[start_row:max_rows:skip_rows]
         
     time_line = []
     node_list = []
