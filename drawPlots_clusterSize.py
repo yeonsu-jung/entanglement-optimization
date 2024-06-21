@@ -294,3 +294,6 @@ plt.savefig(f'{figure_output_root}/f-plot-for-hangtest.png',dpi=300,bbox_inches=
 # pklpath = Path(f'{output_root}/Micromechanics-TickleModelos/output_dict_list_repeated.pkl')
 # pklpath = Path(f'{output_root}/Micromechanics-TabModelos/output_dict_list_repeated.pkl')
 
+# %%
+
+# %%
