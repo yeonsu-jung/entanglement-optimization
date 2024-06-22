@@ -243,8 +243,9 @@ _draw_f_plot(output_dict_list_repeated_tab,ax,fmt='o-',markersize=3,alpha=0.7,la
 ax.axvline(100,linestyle='--',color='k',linewidth=0.5)
 ax.set_xscale('log')
 ax.set_yscale('log')
-ax.set_xlabel(r'$\alpha$')
-ax.set_ylabel(r'$f$')
+ax.set_xlabel(r'$\alpha$',labelpad=0.5)
+ax.set_ylabel(r'$f$',labelpad=0.5)
+plt.yticks(rotation=90)
 
 # plt.legend()
 # show legends for 1 3 5 
@@ -265,8 +266,9 @@ _draw_f_plot(output_dict_list_repeated_heavyhang,ax,fmt='o-',markersize=3,alpha=
 ax.axvline(100,linestyle='--',color='k',linewidth=0.5)
 ax.set_xscale('log')
 ax.set_yscale('log')
-ax.set_xlabel(r'$\alpha$')
-ax.set_ylabel(r'$f$')
+ax.set_xlabel(r'$\alpha$',labelpad=0.5)
+ax.set_ylabel(r'$f$',labelpad=0.5)
+plt.yticks(rotation=90)
 
 handles, labels = ax.get_legend_handles_labels()
 ax.legend([handles[i] for i in [0,2,4]], [labels[i] for i in [0,2,4]],loc='lower right',fontsize=6)
