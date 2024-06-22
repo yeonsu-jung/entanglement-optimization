@@ -62,3 +62,9 @@ with open(original_file_path,'wb') as f:
 
     
 # %%
+
+
+# pklpath = Path(f'{output_root}/Micromechanics-HangModelos/output_dict_list_repeated.pkl')
+# pklpath = Path(f'{output_root}/Micromechanics-TickleModelos/output_dict_list_repeated.pkl')
+# pklpath = Path(f'{output_root}/Micromechanics-TabModelos/output_dict_list_repeated.pkl')
+
