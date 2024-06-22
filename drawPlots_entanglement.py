@@ -615,6 +615,8 @@ for dc in data_container_list_hang:
     frac_over_time_hang.append(len(largest_cluster)/N)
     
 # %%
+
+# %%
 ARs = []
 frac_over_time_tickle = []
 for dc in data_container_list_tickle:
@@ -767,111 +769,6 @@ for i_,dc in enumerate(entanglement_data_container_list):
 
 
 
-
-pathlist = []
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g10_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g2_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1423_RUN_PerturbCalmEEModelo1_N0750_AR150_g0.5_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g10_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g2_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1412_RUN_PerturbCalmEEModelo1_N0500_AR100_g0.5_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g10_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1408_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g2_freq0.1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq10')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq3')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq1')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PhaseDiagramStudy-Modelo1/20240620-1343_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq0.1')
-
-# class data_container:
-#     def __init__(self,dataphat,max_rows=100000):
-#         self.path = Path(dataphat)
-#         out = parse_path_string(self.path)
-#         # self.file_id,self.surfix,self.num_rods,self.AR,self.datetime_string
-#         self.file_id = out[0]
-#         self.surfix = out[1]
-#         self.num_rods = out[2]
-#         self.AR = out[3]
-#         self.datetime_string = out[4]
-#         self.time_line, self.node_list, self.contact_list = import_all_log(self.path,max_rows=max_rows)
-# %%        
-max_rows = 1000000
-data_container_list = []
-
-# (g, freq)
-data_container_dict = {}
-
-for pth in pathlist:
-    # find csv file
-    data_path = None
-    for file in Path(pth).rglob('*.csv'):
-        if str(file.stem).endswith('lastFrame'):
-            continue
-        
-        # data_container_list.append(data_container(file,max_rows=max_rows))
-        
-        exp_id = pth.split('/')[-1]
-        search_result = re.search(r'N(\d+)[-_]AR(\d+)_g(\d+(\.\d+)?)_freq(\d+(\.\d+)?)', exp_id)
-        
-        N = int(search_result.group(1))
-        AR = int(search_result.group(2))
-        g = float(search_result.group(3))
-        freq = float(search_result.group(5))
-        
-        data_container_list.append(data_container(file,max_rows=500))
-        
-        print(N,AR,g,freq)
-        
-        
-# %%
-data_entry = data_container_list[-1]
-tt = data_entry.time_line
-vv = data_entry.contact_list[-1].reshape(-1,18)
-
-contact_ij = vv[:,4:6].astype(int)
-
-# contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
-curr_nodes = data_entry.node_list[-1]
-graph = nx.Graph()
-graph.add_nodes_from(range(len(curr_nodes)))
-graph.add_edges_from(contact_ij)
-clusters = list(nx.connected_components(graph))
-
-# largest clusters
-largest_cluster = max(clusters,key=len)
-f = len(largest_cluster)/len(curr_nodes)
 
 
     
