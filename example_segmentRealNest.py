@@ -473,6 +473,29 @@ size_list = [len(seg) for seg in segmented]
 np.mean(size_list)
 for i_,seg in enumerate(segmented):
     segmented[i_] = seg[::10]
+# %%
+# save to mat file
+max_num_columns = np.max([seg.shape[0] for seg in segmented])
+segmented_nanpad = np.zeros((len(segmented),max_num_columns*3)) * np.nan
+
+for i_,seg in enumerate(segmented):
+    tmp = seg.flatten()
+    segmented_nanpad[i_,:tmp.shape[0]] = tmp
+    
+# %%
+root_dir = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/'
+output_dir = f'{root_dir}/MetalNestSegmented/'
+# os.makedirs(output_dir)
+matpath = f'{output_dir}/segments.mat'
+
+from scipy.io import savemat
+savemat(matpath,{'segments_nanpad':segmented_nanpad})
+
+
+
+
+
+
 
 # %%
 import filamentFields
@@ -525,6 +548,11 @@ np.nanstd(phi_fields)/np.nanmean(phi_fields)
 # save to mat file
 from scipy.io import savemat
 savemat('e_fields.mat',{'e_fields':e_fields_vol})
+
+
+# %%
+# raise error here
+error('stop here')
 
 # %%
 straight_curve = np.vstack(straight_curve)
@@ -612,7 +640,7 @@ nx.draw(pruned_graph, with_labels=True)
 
     
 # %%
-conn_cozmp = list(nx.connected_components(pruned_graph))
+conn_comp = list(nx.connected_components(pruned_graph))
 plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
 for i_ in conn_comp:
@@ -625,19 +653,19 @@ for i_ in conn_comp:
 ax.axis('equal')
     
 # %%
-def join_curves(a_list_of_curves):
-    return
+# def join_curves(a_list_of_curves):
+#     return
 
-plt.close('all')
-fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
-for cc in conn_comp:
-    a_list_of_curves = []
-    for i_ in cc:
-        if i_ % 2 == 0:
-            a_list_of_curves.append(long_segments[i_//2])
+# plt.close('all')
+# fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+# for cc in conn_comp:
+#     a_list_of_curves = []
+#     for i_ in cc:
+#         if i_ % 2 == 0:
+#             a_list_of_curves.append(long_segments[i_//2])
 
-    merged_curve = join_curves(a_list_of_curves)
-    ax.plot(merged_curve[:,0],merged_curve[:,1],merged_curve[:,2],linewidth=1)
+#     merged_curve = join_curves(a_list_of_curves)
+#     ax.plot(merged_curve[:,0],merged_curve[:,1],merged_curve[:,2],linewidth=1)
     
     
 
