@@ -462,6 +462,22 @@ for cc in conn_comp:
     segmented.append(straight_curve)
     
 # %%
+# save to mat file
+max_num_columns = np.max([seg.shape[0] for seg in segmented])
+segmented_nanpad = np.zeros((len(segmented),max_num_columns*3)) * np.nan
+
+for i_,seg in enumerate(segmented):
+    tmp = seg.flatten()
+    segmented_nanpad[i_,:tmp.shape[0]] = tmp
+    
+
+root_dir = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/'
+output_dir = f'{root_dir}/MetalNestSegmented/'
+# os.makedirs(output_dir)
+matpath = f'{output_dir}/segments.mat'
+savemat(matpath,{'segments_nanpad':segmented_nanpad})
+    
+# %%
 cen = np.mean(np.vstack(long_segments),axis=0)
 plt.close('all')
 fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
