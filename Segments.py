@@ -1,15 +1,17 @@
+# %%
 %matplotlib qt
 from matplotlib import pyplot as plt
 from fitting import prep_svd_cylinder, fit_rod
 from pathlib import Path
 import pickle
-from example_prune import inspect_segments
 import numpy as np
 import networkx as nx
 from clustering import find_connected_components, explode_local_cluster
 import os
 from distances import lumelsky_dist_vec
 import filamentprocessing
+
+from scipy.io import loadmat
 
 import jax
 import jax.numpy as jnp
@@ -21,11 +23,171 @@ from scipy.spatial.distance import cdist
 from scipy.interpolate import make_interp_spline
 from scipy.optimize import minimize
 # %%
-class Segment:
+# segment: continguously connected points; d < sqrt(3) 
+# vertex: each point in the segment
+# edge: two connected vertices
+# thus a segment from skeletonization is actually too dense.
+
+class Segment: # needed?
     def __init__(self,segment):
         # segment is a Nx3 numpy array
-        
+        assert segment.shape[1] == 3
         self.segment = segment
+    # length, curvature, etc...
+    
+    @staticmethod
+    def sort_curve(segment):
+        centroid = np.mean(segment,axis=0)
+        segment_centered = segment - centroid        
+        _,_, V = np.linalg.svd(segment_centered, full_matrices=False)
+        v1 = V[0,:]
+        orientation = v1 * np.sign(np.sum(v1 * (segment_centered[-1, :] - segment_centered[0, :])))
+        slist = np.dot((segment - centroid), orientation)
+        sorted_indices = np.argsort(slist)
+        return centroid + segment_centered[sorted_indices]
+
+    @staticmethod
+    def edge_lengths(segment):
+        return (np.sqrt(np.sum(np.diff(segment,axis=0)**2,axis=1)))
+
+    @staticmethod
+    def seg_len(segment):
+        return np.sum(np.sqrt(np.sum(np.diff(segment,axis=0)**2,axis=1)))
+
+    @staticmethod
+    def curvature_of_polygonal_curve(segment):
+        tan2 = segment[2:,:] - segment[1:-1,:]    
+        tan1 = segment[1:-1,:] - segment[:-2,:]
+        
+        nom = np.linalg.norm(2*np.cross(tan1,tan2,axis=1),axis=1)
+        den = np.sum(tan1*tan2,axis=1)
+        # curvature = np.sum(nom/den)
+        return nom/den
+
+    @staticmethod
+    def break_curved_rods(segment,curvature_threshold):
+        curvature = Segment.curvature_of_polygonal_curve(segment)
+        break_points = np.where(np.abs(curvature)>curvature_threshold)[0]
+        if len(break_points)==0:
+            return [segment]
+        else:
+            segments = []
+            start_idx = 0
+            for bp in break_points:
+                segments.append(segment[start_idx:bp+1])
+                start_idx = bp
+            segments.append(segment[start_idx:])
+            return segments
+        
+    def plot(segment,ax=None):
+        if ax is None:
+            fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+            ax.plot(segment[:,0],segment[:,1],segment[:,2])
+        else:
+            ax.plot(segment[:,0],segment[:,1],segment[:,2])
+        ax.axis('equal')
+        return ax
+        
+# %%
+a_segment = np.random.rand(10,3)
+Segment.sort_curve(a_segment)
+Segment.curvature_of_polygonal_curve(a_segment)
+Segment.break_curved_rods(a_segment,0.1)
+
+# %%
+
+
+# %%
+
+# %%
+
+
+
+# %%
+
+
+# %%
+
+def prune_mst(mst):
+    import heapq
+    # Track the degree of each node
+    node_degrees = {node: 0 for node in mst.nodes}
+    pruned_edges = []
+    mandatory_edges = []
+    added_edges = set()
+    
+    i = 0
+    mst.has_edge(i, i+1)
+    
+    for i in range(0,max(mst.nodes),2):
+        if mst.has_edge(i,i+1):
+            continue
+        else:
+            print(f'Edge {i} - {i+1} does not exist')
+    
+    # Enforce the mandatory connections for even i
+    for i in range(0, max(mst.nodes), 2):
+        if i in mst.nodes and i+1 in mst.nodes:
+            if mst.has_edge(i, i+1):
+                mandatory_edges.append((i, i+1, mst[i][i+1]['weight']))
+                node_degrees[i] += 1
+                node_degrees[i+1] += 1
+                added_edges.add((i, i+1))
+
+    # Priority queue for edges sorted by weight
+    edge_queue = []
+    for u, v, data in mst.edges(data=True):
+        if (u, v) not in added_edges and (v, u) not in added_edges:
+            heapq.heappush(edge_queue, (data['weight'], u, v))
+
+    # Union-Find data structure for tracking connected components
+    parent = {node: node for node in mst.nodes}
+
+    def find(node):
+        if parent[node] != node:
+            parent[node] = find(parent[node])
+        return parent[node]
+
+    def union(node1, node2):
+        root1 = find(node1)
+        root2 = find(node2)
+        if root1 != root2:
+            parent[root2] = root1
+
+    # Add mandatory edges to pruned graph
+    for u, v, weight in mandatory_edges:
+        pruned_edges.append((u, v, {'weight': weight}))
+        union(u, v)
+
+    # Add remaining edges while respecting degree constraints and maintaining connectivity
+    while edge_queue:
+        weight, u, v = heapq.heappop(edge_queue)
+        if node_degrees[u] < 2 and node_degrees[v] < 2 and find(u) != find(v):
+            pruned_edges.append((u, v, {'weight': weight}))
+            node_degrees[u] += 1
+            node_degrees[v] += 1
+            union(u, v)
+            
+    # Ensure each connected component is a path
+    def is_path(graph):
+        for component in nx.connected_components(graph):
+            if sum(1 for node in component if graph.degree[node] == 1) != 2:
+                return False
+        return True
+
+    pruned_graph = nx.Graph()
+    pruned_graph.add_nodes_from(mst.nodes)
+    pruned_graph.add_edges_from((u, v, data) for u, v, data in pruned_edges)
+    
+    # if not is_path(pruned_graph):
+        # raise ValueError("The pruned graph is not a path graph in all connected components")
+    
+    return pruned_graph
+
+
+
+# %%
+
         
 
 
@@ -262,6 +424,83 @@ class Segments:
         mask = (dist1 < search_radius) | (dist2 < search_radius)
         return np.where(mask)[0]
     
+    
+    
+    def break_segments(self):
+        new_segments = []
+        for seg in self.segments:
+            edge_len = Segment.edge_lengths(seg)
+            grph = nx.Graph()
+            grph.add_nodes_from(range(len(seg)))
+
+            for i in range(len(seg)-1):
+                if edge_len[i] <= np.sqrt(3):
+                    grph.add_edge(i,i+1)
+                
+            clusters = list(nx.connected_components(grph))
+            for i,cluster in enumerate(clusters):
+                if len(cluster) == 1:                
+                    continue
+                rr = np.array(seg,dtype=np.float64)            
+                new_segments.append(rr[list(cluster)])
+            
+        return new_segments
+
+    
+    def initial_prune_segments(self):
+        # simple sort; "robust way?" this only works for relatively straight one.
+        pruned = []
+        for i,seg in enumerate(self.segments):
+            seg = np.unique(seg,axis=0)
+            pruned.append(Segment.sort_curve(seg))
+            
+        return pruned
+    
+    
+    def inspect_segments(self,visualize=False):
+        N_segments = len(self.segments)
+        segments_length_list = np.zeros(N_segments)
+        for i,seg in enumerate(self.segments):
+            segments_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))   
+            
+        if visualize:
+            fig,ax=plt.subplots(1,1)
+            ax.hist(segments_length_list,bins=100)
+            ax.set_xlim([0,1000])
+        
+        from fitting import fit_rod
+
+        segments_error_list = np.zeros(N_segments)
+        for i,seg in enumerate(self.segments):
+            rr = np.array(seg,dtype=np.float64)
+            fit_result = fit_rod(rr,0.00001,10000)
+            segments_error_list[i] = fit_result['err']
+        
+        if visualize:    
+            fig,ax=plt.subplots(1,1)
+            ax.hist(segments_error_list,bins=100)
+            
+        print(f'Maximum segment length: {np.max(segments_length_list)} at index {np.argmax(segments_length_list)}')
+        print(f'Maximum segment error: {np.max(segments_error_list)} at index {np.argmax(segments_error_list)}')
+        
+        return segments_length_list,segments_error_list
+    
+    def break_curved_segments(self,error_threshold,curvature_threshold):        
+        _,segments_error_list = self.inspect_segments(visualize=False)
+        broken_segments_list = []
+        for i in np.where(segments_error_list>error_threshold)[0]:
+            rr = segments[i]
+            broken_pieces = Segment.break_curved_rods(rr,curvature_threshold)    
+            for bp in broken_pieces:                
+                broken_segments_list.append(bp)
+                
+        new_segments = [seg for i,seg in enumerate(segments) if segments_error_list[i]<=1]
+        new_segments = new_segments + broken_segments_list
+                        
+        return new_segments
+            
+
+    
     def merge_by_fitting(self,distance_threshold=30,fitting_error_threshold=1.5):
         ab_ = self.fp.get_end_ab()
         scores_ = self.fp.get_end_scores()
@@ -353,5 +592,35 @@ class Segments:
                 
                 
 # %%
+rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+mat_obj = loadmat(segments_file_path)
+segments = mat_obj['segments']
+segments = [seg[0] for seg in segments]    
+
+print(f'Number of segments (original): {len(segments)}')
+
+global_centroid = np.mean(np.vstack(segments),axis=0)
+local_segments = []
+for i,segment in enumerate(segments):    
+    if np.any(np.linalg.norm(segment - global_centroid,axis=1) < 200):
+        local_segments.append(segment)
+        
+segments = local_segments
+print(f'Number of segments (sampled): {len(segments)}')
+# sanity check
+for seg in segments:
+    # nx3 array
+    assert seg.shape[1] == 3
+
+# %%
+segm = Segments(segments)
+segm.inspect_segments(visualize=True)
+# %%
+new_segments = segm.break_curved_segments(1,10)
+# %%
+new_segm = Segments(new_segments)
+new_segm.inspect_segments(visualize=True)
 
 
+# %%
