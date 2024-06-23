@@ -1,5 +1,5 @@
 # %%
-%matplotlib qt
+# %matplotlib qt
 from matplotlib import pyplot as plt
 from fitting import prep_svd_cylinder, fit_rod
 from pathlib import Path
@@ -107,6 +107,58 @@ Segment.break_curved_rods(a_segment,0.1)
 
 
 # %%
+def prune_edges(nodes, ij, weight):
+    import heapq
+    
+    node_degrees = {node: 0 for node in nodes}
+    pruned_edges = []
+    mandatory_edges = []
+    added_edges = set()
+    
+    # Enforce the mandatory connections for even i
+    for i in range(0, max(nodes), 2):
+        if i in nodes and i+1 in nodes:
+            mandatory_edges.append((i, i+1, -1))
+            node_degrees[i] += 1
+            node_degrees[i+1] += 1
+            added_edges.add((i, i+1))
+
+    # Priority queue for edges sorted by weight
+    edge_queue = []
+    for k,(u,v) in enumerate(ij):
+        if (u, v) not in added_edges and (v, u) not in added_edges:
+            heapq.heappush(edge_queue, (weight[k], u, v))
+
+    # Union-Find data structure for tracking connected components
+    parent = {node: node for node in nodes}
+
+    def find(node):
+        if parent[node] != node:
+            parent[node] = find(parent[node])
+        return parent[node]
+
+    def union(node1, node2):
+        root1 = find(node1)
+        root2 = find(node2)
+        if root1 != root2:
+            parent[root2] = root1
+
+    # Add mandatory edges to pruned graph
+    for u, v, weight in mandatory_edges:
+        pruned_edges.append((u, v, {'weight': weight}))
+        union(u, v)
+
+    # Add remaining edges while respecting degree constraints and maintaining connectivity
+    while edge_queue:
+        weight, u, v = heapq.heappop(edge_queue)
+        if node_degrees[u] < 2 and node_degrees[v] < 2 and find(u) != find(v):
+            pruned_edges.append((u, v, {'weight': weight}))
+            node_degrees[u] += 1
+            node_degrees[v] += 1
+            union(u, v)
+            
+    return pruned_edges
+            
 
 def prune_mst(mst):
     import heapq
@@ -194,17 +246,51 @@ def prune_mst(mst):
 class Segments:
     def __init__(self,segments):
         import filamentprocessing
-        import networkx as nx
-        
+        import networkx as nx        
         self.segments = segments
-        self.fp = filamentprocessing.FilamentProcessing(segments,50,1,0.99)
+        
+    def prune_segments(self,error_threshold,curvature_threshold):
+        
+        def break_segments(segs):
+            new_segments = []
+            for seg in segs:
+                edge_len = Segment.edge_lengths(seg)
+                grph = nx.Graph()
+                grph.add_nodes_from(range(len(seg)))
+
+                for i in range(len(seg)-1):
+                    if edge_len[i] <= np.sqrt(3):
+                        grph.add_edge(i,i+1)
+                    
+                clusters = list(nx.connected_components(grph))
+                for i,cluster in enumerate(clusters):
+                    if len(cluster) == 1:                
+                        continue
+                    rr = np.array(seg,dtype=np.float64)            
+                    new_segments.append(rr[list(cluster)])
+                
+            return new_segments
+
+        _segments = segm.initial_prune_segments()
+        _segments = break_segments(_segments)
+        for i,seg in enumerate(_segments):
+            _segments[i] = Segment.sort_curve(seg)
+
+        self.segments = _segments
+        self.segments = self.break_curved_segments(1,10)
+        self.inspect_segments(visualize=True)
+
+        
+    def initialize_filament_processing(self,dist_threshold=50,align_threshold=1,svd_cutoff=1.):
+        self.fp = filamentprocessing.FilamentProcessing(self.segments,dist_threshold,align_threshold,svd_cutoff)
+        
         
     def update_segments(self,segments):
         self.segments = segments
         self.fp.update_filaments(segments)
         
-    def calculate_end_to_end_properties(self,dist_threshold):
-        self.fp.calculate_end_to_end_properties(dist_threshold)
+    def calculate_end_to_end_properties(self,dist_threshold,shrinkage=1):
+        self.fp.calculate_end_to_end_properties(dist_threshold,shrinkage)
         
     def get_end_points(self):
         return self.fp.get_end_points()
@@ -215,8 +301,8 @@ class Segments:
     def get_end_tangents(self):
         return self.fp.get_end_tangents()
     
-    def calculate_end_to_end_scores(self,dist_threshold):
-        self.fp.calculate_end_to_end_scores(dist_threshold)
+    def calculate_end_to_end_scores(self,dist_threshold,same_sideness=0.5):
+        self.fp.calculate_end_to_end_scores(dist_threshold,same_sideness)
         
     def get_end_ab(self):
         return self.fp.get_end_ab()
@@ -233,81 +319,55 @@ class Segments:
     def get_svd_cylinders(self):
         return self.fp.get_svd_cylinders()
     
-    def end_to_end_clustering(self,number_of_endpoint_averaging=10,dist_threshold=30,align_threshold=0.15):
-        self.fp.calculate_end_to_end_properties(number_of_endpoint_averaging)
+    def end_to_end_clustering(self,number_of_endpoint_averaging=10,dist_threshold=30,same_sideness=0.5,align_threshold=0.15,shrinkage=1):
+        import time
+        
+        
+        self.fp.calculate_end_to_end_properties(number_of_endpoint_averaging,shrinkage)
         self.endpoints = self.get_end_points()
         self.corrected_end_points = self.get_corrected_end_points()
         self.endtangents = self.get_end_tangents()
         
-        self.fp.calculate_end_to_end_scores(dist_threshold)
+        start = time.time()
+        self.fp.calculate_end_to_end_scores(dist_threshold,same_sideness)        
+        print(f'Elapsed time for end-to-end distance calculation: {time.time() - start:.2f} s')
+        
+        start = time.time()
         self.end_ab = self.get_end_ab()
         self.end_scores = self.get_end_scores()
         
         self.end_ab = np.array(self.end_ab)
         self.end_scores = np.array(self.end_scores)
+        print(f'Elapsed time for moving data: {time.time() - start:.2f} s')
         
         dist_score = self.end_scores[:,0]
         align_score = self.end_scores[:,1]
         
-        # sanity check
-        # ij = np.array(self.end_ab)        
-        # even_is = np.where(np.mod(ij[:,0],2) == 0)[0]
-        # conjugates = np.where( ij[:,1] == ij[:,0] + 1 )[0]
-        # both_cond = np.intersect1d(even_is,conjugates)                
-        # pathologies = np.where(dist_score[both_cond] != -1)[0]        
-        # ij[both_cond[pathologies],:]
-        
-        for k, (i, j) in enumerate(self.end_ab):
-            
-            i_conj = i + 1 if i % 2 == 0 else i - 1
-            j_conj = j + 1 if j % 2 == 0 else j - 1
-            
-            # if i and j are conjugate, skip
-            if i_conj == j or j_conj == i:                
-                continue
-            
-            ep_i = self.corrected_end_points[i]
-            ep_j = self.corrected_end_points[j]
-            
-            
-            
-            inward_i = self.corrected_end_points[i_conj] - ep_i
-            inward_j = self.corrected_end_points[j_conj] - ep_j
-            
-            inward_i = inward_i / np.linalg.norm(inward_i)
-            inward_j = inward_j / np.linalg.norm(inward_j)
-            
-            dvec = ep_j - ep_i
-            
-            if np.dot(dvec, inward_i) < 0.5:
-                dist_score[k] = np.inf
-                align_score[k] = np.inf
-        
+        start = time.time()
         mask = (dist_score < dist_threshold) & (align_score < align_threshold)        
         edges_with_alignment_weights = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab)]
         edges_with_distance_weights = [(i, j, dist_score[k]) for k, (i, j) in enumerate(self.end_ab)]
+        print(f'Elapsed time for creating edges: {time.time() - start:.2f} s')
         
-        self.alignment_graph = nx.Graph()
-        self.alignment_graph.add_nodes_from(range(len(self.segments)*2))
-        self.alignment_graph.add_weighted_edges_from(edges_with_alignment_weights)
+        # start = time.time()
+        # self.alignment_graph = nx.Graph()
+        # self.alignment_graph.add_nodes_from(range(len(self.segments)*2))
+        # self.alignment_graph.add_weighted_edges_from(edges_with_alignment_weights)
         
-        self.distance_graph = nx.Graph()
-        self.distance_graph.add_nodes_from(range(len(self.segments)*2))
-        self.distance_graph.add_weighted_edges_from(edges_with_distance_weights)
+        # self.distance_graph = nx.Graph()
+        # self.distance_graph.add_nodes_from(range(len(self.segments)*2))
+        # self.distance_graph.add_weighted_edges_from(edges_with_distance_weights)
+        # print(f'Elapsed time for creating graphs: {time.time() - start:.2f} s')
         
-        
-        for i_ in range(0,len(self.segments)*2,2):
-            i_conj = i_ + 1
+        # for i_ in range(0,len(self.segments)*2,2):
+        #     i_conj = i_ + 1
             
-            # i_ th node's weight for i_conj
-            if self.alignment_graph[i_][i_conj]['weight'] != -1:
-                print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
+        #     # i_ th node's weight for i_conj
+        #     if self.alignment_graph[i_][i_conj]['weight'] != -1:
+        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
                 
-            if self.distance_graph[i_][i_conj]['weight'] != -1:
-                print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
-            
-        
-        
+        #     if self.distance_graph[i_][i_conj]['weight'] != -1:
+        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
         
         filtered_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab) if mask[k]]
         filtered_graph = nx.Graph()
@@ -315,21 +375,23 @@ class Segments:
         filtered_graph.add_weighted_edges_from(filtered_edges)
         
         # sanity check: i and i conjugate should be in filtered edges
-        for i_ in range(0,len(self.segments)*2,2):
-            i_conj = i_ + 1
+        # for i_ in range(0,len(self.segments)*2,2):
+        #     i_conj = i_ + 1
             
-            # i_ th node's weight for i_conj
-            if filtered_graph[i_][i_conj]['weight'] != -1:
-                print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
+        #     # i_ th node's weight for i_conj
+        #     if filtered_graph[i_][i_conj]['weight'] != -1:
+        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
                 
-            if filtered_graph[i_][i_conj]['weight'] != -1:
-                print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
+        #     if filtered_graph[i_][i_conj]['weight'] != -1:
+        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
         
         
         # mst = nx.minimum_spanning_tree(filtered_graph)
         
         
         self.pruned_graph = prune_mst(filtered_graph)
+        
+        
         self.end_to_end_cluster = list(nx.connected_components(self.pruned_graph))
         self.cluster_size_list = [len(x) for x in self.end_to_end_cluster]
         
@@ -360,9 +422,9 @@ class Segments:
                 elif i_ % 2 == 1:
                     straight_curve.append(self.segments[i_//2][::-1])
             straight_curve = np.vstack(straight_curve)
-            straight_curve = sort_curve(straight_curve)
+            straight_curve = Segment.sort_curve(straight_curve)
             next_round.append(straight_curve)            
-            self.length_list.append(seg_len(straight_curve))
+            self.length_list.append(Segment.seg_len(straight_curve))
             
         # sort by length
         next_round = [x for _, x in sorted(zip(self.length_list, next_round), key=lambda pair: -pair[0])]
@@ -381,12 +443,17 @@ class Segments:
         fig,ax=plt.subplots(1,1)
         length_list = []
         for rr in self.segments:
-            length_list.append(seg_len(rr))
+            length_list.append(Segment.seg_len(rr))
         log_bins = np.logspace(np.log10(1),np.log10(2000),100)
         ax.hist(length_list,bins=log_bins)
         ax.set_xscale('log')
         
         return length_list
+    def plot_length_histogram(self):
+        bins = np.linspace(10,1000,100)
+        fig,ax=plt.subplots(1,1)
+        plt.hist(self.length_list,bins=bins,density=True)
+        
 
     def plot_large_clusters(self,num_to_show):
         cluster_size_list = [len(x) for x in self.end_to_end_cluster]
@@ -408,7 +475,7 @@ class Segments:
                 continue
             
             joined = np.vstack(joined)
-            joined = sort_curve(joined)
+            joined = Segment.sort_curve(joined)
             ax.plot(joined[:,0],joined[:,1],joined[:,2],linewidth=1,color='k',alpha=0.5)
             
         ax.axis('equal')
@@ -423,6 +490,56 @@ class Segments:
         
         mask = (dist1 < search_radius) | (dist2 < search_radius)
         return np.where(mask)[0]
+    
+    def check_short_segments(self,length_threshold):
+        short_segment_labels = np.where(np.array(self.length_list) < length_threshold)[0]
+        nnz = np.count_nonzero(short_segment_labels)
+        print(f'Number of short segments: {nnz}')
+        trimmed = []
+        fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+        for i in range(len(self.end_to_end_cluster)):
+            cc_max = self.end_to_end_cluster[i]
+            joined = []
+            for i_ in cc_max:
+                if i_ % 2 == 1:
+                    continue
+                # ax.plot(self.segments[i_//2][:,0],self.segments[i_//2][:,1],self.segments[i_//2][:,2],'.',alpha=0.2)
+                joined.append(self.segments[i_//2])
+
+            joined = np.vstack(joined)
+            joined = Segment.sort_curve(joined)
+            
+            if (self.length_list[i] > length_threshold):
+                trimmed.append(joined)
+            else:            
+                ax.plot(joined[:,0],joined[:,1],joined[:,2],linewidth=1,alpha=0.5)
+            
+        return trimmed
+    
+    def check_long_segments(self,length_threshold):
+        long_segment_labels = np.where(np.array(self.length_list) > length_threshold)[0]
+        nnz = np.count_nonzero(long_segment_labels)
+        print(f'Number of long segments: {nnz}')
+        trimmed = []
+        fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+        for i in range(len(self.end_to_end_cluster)):
+            cc_max = self.end_to_end_cluster[i]
+            joined = []
+            for i_ in cc_max:
+                if i_ % 2 == 1:
+                    continue
+                # ax.plot(self.segments[i_//2][:,0],self.segments[i_//2][:,1],self.segments[i_//2][:,2],'.',alpha=0.2)
+                joined.append(self.segments[i_//2])
+
+            joined = np.vstack(joined)
+            joined = Segment.sort_curve(joined)
+            
+            if (self.length_list[i] < length_threshold):
+                trimmed.append(joined)
+            else:            
+                ax.plot(joined[:,0],joined[:,1],joined[:,2],linewidth=1,alpha=0.5)
+            
+        return trimmed
     
     
     
@@ -485,21 +602,28 @@ class Segments:
         
         return segments_length_list,segments_error_list
     
-    def break_curved_segments(self,error_threshold,curvature_threshold):        
+    def break_curved_segments(self,error_threshold,curvature_threshold):
         _,segments_error_list = self.inspect_segments(visualize=False)
         broken_segments_list = []
         for i in np.where(segments_error_list>error_threshold)[0]:
-            rr = segments[i]
+            rr = self.segments[i]
             broken_pieces = Segment.break_curved_rods(rr,curvature_threshold)    
             for bp in broken_pieces:                
                 broken_segments_list.append(bp)
                 
-        new_segments = [seg for i,seg in enumerate(segments) if segments_error_list[i]<=1]
+        new_segments = [seg for i,seg in enumerate(self.segments) if segments_error_list[i]<=error_threshold]
         new_segments = new_segments + broken_segments_list
                         
         return new_segments
-            
-
+    
+    def plot(self,ax=None):
+        if ax is None:
+            fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+            for seg in self.segments:
+                ax.plot(seg[:,0],seg[:,1],seg[:,2])
+        else:
+            for seg in self.segments:
+                ax.plot(seg[:,0],seg[:,1],seg[:,2])
     
     def merge_by_fitting(self,distance_threshold=30,fitting_error_threshold=1.5):
         ab_ = self.fp.get_end_ab()
@@ -582,7 +706,7 @@ class Segments:
             rr = round5[_ij[1]//2]
             
             joined = np.vstack([rr0,rr])
-            joined = sort_curve(joined)
+            joined = Segment.sort_curve(joined)
             fr = fit_rod(joined,linearity_threshold=0.0001,radius_curvature_threshold=100000)
             if fr['err'] < fitting_error_threshold:
                 print(f'Error: {fr["err"]}')
@@ -592,35 +716,197 @@ class Segments:
                 
                 
 # %%
-rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
-segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
-mat_obj = loadmat(segments_file_path)
-segments = mat_obj['segments']
-segments = [seg[0] for seg in segments]    
+# rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+# segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
+# mat_obj = loadmat(segments_file_path)
+# segments = mat_obj['segments']
+# segments = [seg[0] for seg in segments]    
 
-print(f'Number of segments (original): {len(segments)}')
+# print(f'Number of segments (original): {len(segments)}')
+# for seg in segments:
+#     # nx3 array
+#     assert seg.shape[1] == 3
 
-global_centroid = np.mean(np.vstack(segments),axis=0)
-local_segments = []
-for i,segment in enumerate(segments):    
-    if np.any(np.linalg.norm(segment - global_centroid,axis=1) < 200):
-        local_segments.append(segment)
+# # %%
+# segm = Segments(segments)
+# segm.prune_segments(1,10)
+
+# %%
+if __name__ == '__main__':
+    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'pruned_segments.pkl'
+
+    with open(segments_file_path, 'rb') as f:
+        pruned_segments = pickle.load(f)
+
+    # %%
+    # segments = pruned_segments
+
+    # global_centroid = np.mean(np.vstack(segments),axis=0)
+    # local_segments = []
+    # for i,segment in enumerate(segments):    
+    #     if np.any(np.linalg.norm(segment - global_centroid,axis=1) < 500):
+    #         local_segments.append(segment)
+            
+    # segments = local_segments
+    # print(f'Number of segments (sampled): {len(segments)}')
+
+    # pruned_segments = segments
+    # %%
+    segm = Segments(pruned_segments)
+    segm.initialize_filament_processing()
+    next_round = segm.end_to_end_clustering(number_of_endpoint_averaging=30,dist_threshold=10,align_threshold=0.1)
+    plt.close('all')
+    segm.plot_length_histogram()
+    # %%
+    
+    
+    
+    ij = segm.get_end_ab()
+    ij = np.array(ij)
+    scores = segm.get_end_scores()
+    scores = np.array(scores)
+    dist_score = scores[:,0]
+    align_score = scores[:,1]
+    
+    weight = scores[:,1]
+    
+    mask = (dist_score < 50) & (align_score < 0.01)
+    np.count_nonzero(mask)
+    
+    filtered_ij = ij[mask]
+    filtered_weight = weight[mask]
+    # %%
+    pruned_edges = prune_edges(np.arange(2*len(pruned_segments)),ij,weight)
+    # %%
+    pruned_graph = nx.Graph()
+    pruned_graph.add_nodes_from(range(len(pruned_segments)*2))
+    pruned_graph.add_weighted_edges_from(pruned_edges)
+    # %%
+    ccs = list(nx.connected_components(pruned_graph))
+    cluster_size_list = [len(x) for x in ccs]
+    
+    def is_path(graph):
+        for component in nx.connected_components(graph):
+            if sum(1 for node in component if graph.degree[node] == 1) != 2:
+                return False
+        return True
+    
+    is_path(pruned_graph)
+    
+    
+    # %%
+
+    # %%
+    save_folder = 'test_segmenting3'
+    os.makedirs(save_folder,exist_ok=True)
+    tracker = 0
+    for _i in range(5):
+        new_segm = Segments(next_round)
+        new_segm.initialize_filament_processing()
+        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=30,align_threshold=0.05)
+        plt.close('all')
+        new_segm.plot_length_histogram()
         
-segments = local_segments
-print(f'Number of segments (sampled): {len(segments)}')
-# sanity check
-for seg in segments:
-    # nx3 array
-    assert seg.shape[1] == 3
-
-# %%
-segm = Segments(segments)
-segm.inspect_segments(visualize=True)
-# %%
-new_segments = segm.break_curved_segments(1,10)
-# %%
-new_segm = Segments(new_segments)
-new_segm.inspect_segments(visualize=True)
+        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
+        tracker += 1
+        plt.close('all')
 
 
-# %%
+    # %% 
+    dist_threshold = 30
+    dist_threshold_inc = 5
+    for _i in range(10):
+        dist_threshold += dist_threshold_inc
+        
+        new_segm = Segments(next_round)
+        new_segm.initialize_filament_processing()
+        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=dist_threshold,align_threshold=0.05)
+        plt.close('all')
+        new_segm.plot_length_histogram()
+        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
+        plt.close('all')
+
+        tracker += 1
+    # %%
+    for _i in range(200):
+        dist_threshold += dist_threshold_inc
+        
+        new_segm = Segments(next_round)
+        new_segm.initialize_filament_processing()
+        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=dist_threshold,align_threshold=0.05)
+        plt.close('all')
+        new_segm.plot_length_histogram()
+        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
+        plt.close('all')
+
+        tracker += 1
+    # %%
+    new_segm = Segments(next_round)
+    new_segm.initialize_filament_processing()
+    next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=300,align_threshold=0.025)
+    plt.close('all')
+    new_segm.plot_length_histogram()
+    plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
+    plt.close('all')
+        
+    # %%
+    trimmed = new_segm.check_short_segments(50)
+    # %%
+
+    dist_threshold = 300
+    # %%
+    new_segm2 = Segments(trimmed)
+    new_segm2.initialize_filament_processing()
+    next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=dist_threshold,align_threshold=0.025)
+
+    # %% lol, this is when inward_i was wrong.
+    dist_threshold_inc = 4
+    for _i in range(100):
+        dist_threshold += dist_threshold_inc
+        
+        new_segm2 = Segments(next_round2)
+        new_segm2.initialize_filament_processing()
+        next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=dist_threshold,align_threshold=0.025)
+        
+        plt.close('all')
+        new_segm2.plot_length_histogram()
+        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
+        plt.close('all')
+
+        tracker += 1
+        
+    # %%
+    new_segm2 = Segments(trimmed)
+    new_segm2.initialize_filament_processing()
+    next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=600,align_threshold=0.025)
+    plt.close('all')
+    new_segm2.plot_length_histogram()
+
+    # %%
+    plt.close('all')
+    new_segm.plot_large_clusters(100)
+    # %%
+    plt.close('all')
+    new_segm2.check_short_segments(200)
+
+    # %%
+    plt.close('all')
+    new_segm2.check_long_segments(600)
+    # %%
+    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'repeated_clustering.mat'
+
+    # %%
+    # pad nan
+    max_cols = max([len(seg) for seg in next_round2])
+    nan_padded = np.full((len(next_round2),max_cols*3),np.nan)
+    for i,seg in enumerate(next_round2):
+        nan_padded[i,:len(seg)*3] = seg.flatten()
+    # %%
+    nan_padded.shape
+
+    # %%
+    from scipy.io import savemat
+    savemat(file_path,{'segments_rectangle':nan_padded})
+    # %%
