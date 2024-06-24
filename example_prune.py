@@ -18,6 +18,7 @@ from scipy.ndimage import uniform_filter1d
 
 from clustering import find_connected_components,explode_local_cluster
 import time
+from fitting import fit_rod
 
 def edge_lengths(curve):
     return (np.sqrt(np.sum(np.diff(curve,axis=0)**2,axis=1)))
@@ -48,6 +49,27 @@ def inspect_segments(segments):
     for i,seg in enumerate(segments):
         segments_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))   
         
+        
+    fig,ax=plt.subplots(1,1)
+    ax.hist(segments_length_list,bins=100)
+    ax.set_xlim([0,1000])
+    
+    from fitting import fit_rod
+
+    segments_error_list = np.zeros(N_segments)
+    for i,seg in enumerate(segments):
+        rr = np.array(seg,dtype=np.float64)
+        fit_result = fit_rod(rr,0.00001,10000)
+        segments_error_list[i] = fit_result['err']
+        
+    fig,ax=plt.subplots(1,1)
+    ax.hist(segments_error_list,bins=100)
+        
+    print(f'Maximum segment length: {np.max(segments_length_list)} at index {np.argmax(segments_length_list)}')
+    print(f'Maximum segment error: {np.max(segments_error_list)} at index {np.argmax(segments_error_list)}')
+    
+    return segments_length_list,segments_error_list
+
     fig,ax=plt.subplots(1,1)
     ax.hist(segments_length_list,bins=100)
     ax.set_xlim([0,1000])
