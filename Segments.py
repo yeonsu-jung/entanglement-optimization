@@ -347,50 +347,14 @@ class Segments:
         mask = (dist_score < dist_threshold) & (align_score < align_threshold)        
         edges_with_alignment_weights = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab)]
         edges_with_distance_weights = [(i, j, dist_score[k]) for k, (i, j) in enumerate(self.end_ab)]
-        print(f'Elapsed time for creating edges: {time.time() - start:.2f} s')
-        
-        # start = time.time()
-        # self.alignment_graph = nx.Graph()
-        # self.alignment_graph.add_nodes_from(range(len(self.segments)*2))
-        # self.alignment_graph.add_weighted_edges_from(edges_with_alignment_weights)
-        
-        # self.distance_graph = nx.Graph()
-        # self.distance_graph.add_nodes_from(range(len(self.segments)*2))
-        # self.distance_graph.add_weighted_edges_from(edges_with_distance_weights)
-        # print(f'Elapsed time for creating graphs: {time.time() - start:.2f} s')
-        
-        # for i_ in range(0,len(self.segments)*2,2):
-        #     i_conj = i_ + 1
-            
-        #     # i_ th node's weight for i_conj
-        #     if self.alignment_graph[i_][i_conj]['weight'] != -1:
-        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
-                
-        #     if self.distance_graph[i_][i_conj]['weight'] != -1:
-        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
-        
+        print(f'Elapsed time for creating edges: {time.time() - start:.2f} s')        
+               
         filtered_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab) if mask[k]]
-        filtered_graph = nx.Graph()
-        filtered_graph.add_nodes_from(range(len(self.segments)*2))
-        filtered_graph.add_weighted_edges_from(filtered_edges)
-        
-        # sanity check: i and i conjugate should be in filtered edges
-        # for i_ in range(0,len(self.segments)*2,2):
-        #     i_conj = i_ + 1
-            
-        #     # i_ th node's weight for i_conj
-        #     if filtered_graph[i_][i_conj]['weight'] != -1:
-        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
+        self.filtered_graph = nx.Graph()
+        self.filtered_graph.add_nodes_from(range(len(self.segments)*2))
+        self.filtered_graph.add_weighted_edges_from(filtered_edges)
                 
-        #     if filtered_graph[i_][i_conj]['weight'] != -1:
-        #         print(f'Node {i_} does not have negative weight for its conjugate {i_conj}')
-        
-        
-        # mst = nx.minimum_spanning_tree(filtered_graph)
-        
-        
-        self.pruned_graph = prune_mst(filtered_graph)
-        
+        self.pruned_graph = prune_mst(self.filtered_graph)
         
         self.end_to_end_cluster = list(nx.connected_components(self.pruned_graph))
         self.cluster_size_list = [len(x) for x in self.end_to_end_cluster]
@@ -431,7 +395,91 @@ class Segments:
         
         self.next_round = next_round
             
-        return next_round        
+        return next_round
+    
+    def end_to_end_clustering_cpp(self,number_of_endpoint_averaging=10,dist_threshold=30,same_sideness=0.5,align_threshold=0.15,shrinkage=1):
+        import time
+        
+        
+        self.fp.calculate_end_to_end_properties(number_of_endpoint_averaging,shrinkage)
+        self.endpoints = self.get_end_points()
+        self.corrected_end_points = self.get_corrected_end_points()
+        self.endtangents = self.get_end_tangents()
+        
+        start = time.time()
+        self.fp.calculate_end_to_end_scores(dist_threshold,same_sideness)        
+        print(f'Elapsed time for end-to-end distance calculation: {time.time() - start:.2f} s')
+        
+        # start = time.time()
+        # self.end_ab = self.get_end_ab()
+        # self.end_scores = self.get_end_scores()
+        
+        # self.end_ab = np.array(self.end_ab)
+        # self.end_scores = np.array(self.end_scores)
+        # print(f'Elapsed time for moving data: {time.time() - start:.2f} s')
+        
+        # dist_score = self.end_scores[:,0]
+        # align_score = self.end_scores[:,1]
+        
+        # start = time.time()
+        # mask = (dist_score < dist_threshold) & (align_score < align_threshold)        
+        # edges_with_alignment_weights = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab)]
+        # edges_with_distance_weights = [(i, j, dist_score[k]) for k, (i, j) in enumerate(self.end_ab)]
+        # print(f'Elapsed time for creating edges: {time.time() - start:.2f} s')
+               
+        # filtered_edges = [(i, j, align_score[k]) for k, (i, j) in enumerate(self.end_ab) if mask[k]]
+        # self.filtered_graph = nx.Graph()
+        # self.filtered_graph.add_nodes_from(range(len(self.segments)*2))
+        # self.filtered_graph.add_weighted_edges_from(filtered_edges)
+                
+        # self.pruned_graph = prune_mst(self.filtered_graph)
+        _pruned_edges = self.fp.prune_edges(dist_threshold,align_threshold)
+        pruned_edges = [(tmp.u,tmp.v,tmp.weight) for tmp in _pruned_edges]
+        
+        self.pruned_graph = nx.Graph()
+        self.pruned_graph.add_nodes_from(range(len(self.segments)*2))
+        self.pruned_graph.add_weighted_edges_from(pruned_edges)
+        
+        self.end_to_end_cluster = list(nx.connected_components(self.pruned_graph))
+        self.cluster_size_list = [len(x) for x in self.end_to_end_cluster]
+        
+        print(f'Number of end points: {len(self.segments)*2}')
+        print(f'Number of connected components: {len(self.end_to_end_cluster)}')
+        print(f'Max. cluster size {np.max(self.cluster_size_list)} at {np.argmax(self.cluster_size_list)}')
+        
+        next_round = []
+        self.length_list = []
+        for i_,cc in enumerate(self.end_to_end_cluster):
+            cc = list(cc)
+            subgraph = self.pruned_graph.subgraph(cc)
+            eps = [node for node in subgraph.nodes if subgraph.degree[node] == 1]
+
+            if len(eps) != 2:
+                print(f'Cluster {i_} does not have exactly two endpoints.')
+                continue
+                
+                # raise ValueError("The graph does not have exactly two endpoints.")
+
+
+            # Find the shortest path between the two endpoints
+            path = nx.shortest_path(subgraph, source=eps[0], target=eps[1])
+            straight_curve = []
+            for i_ in path[::2]:
+                if i_ % 2 == 0:
+                    straight_curve.append(self.segments[i_//2])
+                elif i_ % 2 == 1:
+                    straight_curve.append(self.segments[i_//2][::-1])
+            straight_curve = np.vstack(straight_curve)
+            straight_curve = Segment.sort_curve(straight_curve)
+            next_round.append(straight_curve)            
+            self.length_list.append(Segment.seg_len(straight_curve))
+            
+        # sort by length
+        next_round = [x for _, x in sorted(zip(self.length_list, next_round), key=lambda pair: -pair[0])]
+        
+        self.next_round = next_round
+            
+        return next_round
         
         
     def inspect_clustering(self):
@@ -739,7 +787,7 @@ if __name__ == '__main__':
     with open(segments_file_path, 'rb') as f:
         pruned_segments = pickle.load(f)
 
-    # %%
+    # # %%
     # segments = pruned_segments
 
     # global_centroid = np.mean(np.vstack(segments),axis=0)
@@ -756,55 +804,16 @@ if __name__ == '__main__':
     segm = Segments(pruned_segments)
     segm.initialize_filament_processing()
     next_round = segm.end_to_end_clustering(number_of_endpoint_averaging=30,dist_threshold=10,align_threshold=0.1)
-    plt.close('all')
-    segm.plot_length_histogram()
+    # plt.close('all')
+    # segm.plot_length_histogram()
     # %%
-    
-    
-    
-    ij = segm.get_end_ab()
-    ij = np.array(ij)
-    scores = segm.get_end_scores()
-    scores = np.array(scores)
-    dist_score = scores[:,0]
-    align_score = scores[:,1]
-    
-    weight = scores[:,1]
-    
-    mask = (dist_score < 50) & (align_score < 0.01)
-    np.count_nonzero(mask)
-    
-    filtered_ij = ij[mask]
-    filtered_weight = weight[mask]
-    # %%
-    pruned_edges = prune_edges(np.arange(2*len(pruned_segments)),ij,weight)
-    # %%
-    pruned_graph = nx.Graph()
-    pruned_graph.add_nodes_from(range(len(pruned_segments)*2))
-    pruned_graph.add_weighted_edges_from(pruned_edges)
-    # %%
-    ccs = list(nx.connected_components(pruned_graph))
-    cluster_size_list = [len(x) for x in ccs]
-    
-    def is_path(graph):
-        for component in nx.connected_components(graph):
-            if sum(1 for node in component if graph.degree[node] == 1) != 2:
-                return False
-        return True
-    
-    is_path(pruned_graph)
-    
-    
-    # %%
-
-    # %%
-    save_folder = 'test_segmenting3'
+    save_folder = 'test_segmenting5'
     os.makedirs(save_folder,exist_ok=True)
     tracker = 0
     for _i in range(5):
         new_segm = Segments(next_round)
         new_segm.initialize_filament_processing()
-        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=30,align_threshold=0.05)
+        next_round = new_segm.end_to_end_clustering_cpp(number_of_endpoint_averaging=50,dist_threshold=30,align_threshold=0.05)
         plt.close('all')
         new_segm.plot_length_histogram()
         
@@ -815,93 +824,54 @@ if __name__ == '__main__':
 
     # %% 
     dist_threshold = 30
-    dist_threshold_inc = 5
-    for _i in range(10):
+    # %%
+    import pickle
+    dist_threshold_inc = 2
+    for _i in range(450):
         dist_threshold += dist_threshold_inc
         
         new_segm = Segments(next_round)
         new_segm.initialize_filament_processing()
-        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=dist_threshold,align_threshold=0.05)
+        next_round = new_segm.end_to_end_clustering_cpp(number_of_endpoint_averaging=50,dist_threshold=dist_threshold,align_threshold=0.025)
         plt.close('all')
         new_segm.plot_length_histogram()
         plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
         plt.close('all')
 
         tracker += 1
-    # %%
-    for _i in range(200):
-        dist_threshold += dist_threshold_inc
         
-        new_segm = Segments(next_round)
-        new_segm.initialize_filament_processing()
-        next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=dist_threshold,align_threshold=0.05)
-        plt.close('all')
-        new_segm.plot_length_histogram()
-        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
-        plt.close('all')
+        if tracker % 100 == 0:
+            with open(f'{save_folder}/segments_in_construction.pkl','wb') as f:
+                pickle.dump(next_round,f)
+        
+    # %%
+    # trimmed = new_segm.check_short_segments(50)
 
-        tracker += 1
-    # %%
-    new_segm = Segments(next_round)
-    new_segm.initialize_filament_processing()
-    next_round = new_segm.end_to_end_clustering(number_of_endpoint_averaging=50,dist_threshold=300,align_threshold=0.025)
-    plt.close('all')
-    new_segm.plot_length_histogram()
-    plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
-    plt.close('all')
-        
-    # %%
-    trimmed = new_segm.check_short_segments(50)
-    # %%
-
-    dist_threshold = 300
-    # %%
-    new_segm2 = Segments(trimmed)
-    new_segm2.initialize_filament_processing()
-    next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=dist_threshold,align_threshold=0.025)
-
-    # %% lol, this is when inward_i was wrong.
-    dist_threshold_inc = 4
-    for _i in range(100):
-        dist_threshold += dist_threshold_inc
-        
-        new_segm2 = Segments(next_round2)
-        new_segm2.initialize_filament_processing()
-        next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=dist_threshold,align_threshold=0.025)
-        
-        plt.close('all')
-        new_segm2.plot_length_histogram()
-        plt.savefig(f'{save_folder}/length_histogram_{tracker}.png')
-        plt.close('all')
-
-        tracker += 1
-        
-    # %%
-    new_segm2 = Segments(trimmed)
-    new_segm2.initialize_filament_processing()
-    next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=600,align_threshold=0.025)
-    plt.close('all')
-    new_segm2.plot_length_histogram()
+    # new_segm2 = Segments(trimmed)
+    # new_segm2.initialize_filament_processing()
+    # next_round2 = new_segm2.end_to_end_clustering(number_of_endpoint_averaging=200,dist_threshold=600,align_threshold=0.025)
+    # plt.close('all')
+    # new_segm2.plot_length_histogram()
 
     # %%
     plt.close('all')
     new_segm.plot_large_clusters(100)
     # %%
     plt.close('all')
-    new_segm2.check_short_segments(200)
+    new_segm.check_short_segments(200)
 
     # %%
     plt.close('all')
-    new_segm2.check_long_segments(600)
+    new_segm.check_long_segments(450)
     # %%
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'repeated_clustering.mat'
 
     # %%
     # pad nan
-    max_cols = max([len(seg) for seg in next_round2])
-    nan_padded = np.full((len(next_round2),max_cols*3),np.nan)
-    for i,seg in enumerate(next_round2):
+    max_cols = max([len(seg) for seg in next_round])
+    nan_padded = np.full((len(next_round),max_cols*3),np.nan)
+    for i,seg in enumerate(next_round):
         nan_padded[i,:len(seg)*3] = seg.flatten()
     # %%
     nan_padded.shape
@@ -910,3 +880,6 @@ if __name__ == '__main__':
     from scipy.io import savemat
     savemat(file_path,{'segments_rectangle':nan_padded})
     # %%
+    
+    with open(f'{save_folder}/clustered_segments.pkl','wb') as f:
+        pickle.dump(next_round,f)
