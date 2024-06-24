@@ -233,3 +233,37 @@ def show_rods_and_fields():
     plt.close('all')
     
     print(f'Elapsed time: {time.time()-start}')
+
+
+#  for polyscope
+
+
+def edge_for_polyscope(segments):
+    # segments: list of segments
+    edges = []
+    for i,seg in enumerate(segments):
+        edges += [[i, i + 1] for i in range(len(seg) - 1)]
+    return np.array(edges)
+
+def color_for_polyscope(segments):
+    colors = np.array([
+        [76, 153, 204],   # light blue
+        [204, 76, 153],   # pinkish red
+        [76, 204, 153],   # mint green
+        [153, 204, 76],   # light olive green
+        [204, 153, 76],   # goldenrod
+        [153, 76, 204],   # medium purple
+        [204, 76, 102],   # crimson
+        [76, 204, 204],   # cyan
+        [204, 204, 76],   # sunflower yellow
+        [102, 76, 204]    # indigo
+    ])
+    
+    # segments: list of segments
+    colors = []
+    for i,seg in enumerate(segments):
+        colors += [np.array([i/len(segments), 0, 0]) for i in range(len(seg))]
+        
+    return np.array(colors)
+
+
