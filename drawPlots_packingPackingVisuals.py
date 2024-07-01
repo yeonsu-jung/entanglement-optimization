@@ -287,7 +287,6 @@ ps_locekd_nodes.set_enabled(False)
 ps_hook.set_enabled(False)
 ps_sphere.set_enabled(True)
 
-
 ps.set_screenshot_extension(".png");
 ps.screenshot('temp.png',transparent_bg=False)
 # ps.look_at((4.,3.,3.),(0.,0.,1.))
