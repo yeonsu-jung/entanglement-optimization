@@ -468,10 +468,6 @@ random_points = normalized_entangled_data
 ps_point = ps.register_point_cloud("random_point", random_points)
 ps_point.set_radius(0.015, relative=False)
 
-points2 = normalized_untangled_data
-ps_point2 = ps.register_point_cloud("random_point2", points2,point_render_mode='quad')
-ps_point2.set_radius(0.015, relative=False)
-
 # Parameters for circular shadows
 num_circle_points = 20  # Number of points to represent each circle
 shadow_radius = 0.015   # Radius of each shadow
@@ -534,6 +530,140 @@ shadow_points_zx[:, 1] = 0
 shadow_vertices_zx, shadow_faces_zx = create_circular_shadow(shadow_points_zx, "zx")
 ps_shadow_zx = ps.register_surface_mesh("shadow_points_zx", shadow_vertices_zx, shadow_faces_zx, smooth_shade=False, enabled=True, transparency=0.8)
 ps_shadow_zx.set_color((0,0,0))
+
+
+
+
+# Function to create a cube
+def create_cube(center, side_length=0.03):
+    half_side = side_length / 2
+    vertices = np.array([
+        [center[0] - half_side, center[1] - half_side, center[2] - half_side],
+        [center[0] + half_side, center[1] - half_side, center[2] - half_side],
+        [center[0] + half_side, center[1] + half_side, center[2] - half_side],
+        [center[0] - half_side, center[1] + half_side, center[2] - half_side],
+        [center[0] - half_side, center[1] - half_side, center[2] + half_side],
+        [center[0] + half_side, center[1] - half_side, center[2] + half_side],
+        [center[0] + half_side, center[1] + half_side, center[2] + half_side],
+        [center[0] - half_side, center[1] + half_side, center[2] + half_side]
+    ])
+    
+    faces = np.array([
+        [0, 1, 2], [0, 2, 3],  # Bottom
+        [4, 5, 6], [4, 6, 7],  # Top
+        [0, 1, 5], [0, 5, 4],  # Front
+        [2, 3, 7], [2, 7, 6],  # Back
+        [1, 2, 6], [1, 6, 5],  # Right
+        [0, 3, 7], [0, 7, 4]   # Left
+    ])
+    
+    return vertices, faces
+
+# Function to create a square for shadow
+def create_square(center, plane, side_length=0.03):
+    half_side = side_length / 2
+    if plane == "xy":
+        vertices = np.array([
+            [center[0] - half_side, center[1] - half_side, 0],
+            [center[0] + half_side, center[1] - half_side, 0],
+            [center[0] + half_side, center[1] + half_side, 0],
+            [center[0] - half_side, center[1] + half_side, 0]
+        ])
+    elif plane == "yz":
+        vertices = np.array([
+            [0, center[1] - half_side, center[2] - half_side],
+            [0, center[1] + half_side, center[2] - half_side],
+            [0, center[1] + half_side, center[2] + half_side],
+            [0, center[1] - half_side, center[2] + half_side]
+        ])
+    elif plane == "zx":
+        vertices = np.array([
+            [center[0] - half_side, 0, center[2] - half_side],
+            [center[0] + half_side, 0, center[2] - half_side],
+            [center[0] + half_side, 0, center[2] + half_side],
+            [center[0] - half_side, 0, center[2] + half_side]
+        ])
+    
+    faces = np.array([
+        [0, 1, 2],
+        [0, 2, 3]
+    ])
+    
+    return vertices, faces
+
+# Function to create cubes and their shadows
+def create_cubes_and_shadows(points, cube_side_length=0.03):
+    all_vertices = []
+    all_faces = []
+    shadow_vertices_xy = []
+    shadow_faces_xy = []
+    shadow_vertices_yz = []
+    shadow_faces_yz = []
+    shadow_vertices_zx = []
+    shadow_faces_zx = []
+    
+    offset = 0
+    shadow_offset_xy = 0
+    shadow_offset_yz = 0
+    shadow_offset_zx = 0
+    
+    for point in points:
+        vertices, faces = create_cube(point, side_length=cube_side_length)
+        faces += offset
+        offset += len(vertices)
+        all_vertices.append(vertices)
+        all_faces.append(faces)
+        
+        # Create shadows on xy-plane
+        v_xy, f_xy = create_square(point, "xy", side_length=cube_side_length)
+        f_xy += shadow_offset_xy
+        shadow_offset_xy += len(v_xy)
+        shadow_faces_xy.append(f_xy)
+        shadow_vertices_xy.append(v_xy)
+        
+        # Create shadows on yz-plane
+        v_yz, f_yz = create_square(point, "yz", side_length=cube_side_length)
+        f_yz += shadow_offset_yz
+        shadow_offset_yz += len(v_yz)
+        shadow_faces_yz.append(f_yz)
+        shadow_vertices_yz.append(v_yz)
+        
+        # Create shadows on zx-plane
+        v_zx, f_zx = create_square(point, "zx", side_length=cube_side_length)
+        f_zx += shadow_offset_zx
+        shadow_offset_zx += len(v_zx)
+        shadow_faces_zx.append(f_zx)
+        shadow_vertices_zx.append(v_zx)
+    
+    return (
+        np.vstack(all_vertices), np.vstack(all_faces),
+        np.vstack(shadow_vertices_xy), np.vstack(shadow_faces_xy),
+        np.vstack(shadow_vertices_yz), np.vstack(shadow_faces_yz),
+        np.vstack(shadow_vertices_zx), np.vstack(shadow_faces_zx)
+    )
+
+# Create the cubes and their shadows
+(vertices, faces, 
+ shadow_vertices_xy, shadow_faces_xy, 
+ shadow_vertices_yz, shadow_faces_yz, 
+ shadow_vertices_zx, shadow_faces_zx) = create_cubes_and_shadows(normalized_untangled_data,cube_side_length=0.03)
+
+# Register the mesh in Polyscope
+ps_cubes = ps.register_surface_mesh("cubes", vertices, faces, smooth_shade=False, enabled=True)
+ps_cubes.set_color((0.7, 0.2, 0.2))
+
+# Register the shadows in Polyscope
+ps_square_shadow_xy = ps.register_surface_mesh("shadow_xy", shadow_vertices_xy, shadow_faces_xy, smooth_shade=False, enabled=True)
+ps_square_shadow_xy.set_color((1, 0, 0))
+ps_square_shadow_xy.set_transparency(0.5)
+
+ps_square_shadow_yz = ps.register_surface_mesh("shadow_yz", shadow_vertices_yz, shadow_faces_yz, smooth_shade=False, enabled=True)
+ps_square_shadow_yz.set_color((0, 1, 0))
+ps_square_shadow_yz.set_transparency(0.5)
+
+ps_square_shadow_zx = ps.register_surface_mesh("shadow_zx", shadow_vertices_zx, shadow_faces_zx, smooth_shade=False, enabled=True)
+ps_square_shadow_zx.set_color((0, 0, 1))
+ps_square_shadow_zx.set_transparency(0.5)
 
 
 
@@ -657,6 +787,32 @@ ps_surface = ps.register_surface_mesh("surface", surface_vertices, surface_faces
 ps_surface.set_color((0.2, 0.7, 0.2))
 
 ps.set_up_dir("z_up")
+
+
+ps.show()
+# %%
+
+ps_surface.set_enabled(False)
+ps_x_axis_cylinder.set_enabled(False)
+ps_x_axis_cone.set_enabled(False)
+ps_y_axis_cylinder.set_enabled(False)
+ps_y_axis_cone.set_enabled(False)
+ps_z_axis_cylinder.set_enabled(False)
+ps_z_axis_cone.set_enabled(False)
+ps_cubes.set_enabled(True)
+ps_shadow_xy.set_enabled(False)
+ps_shadow_yz.set_enabled(False)
+ps_shadow_zx.set_enabled(False)
+
+ps_point.set_enabled(True)
+ps_square_shadow_xy.set_enabled(False)
+ps_square_shadow_yz.set_enabled(False)
+ps_square_shadow_zx.set_enabled(False)
+
+ps_xy.set_enabled(False)
+ps_yz.set_enabled(False)
+ps_zx.set_enabled(False)
+
 
 
 ps.show()
