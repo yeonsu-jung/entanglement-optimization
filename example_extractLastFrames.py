@@ -18,10 +18,11 @@ from visualizations import plot_contacts
 
 
 pathlist = []
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N525_AR105')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N550_AR110')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N575_AR115')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N600_AR120')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1333_RUN_EntangleSoftModelo1_N0125_AR025/NonIntersectingBox-N0125-AR025-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240628-133440_lastFrame.csv')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N525_AR105')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N550_AR110')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N575_AR115')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240607-2035_RUN_EntangleCarrotCake5_N600_AR120')
 # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
 # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
 # pathlist.append('/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
