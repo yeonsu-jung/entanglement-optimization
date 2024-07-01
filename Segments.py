@@ -807,7 +807,7 @@ if __name__ == '__main__':
     # plt.close('all')
     # segm.plot_length_histogram()
     # %%
-    save_folder = 'test_segmenting5'
+    save_folder = 'test_segmenting6'
     os.makedirs(save_folder,exist_ok=True)
     tracker = 0
     for _i in range(5):
@@ -827,7 +827,7 @@ if __name__ == '__main__':
     # %%
     import pickle
     dist_threshold_inc = 2
-    for _i in range(450):
+    for _i in range(50):
         dist_threshold += dist_threshold_inc
         
         new_segm = Segments(next_round)
@@ -858,14 +858,121 @@ if __name__ == '__main__':
     new_segm.plot_large_clusters(100)
     # %%
     plt.close('all')
-    new_segm.check_short_segments(200)
+    individual_segments = new_segm.check_short_segments(500)
 
     # %%
     plt.close('all')
     new_segm.check_long_segments(450)
     # %%
+    individual_segments = next_round[:100]
+    
+    
+    # %%
+    i_max = np.argmax(new_segm.cluster_size_list)
+    cc_max = new_segm.end_to_end_cluster[i_max]
+    individual_segments = []
+    for i_ in cc_max:
+        if i_ % 2 == 1:
+            continue
+        individual_segments.append(new_segm.segments[i_//2])
+    
+    # %%
+    nodes = np.vstack(individual_segments)
+    edges = []
+    last_i = 0
+
+
+    colors = np.array([
+        [76, 153, 204],   # light blue
+        [204, 76, 153],   # pinkish red
+        [76, 204, 153],   # mint green
+        [153, 204, 76],   # light olive green
+        [204, 153, 76],   # goldenrod
+        [153, 76, 204],   # medium purple
+        [204, 76, 102],   # crimson
+        [76, 204, 204],   # cyan
+        [204, 204, 76],   # sunflower yellow
+        [102, 76, 204]    # indigo
+    ])
+
+    vals_edge = []
+    last_i = 0
+    for i in range(len(individual_segments)):
+        segment = individual_segments[i]
+        num_nodes = len(segment)
+        edges.append([(last_i+i, last_i+i + 1) for i in range(len(segment) - 1)])
+        
+        # colors[i%10]/255
+        # repeat
+        clr = colors[i%10]/255
+        vals_edge.append(np.tile(clr,(num_nodes-1,1)))
+        last_i += num_nodes
+        
+    vals_edge = np.vstack(vals_edge)
+    edges = np.vstack(edges)
+    
+
+    # %%
+    vals_edge.shape
+    edges.shape
+
+
+    # %%
+
+    import polyscope as ps
+
+
+    # %%
+    ps.init()
+
+    ps.set_SSAA_factor(3)
+    # ps.set_navigation_style("free")
+
+    ps.set_ground_plane_mode("none") 
+    ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
+    ps.set_ground_plane_height_factor(-0.25) # adjust the plane height
+    ps.set_shadow_darkness(0.1)              # lighter shadows
+
+    # edges[:10]
+    rod_diameter = 3
+
+    # edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
+    # edges = np.array([[i, i + 1] for i in range(len(nodes) - 1)])
+    ps_all_nodes = ps.register_curve_network("all_nodes", nodes, edges, enabled=True)
+
+    ps_all_nodes.set_radius(rod_diameter, relative=False)
+    ps_all_nodes.set_color([1,0,0])
+
+    ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', enabled=True)
+    # ps.look_at((-1000.0,-1000.0,1000.0),(500,500,500))
+    # ps.show()
+    ps.screenshot('temp.png',transparent_bg=False)
+
+
+    
+    # imshow temp.png
+    img = plt.imread('temp.png')
+    plt.imshow(img)
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+        
+    # %%
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'repeated_clustering.mat'
+    
 
     # %%
     # pad nan
@@ -883,3 +990,35 @@ if __name__ == '__main__':
     
     with open(f'{save_folder}/clustered_segments.pkl','wb') as f:
         pickle.dump(next_round,f)
+        
+        
+        
+    # %%
+    # %%
+    error_list = []
+    length_list = []
+    for i,seg in enumerate(next_round):
+        fr = fit_rod(seg,0.00001,10000)
+        error_list.append(fr['err'])
+        length_list.append(Segment.seg_len(seg))
+    # %%
+    plt.close('all')
+    fig,ax=plt.subplots(1,1)
+    ax.hist(error_list,bins=100)
+    # %%
+    np.count_nonzero(np.array(error_list) > 1.5)
+    
+    
+    # %%
+    np.count_nonzero(np.array(length_list) < 450)
+    
+    I1 = np.where(np.array(error_list) > 2.)[0]
+    I2 = np.where(np.array(length_list) < 800)[0]
+    I = np.intersect1d(I1,I2)
+    fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+    for i_ in I:
+        ax.plot(next_round[i_][:,0],next_round[i_][:,1],next_round[i_][:,2],'-')
+    
+    # %%
+    
+    
