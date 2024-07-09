@@ -1,3 +1,4 @@
+# %%
 import os
 import pickle
 import numpy as np
@@ -38,11 +39,11 @@ class SegmentLoader:
         if os.path.exists(self.segments_file_path):
             with open(self.segments_file_path, 'rb') as f:
                 segments0 = pickle.load(f)
-            segments = []            
-            for seg in segments0:
-                if np.any(rowwise_norm(seg- np.array([1000,1000,500])) < 250):
-                    segments.append(seg)
-                    
+            # segments = []
+            # for seg in segments0:
+            #     if np.any(rowwise_norm(seg- np.array([1000,1000,500])) < 250):
+            #         segments.append(seg)
+            segments = segments0
             print(f'Number of segments: {len(segments)}')            
             # fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
             # for seg in segments[:]:
@@ -82,20 +83,13 @@ class RodProcessing:
         self.connectivity_file_path = self.data_dir / 'ijscores.pkl'
         
         self.segment_loader = SegmentLoader(self.segments_file_path, self.connectivity_file_path)
-        
         self.initial_segments = self.segment_loader.load_segments() # can we freeze?
-        
-        
-        
         self.segments = self.initial_segments
-        
-        
-        
         self.ijscore = self.segment_loader.load_ijscore(self.initial_segments)
-        
+               
         self.clustered = []
         self.unclustered = [[i] for i in range(len(self.segments))]
-        self.current_clusters = self.unclustered        
+        self.current_clusters = self.unclustered
         
         self.fixed_nodes = set()
         self.trash_nodes = set()
@@ -141,6 +135,19 @@ class RodProcessing:
         Graph0 = nx.Graph()
         Graph0.add_nodes_from(range(len(self.segments)))
         Graph0.add_weighted_edges_from(zip(ij[initial_mask, 0], ij[initial_mask, 1], dist_score[initial_mask]))
+        clusters = find_connected_components(Graph0)
+        return clusters
+    
+    def thresholding(self):
+        ij = self.ijscore[:, :2]
+        scores = self.ijscore[:, 2:]
+        dist_score = scores[:, 0]
+        align_score = scores[:, 1]
+        initial_mask = (align_score < self.clustering_alignment_threshold) & (dist_score < self.clustering_distance_threshold)
+        
+        Graph0 = nx.Graph()
+        Graph0.add_nodes_from(range(len(self.segments)))
+        Graph0.add_edges_from(zip(ij[initial_mask, 0], ij[initial_mask, 1]))
         clusters = find_connected_components(Graph0)
         return clusters
 
@@ -246,8 +253,8 @@ class RodProcessing:
         plt.savefig(self.data_dir / 'figures' / f'histogram_alpha200_epsilon00_{iteration}.png')
         plt.close()
         
-        with open(data_dir / 'rod_processing.pkl', 'wb') as f:
-            pickle.dump(rod_processing, f)
+        # with open(self.`data_dir / 'rod_processing.pkl', 'wb') as f:
+        #     pickle.dump(rod_processing, f)
             
     def update_thresholds(self, thresholds):
         
@@ -273,13 +280,13 @@ def first_run():
         'subcluster_error_threshold': 1.0,
         'subcluster_length_threshold': 50,
         'clustering_alignment_threshold': 0.01,
-        'clustering_distance_threshold': 2000
+        'clustering_distance_threshold': 50
     }
     
     rod_processing = RodProcessing(data_dir, thresholds)
     
     iteration = 0
-    max_iterations = 1000
+    max_iterations = 1000 
     while iteration < max_iterations:
         iteration += 1
         logging.info(f"Iteration: {iteration}")
@@ -323,12 +330,43 @@ def load_and_analyze(sample_id):
     fig, ax = plt.subplots(1, 1, figsize=(10,10), subplot_kw={'projection': '3d'})
     for cc in current_segments[-300:-100]:
         ax.plot(cc[:, 0], cc[:, 1], cc[:, 2], linewidth=0.5)
-        
+    plt.show()    
     
         
         
     return
     
-if __name__ == "__main__":
-    sample_id = 'alpha200_epsilon00'
-    load_and_analyze(sample_id)
+# if __name__ == "__main__":
+    # sample_id = 'alpha200_epsilon00'
+    # load_and_analyze(sample_id)
+    # first_run()
+# %%
+sample_id = 'alpha200_epsilon00'
+
+data_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data/alpha200_epsilon00')
+thresholds = {
+    'subcluster_error_threshold': 1.0,
+    'subcluster_length_threshold': 2000,
+    'clustering_alignment_threshold': 0.01,
+    'clustering_distance_threshold': 50
+}
+
+rod_processing = RodProcessing(data_dir, thresholds)
+
+# %%
+thresholds['clustering_alignment_threshold'] = 0.05
+rod_processing.update_thresholds(thresholds)
+clusters = rod_processing.thresholding()
+len(clusters)
+# %%
+
+class RodEndConditions:
+    def __init__(self, segments):
+        self.segments = segments
+        self.end_points = np.vstack([seg[[0, -1]] for seg in segments])
+        self.end_tangents = np.vstack([seg[[1, -1]] - seg[[0, -2]] for seg in segments])
+        
+        
+    
+    
+
