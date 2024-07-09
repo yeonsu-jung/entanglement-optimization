@@ -1,48 +1,16 @@
 import os
 
 pathlist = []
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0125_AR025')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0250_AR050')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0375_AR075')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0500_AR100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0525_AR105')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0550_AR110')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0575_AR115')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0600_AR120')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0625_AR125')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1000_AR200')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0750_AR150')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N0875_AR175')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0125_AR025')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0250_AR050')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0500_AR100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0375_AR075')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0600_AR120')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0575_AR115')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0525_AR105')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0550_AR110')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1500_AR300')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo3_N1250_AR250')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1250_AR250')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0875_AR175')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0625_AR125')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1000_AR200')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N0750_AR150')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1056_RUN_PerturbEEModelo2_N1500_AR300')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0250_AR050')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0500_AR100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0375_AR075')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0525_AR105')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0550_AR110')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0575_AR115')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0600_AR120')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0875_AR175')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0750_AR150')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N0625_AR125')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1250_AR250')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1000_AR200')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1052_RUN_PerturbEEModelo1_N1500_AR300')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240609-1051_RUN_PerturbEEModelo1_N0125_AR025')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1605_RUN_EntangleSoftModelo1_N0125_AR025')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N0375_AR075')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N0500_AR100')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N1000_AR200')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N1500_AR300')
+
+# /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0300_AR060
+# /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0350_AR070
+# /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0400_AR080
+# /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0450_AR090
 
 # /n/holylabs/LABS/mahadevan_lab/Users/yjung/rod-packing-data-archive/20240531-2228_RUN_JostleCarrotCake5_N1000_AR200_g0.5
 # /n/holylabs/LABS/mahadevan_lab/Users/yjung/rod-packing-data-archive/20240531-2228_RUN_JostleCarrotCake5_N1500_AR300_g0.5
