@@ -342,7 +342,7 @@ def pullout_video_frames_single_file(alllog_pth):
     
     file_id,surfix,num_rods,AR,datetime_string = parse_path_string(alllog_pth)
     time_line, node_list, contact_list = import_all_log(alllog_pth,max_rows=100000)
-    output_path = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_{surfix}'
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
         start_point = 0
@@ -397,10 +397,10 @@ def batch_pullout_video(pathlist):
                     heaviest_file = pth
             possible_paths = [heaviest_file]
         data_path = possible_paths[0]
-        protocol_id = 'EatEntangledCarrotCake5'
+        subfolder_name = 'EatEntangledCarrotCake5'
         
         print(f'Processing {folder_path}')
-        print(f'Protocol ID: {protocol_id}')
+        print(f'Protocol ID: {subfolder_name}')
         print(f'Data paths: {str(data_path)}')
         
         pullout_video_frames_single_file(data_path)
@@ -425,7 +425,7 @@ if __name__ == '__main__':
     # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0375_ar075_g0.5')
     # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0500_ar100_g0.5')
     # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0625_ar125_g0.5')
-    # protocol_id = 'eatjostledcarrotcake5'
+    # subfolder_name = 'eatjostledcarrotcake5'
     
     
     
@@ -453,14 +453,114 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240617-1509_RUN_FlipModelo1_N1500_AR300/log_files/NonIntersectingBox-N1500-AR300-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240617-150938.csv'
+    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/NonIntersectingBox-N1500-AR300-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240624-022314.csv'
     folder_path = Path(data_path).parent
-    protocol_id = 'Test'
+    subfolder_name = 'Inbox'
     
     
     print(f'processing {folder_path}')
-    print(f'protocol id: {protocol_id}')
+    print(f'protocol id: {subfolder_name}')
     print(f'data paths: {str(data_path)}')
     
-    pullout_video_frames_single_file(data_path)
+    # pullout_video_frames_single_file(data_path)
+    # %%
+    log_string = ''
     
+    
+    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+        start_point = 0
+    
+    print(f'Size of time_line: {len(time_line)}')
+    print(f'Number of rods: {num_rods}')
+    
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+    
+    # %%    
+    colors = np.array([
+    [76, 153, 204],   # light blue
+    [204, 76, 153],   # pinkish red
+    [76, 204, 153],   # mint green
+    [153, 204, 76],   # light olive green
+    [204, 153, 76],   # goldenrod
+    [153, 76, 204],   # medium purple
+    [204, 76, 102],   # crimson
+    [76, 204, 204],   # cyan
+    [204, 204, 76],   # sunflower yellow
+    [102, 76, 204]    # indigo
+    ])
+    # %%
+    nodes = node_list[0]
+    nodes = nodes.reshape((-1,3))
+    cen = np.mean(nodes)
+    
+    # %%
+    import polyscope as ps
+    # %%
+    rod_diameter = 1/AR
+    nodes = node_list[3]
+    nodes = nodes.reshape((-1,3))
+    nodes = nodes - cen
+    
+    num_nodes_each_rod = 10
+    edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
+
+    
+    ps.init()
+    ps.set_SSAA_factor(3)
+    ps.set_navigation_style("free")
+
+    # ps.set_ground_plane_mode("tile")
+    ps.set_ground_plane_mode("none") 
+    ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
+    ps.set_ground_plane_height_factor(-0.25) # adjust the plane height
+    ps.set_shadow_darkness(0.1)              # lighter shadows
+    ps.set_view_projection_mode("perspective")
+    # ps.set_transparency_mode('simple')
+
+    ps_all_nodes = ps.register_curve_network("all_nodes", nodes, edges, enabled=True)
+    ps_all_nodes.set_radius(rod_diameter/2*2,relative=False)
+    
+    # Add color to edges
+    num_edges_in_a_rod = num_nodes_each_rod-1
+    vals_edge = np.ones((len(edges),3))
+    for i in range(num_rods):
+        vals_edge[i*num_edges_in_a_rod:(i+1)*num_edges_in_a_rod] = colors[i%10]/255
+
+    ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', enabled=True)
+    
+
+    ps_all_nodes.set_material("clay")
+    ps.look_at((-5., 0., 1.), (0., 0., 0.))
+    ps.set_up_dir("z_up")
+    
+
+    ps_all_nodes.set_transparency(1)    
+    ps_all_nodes.set_enabled(True)
+
+
+    ps.set_screenshot_extension(".png");
+    ps.screenshot('temp.png',transparent_bg=False)
+    
+    # %%
+    
+    period = len(node_list)    
+    ps_all_nodes.set_enabled(True)
+    ps.look_at((-10., 0., 1.), (0., 0., 0.))
+    for i_,t in enumerate(range(period)):
+        all_node = node_list[i_]
+        all_node = all_node.reshape(num_rods,30)
+        nodes = all_node.reshape(-1,3)
+        nodes = nodes - cen
+        
+        ps_all_nodes.set_transparency(1.)
+        ps_all_nodes.update_node_positions(nodes)
+        
+        screenshot_path = f'{output_path}/rod_{num_rods}_AR_{AR}_{i_:04d}.png'
+        ps.screenshot(screenshot_path,transparent_bg=False)
+    
+    # %%
