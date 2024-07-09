@@ -65,15 +65,21 @@ pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/C
 pathlist2 = []
 
 
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N1000-AR200')
-pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N1500-AR300')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0125-AR025')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0250-AR050')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0375-AR075')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0500-AR100')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N1000-AR200')
+# pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangleCarrotCake5/20240531-2224_RUN_EntangleCarrotCake5_N1500-AR300')
 
-
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0125_AR025')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0250_AR050')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0375_AR075')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0500_AR100')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0625_AR125')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N1000_AR200')
+pathlist2.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N1500_AR300')
 
 
         
@@ -212,6 +218,7 @@ plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tigh
 last_part_averaged = []
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 for i_,dc in enumerate(data_container_list):
+    
     N = Ns[i_]
     contact_list = dc.contact_list
     contact_list = contact_list[:667]
@@ -506,7 +513,8 @@ for i_,hist_result in enumerate(histogram_results):
     yy = yy[yy>0]
 
     
-    ax.loglog(xx,yy,'.-',markersize=1,label=fr'$\alpha={ARs[i_]}$',linewidth=0.5)
+    ax.loglog(xx,yy,'.-',markersize=1,linewidth=0.5)
+    # ax.loglog(xx,yy,'.-',markersize=1,label=fr'$\alpha={ARs[i_]}$',linewidth=0.5)
     # clr = ax.get_lines()[-1].get_color()
     
     # popt,pcov=curve_fit(power_law,xx,yy)
@@ -522,9 +530,18 @@ for i_,hist_result in enumerate(histogram_results):
 ax.set_xlabel(r'$e$')
 ax.set_ylabel(r'$p(e)$')
 
+# draw -3/4
+x = np.logspace(-3,5,100)
+y = 1e-2*x**(-3/4)
+# or get a x^(-3/4) from fitting
+def three_fourth(x,a):
+    return a*x**(-3/4)
+popt,pcov=curve_fit(three_fourth,x,y)
+ax.loglog(x,three_fourth(x,*popt),'--',linewidth=0.5,label=rf'y={popt[0]:.2f}x^{{-3/4}}')
+
+
 # plt.xticks(rotation=45, ha='right')
 plt.yticks(rotation=90, ha='right')
-
 # plt.legend(fontsize=6)
 plt.savefig(f'{output_dir}/entanglement-power-law-distribution.png',dpi=300,bbox_inches='tight')
 

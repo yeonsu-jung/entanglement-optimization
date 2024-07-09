@@ -368,7 +368,7 @@ for method in ['IQR','Z','MAD']:
 
         num_nodes_each_rod = 2
         connectivities = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
-        ps_rods = ps.register_curve_network("my rods", nodes, connectivities,transparency=0.5)
+        ps_rods = ps.register_curve_network("my rods", nodes, `connectivities`,transparency=0.5)
         # gold
         ps_rods.set_color((1.0, 0.71, 0.29))
         ps_rods.set_radius(rod_radius, relative=False)

@@ -13,19 +13,17 @@ from data_io import import_all_log, parse_path_string
 from scipy.optimize import curve_fit
 def power_law(x,a,b):
     return a*x**b
-# %%
+
 pathlist = []
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240617-1509_RUN_FlipModelo1_N1500_AR300')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240619-0111_RUN_FlipModelo1_N500_AR100')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240619-0111_RUN_FlipModelo1_N250_AR050')
 
 
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240619-2353_RUN_CalmEEModelo1_N0125_AR025')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq100')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0125_AR025')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation/20240609-1052_RUN_PerturbEEModelo1_N1500_AR300')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N1500_AR300')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0125_AR025')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N0125_AR025')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PertrubCalmEEModelo1-Fullset/20240620-1254_RUN_PerturbCalmEEModelo1_N0125_AR025_freq100')
+
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240620-0039_RUN_CalmEEModelo1_N1500_AR300')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PertrubCalmEEModelo1-Fullset/20240620-1302_RUN_PerturbCalmEEModelo1_N1500_AR300_freq100')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N1500_AR300')
 
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240619-2353_RUN_CalmEEModelo1_N0125_AR025')
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240620-0039_RUN_CalmEEModelo1_N0250_AR050')
@@ -45,6 +43,18 @@ pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/En
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240620-0039_RUN_CalmEEModelo1_N1000_AR200')
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240620-0039_RUN_CalmEEModelo1_N1250_AR250')
 # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240620-0039_RUN_CalmEEModelo1_N1500_AR300')
+
+
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240617-1509_RUN_FlipModelo1_N1500_AR300')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240619-0111_RUN_FlipModelo1_N500_AR100')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240619-0111_RUN_FlipModelo1_N250_AR050')
+
+
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240619-2353_RUN_CalmEEModelo1_N0125_AR025')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-1407_RUN_PerturbCalmEEModelo1_N0125_AR025_g0.5_freq100')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_SlowExcitation/20240611-1241_RUN_WeakPerturbEEModelo1_N0125_AR025')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Modelo1_FineExcitation/20240609-1052_RUN_PerturbEEModelo1_N1500_AR300')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/EntangledModelo1/20240609-0108_RUN_EntangleModelo1_N1500_AR300')
 
 # %%
 
@@ -84,11 +94,10 @@ rod_radius = rod_diameter/2
 
 all_node = data_container_list[0].node_list[0]
 all_node = all_node.reshape(num_rods,30)
-# %%
+
 final_node = data_container_list[0].node_list[-1].reshape(num_rods,10,3)
 initial_node = data_container_list[0].node_list[0].reshape(num_rods,10,3)
 
-# %%
 nodes_all_along = data_container_list[0].node_list
 nodes_all_along = np.array(nodes_all_along)
 nodes_all_along = nodes_all_along.reshape(-1,3)
@@ -96,10 +105,10 @@ bounding_box_all_along = np.array([[np.min(nodes_all_along[:,i]),np.max(nodes_al
 # bounding_box_all_along = np.array([[-0.5,0.5],
 #                                    [-0.5,0.5],
 #                                    [-1,1.5]])
-# %%
+
 initial_node = data_container_list[0].node_list[0]
 initial_node = initial_node.reshape(num_rods,10,3)
-# %%
+
 colors = np.array([
     [76, 153, 204],   # light blue
     [204, 76, 153],   # pinkish red
@@ -112,7 +121,7 @@ colors = np.array([
     [204, 204, 76],   # sunflower yellow
     [102, 76, 204]    # indigo
 ])
-# %%
+
 num_nodes_each_rod = 10
 packing_center = np.mean(np.mean(initial_node,axis=1),axis=0)
 nodes = all_node.reshape(-1,3)
@@ -151,7 +160,6 @@ box_edges = np.array([
     [2, 6],
     [3, 7]
 ])
-# %%
 # surface mesh for box planes
 box_faces = np.array([
     [0, 1, 2, 3],
@@ -162,6 +170,14 @@ box_faces = np.array([
     [3, 0, 4, 7]
 ])
 
+floor_vertices = np.array([
+    [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
+    [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
+    [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 0]],
+    [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 0]]])
+
+floor_edges = np.array([[0,1],[1,2],[2,3],[3,0]])
+floor_faces = np.array([[0,1,2,3]])
 
 
 # %%
@@ -202,8 +218,8 @@ ps.set_SSAA_factor(3)
 ps.set_navigation_style("free")
 
 # ps.set_ground_plane_mode("none") 
-ps.set_ground_plane_mode("tile_reflection")  # set +Z as up direction
-# ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
+# ps.set_ground_plane_mode("tile_reflection")  # set +Z as up direction
+ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
 ps.set_shadow_darkness(0.5)              # lighter shadows
 ps.set_ground_plane_height_factor(0.01) # adjust the plane height
 ps.set_view_projection_mode("perspective")
@@ -228,13 +244,22 @@ ps_box.set_color((0.8, 0.8, 0.8))  # Set the color of the box edges
 ps_box_faces = ps.register_surface_mesh("box_faces", box_vertices, box_faces, enabled=True, transparency=0.2)
 ps_box_faces.set_color(colors[0]/255)  # Set the color of the box faces
 
+ps_floor = ps.register_curve_network("floor", floor_vertices, floor_edges, enabled=False)
+ps_floor.set_color((0.8, 0.8, 0.8))
+ps_floor.set_radius(0.02,relative=False)
+
+ps_floor_faces = ps.register_surface_mesh("floor_faces", floor_vertices, floor_faces, enabled=False, transparency=0.2)
+ps_floor_faces.set_color(colors[0]/255)
+
 ps_all_nodes.set_material("clay")
 # ps.look_at((4.,3.,3.),(0.,0.,1.))
 ps_all_nodes.set_transparency(1)
 
 
-ps_box.set_enabled(True)
+ps_box.set_enabled(False)
+ps_box_faces.set_enabled(False)
 ps_all_nodes.set_enabled(True)
+ps_floor_faces.set_enabled(True)
 
 # ps.look_at((-5., 0., 1.), (0., 0., 0.))
 ps.look_at((-5., 0., 1.), (0., 0., 0.))
@@ -253,7 +278,13 @@ if not os.path.exists(output_dir):
 # %%
 period = len(data_container_list[0].time_line)
 ps_box.set_enabled(False)
+ps_box_faces.set_enabled(True)
+ps_floor.set_enabled(False)
+ps_floor_faces.set_enabled(False)
+
+
 ps_all_nodes.set_enabled(True)
+
 # bounding_box = bounding_box_all_along - np.vstack((cen,cen)).transpose()
 floor_z = nodes_all_along[:,2].min()
 box_bottom = floor_z
@@ -273,9 +304,13 @@ bounding_box = np.array([[box_left,box_right],
 
 ps.set_ground_plane_mode('shadow_only')
 ps.look_at((4.,3.,3.),(0.,0.,0.))
-ps.set_ground_plane_height_factor(0.3)
+# ps.look_at((4.,3.,2.7),(0.,0.,-0.7))
 
-for i_,t in enumerate(range(1,period)):    
+ps.set_ground_plane_height_factor(0.3)
+# ps.set_ground_plane_height_factor(0.5)
+ps.screenshot('temp.png',transparent_bg=False)
+# %%
+for i_,t in enumerate(range(1,period)):
     all_node = data_container_list[0].node_list[i_]
     all_node = all_node.reshape(num_rods,30)
     nodes = all_node.reshape(-1,3)
@@ -287,6 +322,8 @@ for i_,t in enumerate(range(1,period)):
     curr_time = data_container_list[0].time_line[i_]
     bounding_box[2,0] = bounding_box[2,0] - 0.05*np.sin(2*np.pi*curr_time*10)
     bounding_box[2,1] = bounding_box[2,1] - 0.05*np.sin(2*np.pi*curr_time*10)
+    # bounding_box[2,0] = bounding_box[2,0] - 0.005*np.sin(2*np.pi*curr_time*10)
+    # bounding_box[2,1] = bounding_box[2,1] - 0.005*np.sin(2*np.pi*curr_time*10)
     box_vertices = np.array([
         [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
         [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
@@ -298,9 +335,79 @@ for i_,t in enumerate(range(1,period)):
         [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 1]]
     ])
     
+    floor_vertices = np.array([
+        [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
+        [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
+        [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 0]],
+        [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 0]]])    
+    
     ps_box.update_node_positions(box_vertices)
     ps_box_faces.update_vertex_positions(box_vertices)
+    # ps_floor.update_node_positions(floor_vertices)
+    # ps_floor_faces.update_vertex_positions(floor_vertices)
+    # ps_floor_faces.set_transparency(0.2)
+    
     
     screenshot_path = f'{output_dir}/rod_{num_rods}_AR_{AR}_{t:04d}.png'
     ps.screenshot(screenshot_path,transparent_bg=False)
     
+    
+
+# %%
+frame_no = -1
+all_node = data_container_list[0].node_list[frame_no]
+all_node = all_node.reshape(num_rods,30)
+nodes = all_node.reshape(-1,3)
+# nodes = nodes - cen
+
+ps_all_nodes.set_transparency(1.)
+ps_all_nodes.update_node_positions(nodes)
+
+ps_box.set_enabled(True)
+ps_box_faces.set_enabled(False)
+ps_floor.set_enabled(False)
+ps_floor_faces.set_enabled(False)
+
+curr_time = data_container_list[0].time_line[frame_no]
+bounding_box[2,0] = bounding_box[2,0] - 0.05*np.sin(2*np.pi*curr_time*10)
+bounding_box[2,1] = bounding_box[2,1] - 0.05*np.sin(2*np.pi*curr_time*10)
+
+# bounding_box = np.array([[-2.4,1.4],[-2.4,1.4],[-1,1.5]])
+
+# bounding_box[2,0] = bounding_box[2,0] - 0.001*np.sin(2*np.pi*curr_time*100)
+# bounding_box[2,1] = bounding_box[2,1] - 0.001*np.sin(2*np.pi*curr_time*100)
+    
+box_vertices = np.array([
+    [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
+    [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
+    [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 0]],
+    [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 0]],
+    [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 1]],
+    [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 1]],
+    [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 1]],
+    [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 1]]
+])
+floor_vertices = np.array([
+        [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
+        [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
+        [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 0]],
+        [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 0]]])    
+
+ps_floor.update_node_positions(floor_vertices)
+ps_floor_faces.update_vertex_positions(floor_vertices)
+ps_floor_faces.set_transparency(0.8)
+    
+ps_box.update_node_positions(box_vertices)
+ps_box_faces.update_vertex_positions(box_vertices)
+
+ps.set_ground_plane_mode('shadow_only')
+ps.look_at((4.,3.,3.),(0.,0.,0.))
+# ps.look_at((4.,3.,2.7),(0.,0.,-0.7))
+# ps.set_ground_plane_height_factor(0.3)
+ps.set_ground_plane_height_factor(0.5)
+
+# screenshot_path = f'/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/figures/rod_{num_rods}_AR_{AR}_perturbLastFrame.png'
+screenshot_path = f'/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/figures/rod_{num_rods}_AR_{AR}_entangleLastFrame.png'
+# screenshot_path = f'/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/figures/rod_{num_rods}_AR_{AR}_entangleFirstFrame.png'
+ps.screenshot(screenshot_path,transparent_bg=False)
+# %%

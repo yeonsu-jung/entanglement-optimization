@@ -30,5 +30,6 @@ for seg in segmented:
     
 ps.register_curve_network('seg', all_segments, edges, enabled=True, radius=0.01)
 
+
 ps.show()
     

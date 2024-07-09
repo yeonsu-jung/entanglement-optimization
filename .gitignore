@@ -28,3 +28,5 @@ imgui.ini
 .polyscope.ini
 
 runs/*
+
+perform-segmentation/*
