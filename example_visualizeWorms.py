@@ -6,21 +6,36 @@ import polyscope as ps
 import numpy as np
 
 # %%
-pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240628-2346_RUN_/log_files/active_entanglement/node_20240628-234651.csv'
+pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240708-1807_COMPILE_test/log_files/active_entanglement/node_20240708-180744.csv'
 
-dta = np.loadtxt(pth,delimiter=',')
-num_nodes_each_rod = 30
-num_rods = (dta.shape[1] - 1)//num_nodes_each_rod//3
+from pathlib import Path
+
+identifer = Path(pth).stem
 
 # %%
-rod_diameter = 0.015
+
+dta = np.loadtxt(pth,delimiter=',')
+# fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+# num_nodes_each_rod = 100
+# num_rods = (dta.shape[1] - 1)//num_nodes_each_rod//3
+# print(num_rods)
+# %%
+
+rod_diameter = 0.002
+num_rods = 1
 spatial_data,timepoints = import_from_dismech(pth,num_rods)
+# spatial_data.shape
+num_nodes_each_rod = spatial_data.shape[1]//3
 # %%
 num_time_points = spatial_data.shape[0]
 x0 = spatial_data[0]
+nodes = x0.reshape(-1,3)
+edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
 
-
-
+# %%
+# x0 = np.loadtxt('/Users/yeonsu/GitHub/entanglement-optimization/vertices_n1.txt',delimiter=',')
+# rod_diameter = 0.015
+# num_nodes_each_rod = x0.shape[0]
 # x0.reshape(num_rods,-1).shape
 # nodes = x0.reshape(-1,3)
 # num_nodes_each_rod = 2
@@ -62,13 +77,18 @@ for i in range(num_rods):
     vals_edge[i*num_edges_in_a_rod:(i+1)*num_edges_in_a_rod] = colors[i%10]/255
 
 ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', enabled=True)
-ps.look_at((-0.5,-0.5,-0.5),(0,0,0))
+# ps.look_at((-0.5,-0.5,-0.5),(0,0,0))
 ps.set_up_dir("z_up")
+ps.set_front_dir("x_front")
+# ps.look_at((-0.5,-0.5,-0.5),(0,0,0))
 # ps.show()
 ps.screenshot('temp.png',transparent_bg=False)
 
 # %%
-output_path = f'/Users/yeonsu/Videos/TestWorms'
+# ps.set_front_dir("x_front")
+ps.set_front_dir("y_front")
+
+output_path = f'/Users/yeonsu/Videos/TestActiveWorms/{identifer}'
 import os
 if not os.path.exists(output_path):
     os.makedirs(output_path,exist_ok=True)
@@ -77,12 +97,26 @@ num_existed_files = len(os.listdir(output_path))
 
 dta = np.loadtxt(pth,delimiter=',')
 spatial_data,timepoints = import_from_dismech(pth,num_rods)
+
+spatial_data = spatial_data[::10]
 num_time_points = spatial_data.shape[0]
 num_snapshots = num_time_points
+
+from matplotlib import pyplot as plt
 for i in range(num_existed_files, num_snapshots):
-
     x = spatial_data[i]
-
-    ps_all_nodes.update_node_positions(x.reshape(-1,3))    
+    ps_all_nodes.update_node_positions(x.reshape(-1,3))
     ps.screenshot(f'{output_path}/q_{i:04d}.png',transparent_bg=False)
+    
+    img = plt.imread(f'{output_path}/q_{i:04d}.png')
+    if any(np.array(img.shape[:2]) % 2 != 0):
+        if img.shape[0] % 2 != 0:
+            img = np.pad(img,((0,1),(0,0),(0,0)),mode='edge')
+        if img.shape[1] % 2 != 0:
+            img = np.pad(img,((0,0),(0,1),(0,0)),mode='edge')
+        plt.imsave(f'{output_path}/q_{i:04d}.png',img)
+    
+    
+# %%
+# ps.show()
 # %%
