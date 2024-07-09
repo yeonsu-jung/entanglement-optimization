@@ -1,3 +1,4 @@
+# %%
 import jax.numpy as jnp
 from jax import grad,random
 from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual
@@ -2323,8 +2324,8 @@ def Modelo4():
     with open(log_file,'w') as f:
         f.write(log_string)
     print
-
-if __name__ == "__main__":
+    
+def Modelo3a():
     batch_id = 'Modelo3a'
     data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
     visual_folder = data_folder/'visuals'
@@ -2382,3 +2383,25 @@ if __name__ == "__main__":
     with open(log_file,'w') as f:
         f.write(log_string)
     print
+    
+# %%
+if __name__ == "__main__":
+    packing_batch_id = 'McNuggets'
+    data_folder = '/Users/yeonsu/Data/'
+    cache_folder = f"{data_folder}/cache"
+    export_folder = f"{data_folder}/export/{packing_batch_id}"
+        
+    N_outer = 5
+    Nmax = 1000
+    scale_factor = 1
+        
+    # num_rods = 100
+    # AR = 20
+    
+    for num_rods in [300]:
+        for AR in [100]:
+            dt_string, folder_name = archiving()
+            create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+            
+    
+# %%
