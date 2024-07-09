@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -13,6 +14,8 @@ plt.rcParams.update({
     "text.usetex": True,
     "font.family": "Helvetica"
 })
+output_dir = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/entanglement'
+
 
 # %%
 class data_container:
@@ -70,6 +73,8 @@ for pth in pathlist:
 # %%
 
 
+
+
 # %%
 i_ = 2
 data_entry = data_container_list[i_]
@@ -97,6 +102,7 @@ print(f'f = {f}')
 print(f'AR = {data_entry.AR}')
 print(f'{len(contact_ij)}')
 # %%
+
 nodes_in_shape = curr_nodes.reshape(-1,10,3)
 
 fig,ax=plt.subplots(subplot_kw={'projection': '3d'})
@@ -107,6 +113,12 @@ for rr in nodes_in_shape:
 for i_ in largest_cluster:
     ax.plot(nodes_in_shape[i_][:,0],nodes_in_shape[i_][:,1],nodes_in_shape[i_][:,2],'k')
 # %%
+
+import polyscope as ps
+ps.init()
+
+
+
 
 
 # %%
@@ -272,5 +284,7 @@ plt.ylabel(r'$f$',labelpad=2)
 # plt.savefig(f'{output_dir}/f_vs_a-g.png',dpi=300,bbox_inches='tight')
 plt.legend()
 plt.savefig(f'{output_dir}/f_vs_a-g.eps',bbox_inches='tight')
+
+# %%
 
 
