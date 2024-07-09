@@ -30,3 +30,4 @@ imgui.ini
 runs/*
 
 perform-segmentation/*
+qs/*
