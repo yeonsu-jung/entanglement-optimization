@@ -88,23 +88,6 @@ class Segment: # needed?
         ax.axis('equal')
         return ax
         
-# %%
-a_segment = np.random.rand(10,3)
-Segment.sort_curve(a_segment)
-Segment.curvature_of_polygonal_curve(a_segment)
-Segment.break_curved_rods(a_segment,0.1)
-
-# %%
-
-
-# %%
-
-# %%
-
-
-
-# %%
-
 
 # %%
 def prune_edges(nodes, ij, weight):
@@ -271,14 +254,14 @@ class Segments:
                 
             return new_segments
 
-        _segments = segm.initial_prune_segments()
+        _segments = self.initial_prune_segments()
         _segments = break_segments(_segments)
         for i,seg in enumerate(_segments):
             _segments[i] = Segment.sort_curve(seg)
 
         self.segments = _segments
         self.segments = self.break_curved_segments(1,10)
-        self.inspect_segments(visualize=True)
+        # self.inspect_segments(visualize=False)
 
         
     def initialize_filament_processing(self,dist_threshold=50,align_threshold=1,svd_cutoff=1.):
@@ -501,6 +484,8 @@ class Segments:
         bins = np.linspace(10,1000,100)
         fig,ax=plt.subplots(1,1)
         plt.hist(self.length_list,bins=bins,density=True)
+        ax.set_xlabel('Length')
+        ax.set_ylabel('Probability density')
         
 
     def plot_large_clusters(self,num_to_show):
