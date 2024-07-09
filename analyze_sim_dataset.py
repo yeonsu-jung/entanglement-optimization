@@ -302,7 +302,7 @@ def main():
         
         if visualize_fields and (frame % skip_frames == 0):
             n_image = np.max(n_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
-            S_image = np.max(S_fields.reshape((num_grids,num_grids,num_grids)),axis=0)            
+            S_image = np.max(S_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             e_image = np.max(e_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             c_image = np.max(c_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             f_image = np.max(f_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
