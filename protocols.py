@@ -282,16 +282,24 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
             u = onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
             
             # existing rods            
-            start_points = q[:i,:3]
-            orientations = 
-            end_points = q[:i,3:] + 
+            start_points = q[:i,:3]            
             
+            orientations = onp.array([onp.sin(q[:i,3]) * onp.cos(q[:i,4]),
+                                        onp.sin(q[:i,3]) * onp.sin(q[:i,4]),
+                                        onp.cos(q[:i,3])])
+            
+            orientations = orientations.T
             start_to_start_chord = start_points - p_i
-            proj = onp.dot(start_to_start_chord,u)
-            parallel = u * proj[:,None]
-            distance_lower_bounds = onp.linalg.norm(start_to_start_chord - parallel)
+            repeated_u = onp.repeat(u[None, :], len(orientations), axis=0)
+            crossed = onp.cross(repeated_u,orientations)
+            d_estimate = onp.abs(onp.sum(crossed*start_to_start_chord,axis=1)/onp.linalg.norm(crossed,axis=1))
             
-            candidates = onp.where(distance_lower_bounds < rod_diameter*3)[0]
+            # proj_e = onp.dot(end_points - p_i,u)
+            # parallel_e = u * proj_e
+            
+            # TF1 = (proj < 0) & (proj_e < 0)
+            # TF2 = (proj > 1) & (proj_e > 1)
+            candidates = onp.where(d_estimate < rod_diameter*2)[0]
             # proj = onp.clip(proj,-2,2)
                         
             # for j in range(i):
@@ -300,7 +308,7 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
                 p_j = onp.array([x2, y2, z2])
                 p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
                 
-                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj) # use vmap
                 if distance < rod_diameter:
                     intersect = True
                     break
@@ -325,27 +333,27 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
             print(f"Rod {i} placed successfully")
             
     # sanity check
-    sanity_check = 1
-    if sanity_check:
+    # sanity_check = 1
+    # if sanity_check:
         
-        for i in range(num_rods):
-            x1, y1, z1, phi1, theta1 = q[i]
-            p1 = onp.array([x1, y1, z1])
-            u1 = onp.array([onp.sin(phi1) * onp.cos(theta1), onp.sin(phi1) * onp.sin(theta1), onp.cos(phi1)])
-            for j in range(i+1,num_rods):
-                x2, y2, z2, phi2, theta2 = q[j]
-                p2 = onp.array([x2, y2, z2])
-                u2 = onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+    #     for i in range(num_rods):
+    #         x1, y1, z1, phi1, theta1 = q[i]
+    #         p1 = onp.array([x1, y1, z1])
+    #         u1 = onp.array([onp.sin(phi1) * onp.cos(theta1), onp.sin(phi1) * onp.sin(theta1), onp.cos(phi1)])
+    #         p1s = p1
+    #         p1e = p1 + u1
+            
+    #         for j in range(i+1,num_rods):
+    #             x2, y2, z2, phi2, theta2 = q[j]
+    #             p2 = onp.array([x2, y2, z2])
+    #             u2 = onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+    #             p2s = p2
+    #             p2e = p2 + u2
                 
-                p1s = p1
-                p1e = p1 + u1
-                p2s = p2
-                p2e = p2 + u2
-                
-                distance = dist_lin_seg_nonjax(p1s, p1e, p2s, p2e)
-                if distance < rod_diameter:
-                    print(f"Intersecting rods: {i}, {j}")
-                    print(f"distance: {distance}")                        
+    #             distance = dist_lin_seg_nonjax(p1s, p1e, p2s, p2e)
+    #             if distance < rod_diameter:
+    #                 print(f"Intersecting rods: {i}, {j}")
+    #                 print(f"distance: {distance}")                        
 
     return q
 
@@ -2559,7 +2567,7 @@ if __name__ == "__main__":
         new_num_rods = num_rods*scale_factor**3
         new_container_size = container_size*scale_factor
         
-        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods:06d}-AR{AR:03d}-Scale1.txt',x_new)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{new_num_rods:06d}-AR{AR:03d}-Scale1.txt',x_new)
         
         log_string += "============================================\n"
         log_string += f'Num rods: {new_num_rods}\n'
@@ -2575,7 +2583,7 @@ if __name__ == "__main__":
         ax.set_title(f'Num rods: {x_new.shape[0]}')
         ax.view_init(0,0)
         ax.axis('equal')
-        plt.savefig(visual_folder / f'NonIntersectingBox-N{num_rods:06d}-AR{AR:03d}-Scale1.png',dpi=300)
+        plt.savefig(visual_folder / f'NonIntersectingBox-N{new_num_rods:06d}-AR{AR:03d}-Scale1.png',dpi=300)
         plt.close()
             
     
