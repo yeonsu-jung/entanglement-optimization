@@ -329,6 +329,39 @@ def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, 
                                + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+    
+    
+def compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+    
+    a = p_i - p_j
+    b = p_i - p_jj
+    c = p_ii - p_jj
+    d = p_ii - p_j
+
+    cross_bc = jnp.cross(b, c)
+    cross_da = jnp.cross(d, a)
+
+    term1 = jnp.arctan2(jnp.dot(a, cross_bc),
+                    (jnp.linalg.norm(a) * jnp.linalg.norm(b) * jnp.linalg.norm(c) +
+                     jnp.dot(a, b) * jnp.linalg.norm(c) +
+                     jnp.dot(c, a) * jnp.linalg.norm(b) +
+                     jnp.dot(b, c) * jnp.linalg.norm(a)))
+
+    term2 = jnp.arctan2(jnp.dot(c, cross_da),
+                    (jnp.linalg.norm(c) * jnp.linalg.norm(d) * jnp.linalg.norm(a) +
+                     jnp.dot(c, d) * jnp.linalg.norm(a) +
+                     jnp.dot(a, c) * jnp.linalg.norm(d) +
+                     jnp.dot(d, a) * jnp.linalg.norm(c)))
+
+    lk_ij = 1 / (2 * jnp.pi) * (term1 + term2)
+    return lk_ij
 
     
 # def fast_effective_potential_all(w):
