@@ -251,7 +251,7 @@ def create_nonintersecting_random_rods_contained_in_box(num_rods, rod_diameter, 
 
     return q
 
-# @numba.jit(nopython=True)
+@numba.jit(nopython=True)
 def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000):
     assert(len(container_size) == 3)
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -277,38 +277,13 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
             if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
                 onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
                 intersect = True
-                
-            # broadphase detection
-            u = onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
             
-            # existing rods            
-            start_points = q[:i,:3]            
-            
-            orientations = onp.array([onp.sin(q[:i,3]) * onp.cos(q[:i,4]),
-                                        onp.sin(q[:i,3]) * onp.sin(q[:i,4]),
-                                        onp.cos(q[:i,3])])
-            
-            orientations = orientations.T
-            start_to_start_chord = start_points - p_i
-            repeated_u = onp.repeat(u[None, :], len(orientations), axis=0)
-            crossed = onp.cross(repeated_u,orientations)
-            d_estimate = onp.abs(onp.sum(crossed*start_to_start_chord,axis=1)/onp.linalg.norm(crossed,axis=1))
-            
-            # proj_e = onp.dot(end_points - p_i,u)
-            # parallel_e = u * proj_e
-            
-            # TF1 = (proj < 0) & (proj_e < 0)
-            # TF2 = (proj > 1) & (proj_e > 1)
-            candidates = onp.where(d_estimate < rod_diameter*2)[0]
-            # proj = onp.clip(proj,-2,2)
-                        
-            # for j in range(i):
-            for j in candidates:
+            for j in range(i):
                 x2, y2, z2, phi2, theta2 = q[j]
                 p_j = onp.array([x2, y2, z2])
                 p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
                 
-                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj) # use vmap
+                distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
                 if distance < rod_diameter:
                     intersect = True
                     break
@@ -331,29 +306,6 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
         
         if i % 100 == 0:
             print(f"Rod {i} placed successfully")
-            
-    # sanity check
-    # sanity_check = 1
-    # if sanity_check:
-        
-    #     for i in range(num_rods):
-    #         x1, y1, z1, phi1, theta1 = q[i]
-    #         p1 = onp.array([x1, y1, z1])
-    #         u1 = onp.array([onp.sin(phi1) * onp.cos(theta1), onp.sin(phi1) * onp.sin(theta1), onp.cos(phi1)])
-    #         p1s = p1
-    #         p1e = p1 + u1
-            
-    #         for j in range(i+1,num_rods):
-    #             x2, y2, z2, phi2, theta2 = q[j]
-    #             p2 = onp.array([x2, y2, z2])
-    #             u2 = onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
-    #             p2s = p2
-    #             p2e = p2 + u2
-                
-    #             distance = dist_lin_seg_nonjax(p1s, p1e, p2s, p2e)
-    #             if distance < rod_diameter:
-    #                 print(f"Intersecting rods: {i}, {j}")
-    #                 print(f"distance: {distance}")                        
 
     return q
 
@@ -469,19 +421,67 @@ def create_nonintersecting_random_rods_contained_in_cylinder(num_rods, rod_diame
 
     return q
 
-
-def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3):
-    # f = total_effective_potential # bad name...    
-    q0 = create_random_rods(num_rods)
-    df = grad(f)
+def create_intersecting_rods(num_rods):
+    key = random.key(0)
+    # p1s = random.uniform(key, (num_rods,3), minval=-0.5, maxval=0.5)
+    key = random.key(1)
+    phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
+    key = random.key(2)
+    theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
     
+    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    
+    p1s = -jnp.concatenate([jnp.sin(phi1)*jnp.cos(theta1), jnp.sin(phi1)*jnp.sin(theta1), jnp.cos(phi1)],axis=1)*0.5
+    
+    theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
+    q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)
+    
+    x0 = q_to_x(q0)
+    center = jnp.mean(x0[:,:3],axis=0)
+    # q0[:,:3] = q0[:,:3] - center    
+    q0 = q0.at[:,:3].set(q0[:,:3] - center)
+    
+    q0 = q0.flatten()
+    q0 = jnp.array(q0,dtype=jnp.float64)
+    return q0
+
+def create_aligned_rods(num_rods):
+    centers = jnp.zeros((num_rods, 3))
+    for i in range(num_rods):
+        centers = centers.at[i, 0].set(i)
+        centers = centers.at[i, 1].set(0)
+        centers = centers.at[i, 2].set(0)
+    
+    phi1 = jnp.zeros((num_rods, 1))
+    theta1 = (jnp.pi / 2) * jnp.ones((num_rods, 1))
+    q0 = jnp.concatenate([centers, phi1, theta1], axis=1)
+    return q0.flatten()
+
+
+def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,initial_q=None,callback=None):
+    if callback == None:
+        _callback = lambda q: None
+    else:
+        _callback = callback
+    
+    # f = total_effective_potential # bad name...
+    if initial_q == None:
+        q0 = create_random_rods(num_rods)
+    elif initial_q == "test":
+        q0 = create_intersecting_rods(num_rods)
+    elif initial_q == "aligned":
+        q0 = create_aligned_rods(num_rods)
+    
+    df = grad(f)    
     df0 = df(q0)
     print(f"Initial error: {jnp.max(jnp.abs(df0))}")
     atol = atol*jnp.max(jnp.abs(df0))
         
     q = q0
     for k in range(1):
-        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt)
+        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt,callback=_callback)
         atol = atol/2
         # print(f"iteration: {k}")
         # print(f"f_val: {f_val:.2f}")
@@ -546,9 +546,9 @@ def maximally_entangled_rods(num_rods):
     onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_{dt_string}.txt",q_onp)
     
 
-def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False):    
+def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False,callback=None):
     
-    num_rods = q_in.shape[0]//5            
+    num_rods = q_in.shape[0]//5
     q_pairs = create_pairs(jnp.reshape(q_in,(-1,5)))
     print(q_pairs.shape)
         
@@ -585,6 +585,7 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         col_rad = 1./AR/2.*scale_factor
         
         packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
+        
         print_distance_info(d,col_rad,packing_id,export_folder)
         
         if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-2):
@@ -2509,12 +2510,8 @@ def Modelo3a():
     with open(log_file,'w') as f:
         f.write(log_string)
     print
-
-    
-# %%
-if __name__ == "__main__":
-    
-    batch_id = 'SugarDonut'
+def SugarDonut():
+    batch_id = 'SugarDonut3'
     data_folder = Path('/Users/yeonsu/Data/export/') / batch_id
     visual_folder = data_folder/'visuals'
     
@@ -2535,12 +2532,13 @@ if __name__ == "__main__":
     scale_factor = 2
     container_size = onp.array([0.95,0.95,2])
     
-    for AR in [25,50,75,100,105,110,115,120,125,150,175,200,250,300]:
+    for AR in [100]:#[25,50,75,100,105,110,115,120,125,150,175,200,250,300]:
         # for num_rods in [100,500]:
         container_volume = scale_factor**3
-        rod_diameter = (1./AR)
+        rod_diameter = (1./AR)*1
         # num_rods = int(container_volume*density_factor/rod_diameter)
         num_rods = AR*5
+        num_rods = 10
         
         # print(f'Num rods: {num_rods}')
         # density_factor = num_rods/(container_volume)**3*rod_diameter*1**2
@@ -2551,6 +2549,7 @@ if __name__ == "__main__":
                                                                 container_size=container_size,
                                                                 max_attempts=1000000)
         x = q_to_x(q)
+        onp.savetxt(data_folder/f'NonIntersectingBox-N{num_rods:06d}-AR{AR:03d}-Scale1.txt',x)
         
         # Make scale_factor copies in each direction
         x_new = onp.zeros((num_rods * scale_factor**3, 6))
@@ -2560,9 +2559,12 @@ if __name__ == "__main__":
                 for k in range(scale_factor):
                     start_idx = index * num_rods
                     end_idx = start_idx + num_rods
-                    x_new[start_idx:end_idx, 0:3] = x[:, 0:3] + onp.array([i, j, k]) * container_size
-                    x_new[start_idx:end_idx, 3:6] = x[:, 3:6] + onp.array([i, j, k]) * container_size
+                    x_new[start_idx:end_idx, 0:3] = x[:, 0:3] + onp.array([i, j, k]) * container_size*1.
+                    x_new[start_idx:end_idx, 3:6] = x[:, 3:6] + onp.array([i, j, k]) * container_size*1.
                     index += 1
+                    
+        x_new = x_new - onp.hstack((onp.mean(x_new.reshape(-1,3), axis=0),onp.mean(x_new.reshape(-1,3), axis=0)))
+        print(x_new.shape)
         
         new_num_rods = num_rods*scale_factor**3
         new_container_size = container_size*scale_factor
@@ -2585,6 +2587,54 @@ if __name__ == "__main__":
         ax.axis('equal')
         plt.savefig(visual_folder / f'NonIntersectingBox-N{new_num_rods:06d}-AR{AR:03d}-Scale1.png',dpi=300)
         plt.close()
-            
+        
+        
+
     
 # %%
+if __name__ == "__main__":
+    
+    num_rods = 1000
+    AR = 100
+    dt_string = '2021-09-15-18-00-00'
+    N_outer = 5
+    Nmax = 10
+    scale_factor = 1
+    
+    # def _callback():
+    #     print("Callback called")
+            
+    # create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=None)
+    q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=Nmax,atol=-1,dt=1e-3,initial_q="test")
+    
+    # q0 = create_intersecting_rods(num_rods)
+    
+    Nmax = 1000
+    col_rad = 1/AR/2
+    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
+    q = relax_collision(q0,params,N_outer,Nmax)
+
+    data_folder = '/Users/yeonsu/Data/'    
+    packing_batch_id = 'test_'
+    export_folder = f"{data_folder}/export/{packing_batch_id}"
+        
+    num_rods = q.shape[0]//5
+    q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+    d = pt.all_pairwise_distances(q_pairs)
+    
+    final_e = total_effective_potential(q)    
+    # print bunch of messages
+    print(f"Minimum distance: {jnp.min(d)}")
+    print(f"Distance median: {jnp.median(d)}")
+    print(f"Final entanglement: {final_e}")
+    # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
+    print(f"rod radius: {col_rad}")
+    print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
+    print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+    
+    
+    
+    
+    
+# %%
+np.sqrt(0.07/1000/10)*np.sqrt(2)
