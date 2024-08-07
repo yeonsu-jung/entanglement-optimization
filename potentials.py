@@ -353,14 +353,16 @@ def compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, ph
                      jnp.dot(a, b) * jnp.linalg.norm(c) +
                      jnp.dot(c, a) * jnp.linalg.norm(b) +
                      jnp.dot(b, c) * jnp.linalg.norm(a)))
+    term1 = jnp.abs(term1)
 
     term2 = jnp.arctan2(jnp.dot(c, cross_da),
                     (jnp.linalg.norm(c) * jnp.linalg.norm(d) * jnp.linalg.norm(a) +
                      jnp.dot(c, d) * jnp.linalg.norm(a) +
                      jnp.dot(a, c) * jnp.linalg.norm(d) +
                      jnp.dot(d, a) * jnp.linalg.norm(c)))
+    term2 = jnp.abs(term2)
 
-    lk_ij = 1 / (2 * jnp.pi) * (term1 + term2)
+    lk_ij = -1 / (2 * jnp.pi) * (term1 + term2)
     return lk_ij
 
     
@@ -590,20 +592,22 @@ def collision_penalized_entanglement_potential(q):
     phi_j = q[8]
     theta_j = q[9]
 
-    # p_i = jnp.array([x_i, y_i, z_i])
-    # p_j = jnp.array([x_j, y_j, z_j])
-    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
 
-    # l = 1
-    # p_ii = p_i + l*u_i
-    # p_jj = p_j + l*u_j
-    # dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
-    # collision_radius = 0.001
-    # dist_cont = 1.*(dist-collision_radius)**2
+    collision_radius = 0.01
+    dist_cont = 5.e4*(dist-collision_radius)**2
     # dist_cont = 0.
     
+    # eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    # eff_pot = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + dist_cont
     eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
     return eff_pot
 
@@ -941,22 +945,112 @@ def simple_harmonic_line_nonjax(q,params):
     #                      None)
     return amp*(dist-col_rad)**2
 
+def check_arai_formula():
+    p1 = jnp.array([-0.5,0,0],dtype=jnp.float64)
+    p2 = jnp.array([0.5,0,0],dtype=jnp.float64)
+    z = 0.00000001
+    q1 = jnp.array([0.,-0.5,z],dtype=jnp.float64)
+    q2 = jnp.array([0.,0.5,z],dtype=jnp.float64)
+    
+    u1 = p2 - p1
+    u1 /= jnp.linalg.norm(u1)
+    u2 = q2 - q1
+    u2 /= jnp.linalg.norm(u2)
+    
+    a = p1 - q1
+    b = p1 - q2
+    c = p2 - q2
+    d = p2 - q1
+    
+    cross_bc = np.cross(b, c)
+    cross_da = np.cross(d, a)
+    
+    term1 = np.arctan2(np.dot(a, cross_bc),
+                    (np.linalg.norm(a) * np.linalg.norm(b) * np.linalg.norm(c) +
+                     np.dot(a, b) * np.linalg.norm(c) +
+                     np.dot(c, a) * np.linalg.norm(b) +
+                     np.dot(b, c) * np.linalg.norm(a)))
+    
+    term2 = np.arctan2(np.dot(c, cross_da),
+                    (np.linalg.norm(c) * np.linalg.norm(d) * np.linalg.norm(a) +
+                     np.dot(c, d) * np.linalg.norm(a) +
+                     np.dot(a, c) * np.linalg.norm(d) +
+                     np.dot(d, a) * np.linalg.norm(c)))
+    
+    lk_ij = 1 / (2 * np.pi) * (term1 + term2)
+    print(lk_ij)
+    
+    def my_cart2_sph(u):
+        x,y,z=u
+        hxy = jnp.hypot(x, y)
+        r = jnp.hypot(hxy, z)
+        theta = jnp.arctan2(hxy, z)  # Polar angle (inclination)
+        phi = jnp.arctan2(y, x)      # Azimuthal angle
+        return r, theta, phi
+
+    
+    r1, theta1, phi1 = my_cart2_sph(u1)
+    r2, theta2, phi2 = my_cart2_sph(u2)
+   
+    lk = compute_linking_number_arai(p1[0], p1[1], p1[2], theta1, phi1, q1[0], q1[1], q1[2], theta2, phi2, 1)
+    lk2 = compute_linking_number(p1[0], p1[1], p1[2], theta1, phi1, q1[0], q1[1], q1[2], theta2, phi2, 1)
+    # lk = compute_linking_number(p1[0], p1[1], p1[2], az1, el1, q1[0], q1[1], q1[2], az2, el2, 1)
+    print(lk)
+    print(lk2)
+    print()
+    
+
 if __name__ == "__main__":
-    print(f"Hello World!")
-    
-    p1 = np.array([-1,0,0])
-    p2 = np.array([0.99,0,0])
-    q1 = np.array([1.0001,0,0])
-    q2 = np.array([5.0,0.,0])
-    
+    check_arai_formula()
     
     p1 = np.array([704.37623584, 769.77342393, 234.01175294])
     p2 = np.array([673.55325552,791.00241085, 238.54406944])
     q1 = np.array([670.9797848, 792.98033422, 238.72843565])
     q2 = np.array([627.21769586,823.2844119, 245.21007349])
-
     
     d = dist_lin_seg_nonjax(p1,p2,q1,q2)
+    
+    
+    def my_cart2_sph(u):
+        x = u[0]
+        y = u[1]
+        z = u[2]
+        
+        hxy = jnp.hypot(x, y)
+        r = jnp.hypot(hxy, z)
+        theta = jnp.arctan2(hxy, z)  # Polar angle (inclination)
+        phi = jnp.arctan2(y, x)      # Azimuthal angle
+        return r, theta, phi
+    
+    def x_to_q(x):
+        # p1 = x[0:3]
+        # p2 = x[3:6]
+        # q1 = x[6:9]
+        # q2 = x[9:12]
+        # return np.concatenate([p1,my_cart2_sph(p2),q1,my_cart2_sph(q2)])
+        num_rows = x.shape[0]
+        q = jnp.zeros((num_rows,5))
+        for i in range(num_rows):
+            u = x[i,3:6] - x[i,0:3]
+            # assert(np.linalg.norm(u) == 1)            
+            _,theta1,phi1=my_cart2_sph(u)
+            
+            # q[i] = jnp.array([x[i,0],x[i,1],x[i,2],theta1,phi1])
+            q[i].at[0].set(x[i,0])
+            q[i].at[1].set(x[i,1])
+            q[i].at[2].set(x[i,2])
+            q[i].at[3].set(theta1)
+            q[i].at[4].set(phi1)
+            
+        return q
+    
+    
+    x = np.vstack([p1,p2,q1,q2])
+    x = x.reshape(-1,6)
+    q = x_to_q(x)
+    print(q)
+    
+    
     print(d)
     
     
