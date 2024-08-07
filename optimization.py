@@ -5,7 +5,7 @@ import numpy as onp
 from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
 from matplotlib import pyplot as plt
 
-def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
+def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
     alpha0 = 0.1  # example starting value for alpha
@@ -70,7 +70,9 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
             print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
-            onp.save(f"qs/q_{i}.npy",onp.array(q))
+            if callback is not None:
+                callback(q)
+            # onp.save(f"qs/q_{i}.npy",onp.array(q))
         
         if jnp.isnan(F).any():
             print("NaN detected in variables")
