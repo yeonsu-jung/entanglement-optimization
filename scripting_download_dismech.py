@@ -1,11 +1,47 @@
 import os
 
 pathlist = []
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1605_RUN_EntangleSoftModelo1_N0125_AR025')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N0375_AR075')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N0500_AR100')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N1000_AR200')
-pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240629-1608_RUN_EntangleSoftModelo1_N1500_AR300')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-0441_COMPILE_gripper_2')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-1321_COMPILE_fric_worm_1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-1326_COMPILE_fric_worm_2')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-1329_COMPILE_fric_worm_3')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-1330_COMPILE_fric_worm_4')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-1331_COMPILE_fric_worm_5')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-2058_COMPILE_metal_nest')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240711-0104_COMPILE_gripper_1')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240714-1524_RUN_worm_3_20x_scale_relaxed.txt')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240714-1524_RUN_worm_4_20x_scale_relaxed.txt')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240714-1524_RUN_worm_2_20x_scale_relaxed.txt')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240714-1524_RUN_worm_1_20x_scale_relaxed.txt')
+
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240712-0127_COMPILE_gripper_1')
+# pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240712-0133_COMPILE_gripper_2')
+
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0125_AR025_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0250_AR050_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0300_AR060_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0350_AR070_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0375_AR075_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0400_AR080_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0450_AR090_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0500_AR100_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0525_AR105_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0550_AR110_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0575_AR115_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0600_AR120_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0875_AR175_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0625_AR125_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N0750_AR150_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N1250_AR250_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N1000_AR200_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240722-0331_RUN_PerturbCalmRigidModelo1_N1500_AR300_freq10')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20240721-2233_RUN_PerturbCalmRigidModelo1_N0300_AR060_freq100')
+
+
+
+
+
 
 # /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0300_AR060
 # /n/home01/yjung/Github/dismech-rods-main/runs/20240611-1139_RUN_HangEEModelo1_N0350_AR070
