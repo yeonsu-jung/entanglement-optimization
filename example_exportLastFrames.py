@@ -9,34 +9,28 @@ from pathlib import Path
 
 
 
-last_frame_out_path = f'/Users/yeonsu/GitHub/dismech-rods-main/data/EntangleSoftModelo1/'
+last_frame_out_path = f'/Users/yeonsu/GitHub/dismech-rods-main/data/CalmRigidModelo1/'
 
 pathlist = []
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1333_RUN_EntangleSoftModelo1_N0125_AR025')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1416_RUN_EntangleSoftModelo1_N0375_AR075')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1416_RUN_EntangleSoftModelo1_N0500_AR100')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1416_RUN_EntangleSoftModelo1_N0625_AR125')
-pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240628-1416_RUN_EntangleSoftModelo1_N1000_AR200')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N1500_AR300')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N1250_AR250')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N1000_AR200')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0875_AR175')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0750_AR150')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0625_AR125')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0600_AR120')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0575_AR115')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0550_AR110')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0525_AR105')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0500_AR100')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0450_AR090')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0400_AR080')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0375_AR075')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0350_AR070')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0300_AR060')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240620-0039_RUN_CalmEEModelo1_N0250_AR050')
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240619-2353_RUN_CalmEEModelo1_N0125_AR025')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0125_AR025_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0250_AR050_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0300_AR060_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0350_AR070_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0375_AR075_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0400_AR080_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0450_AR090_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0500_AR100_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0525_AR105_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0550_AR110_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0575_AR115_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0600_AR120_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0625_AR125_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0750_AR150_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N0875_AR175_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N1000_AR200_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N1250_AR250_freq10')
+pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PerturbRigidModelo1/20240722-0331_RUN_PerturbCalmRigidModelo1_N1500_AR300_freq10')
 
-# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/CalmModelo1/20240619-2353_RUN_CalmEEModelo1_N0125_AR025')
 
 
 
@@ -56,10 +50,11 @@ for folder_path in pathlist:
 
     dta = np.loadtxt(last_frame_path[0],delimiter=',',skiprows=1)
     if len(possible_paths) == 0:
-        print('No csv files found in the folder')
+        print('No csv files found in the folder')        
         exit()
     elif len(possible_paths) > 1:
         print('Multiple csv files found in the folder')
+        print(possible_paths)
         exit()
         
     pth = str(last_frame_path[0])
