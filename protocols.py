@@ -2593,10 +2593,11 @@ def SugarDonut():
     
 # %%
 if __name__ == "__main__":
-    
-    num_rods = 1000
+    import datetime
+    num_rods = 9
     AR = 100
-    dt_string = '2021-09-15-18-00-00'
+    now = datetime.datetime.now()
+    dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
     N_outer = 5
     Nmax = 10
     scale_factor = 1
@@ -2605,8 +2606,8 @@ if __name__ == "__main__":
     #     print("Callback called")
             
     # create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=None)
-    q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=Nmax,atol=-1,dt=1e-3,initial_q="test")
-    
+    q0 = create_random_rods(num_rods)
+    # %%
     # q0 = create_intersecting_rods(num_rods)
     
     Nmax = 1000
@@ -2615,7 +2616,7 @@ if __name__ == "__main__":
     q = relax_collision(q0,params,N_outer,Nmax)
 
     data_folder = '/Users/yeonsu/Data/'    
-    packing_batch_id = 'test_'
+    packing_batch_id = 'NineRods'
     export_folder = f"{data_folder}/export/{packing_batch_id}"
         
     num_rods = q.shape[0]//5
@@ -2631,10 +2632,3 @@ if __name__ == "__main__":
     print(f"rod radius: {col_rad}")
     print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
     print(f"Total number of rod pairs: {q_pairs.shape[0]}")
-    
-    
-    
-    
-    
-# %%
-np.sqrt(0.07/1000/10)*np.sqrt(2)
