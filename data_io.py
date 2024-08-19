@@ -5,10 +5,10 @@ import numpy as np
 import datetime
 import re
 
-from visualizations import set_3d_plot, plot_many_rods
+# from visualizations import set_3d_plot, plot_many_rods
 from matplotlib import pyplot as plt
 
-from utils import parse_id_string
+# from utils import parse_id_string
 import glob
 import scipy.io
 import os
@@ -336,7 +336,6 @@ def import_all_log(alllog_pth, start_row=0,max_rows = 10,skip_rows=1):
                 
     return time_line, node_list, contact_list
 # %%
-
 def pullout_video_frames_single_file(alllog_pth):
     log_string = ''
     
@@ -453,7 +452,7 @@ if __name__ == '__main__':
     #     possible_paths = [heaviest_file]
     # data_path = possible_paths[0]
         
-    data_path = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/NonIntersectingBox-N1500-AR300-Scale1-mu0.20-visc0.00-amp0.00_allLog_20240624-022314.csv'
+    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240710-1829_COMPILE_worm_1/log_files/cruved_rod_test_allLog_20240710-183010.csv'
     folder_path = Path(data_path).parent
     subfolder_name = 'Inbox'
     
@@ -467,7 +466,13 @@ if __name__ == '__main__':
     log_string = ''
     
     
-    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    # file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    # file_id = 'cruved_rod_test_allLog'
+    file_id = data_path.split('/')[-1].split('.')[0]
+    surfix = file_id.split('allLog_')[-1]
+    num_rods = 12
+    AR = 0.3/0.002/2
+    
     time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
     output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
     if not os.path.exists(output_path):
@@ -506,7 +511,7 @@ if __name__ == '__main__':
     nodes = nodes.reshape((-1,3))
     nodes = nodes - cen
     
-    num_nodes_each_rod = 10
+    num_nodes_each_rod = 25
     edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
 
     
@@ -523,7 +528,7 @@ if __name__ == '__main__':
     # ps.set_transparency_mode('simple')
 
     ps_all_nodes = ps.register_curve_network("all_nodes", nodes, edges, enabled=True)
-    ps_all_nodes.set_radius(rod_diameter/2*2,relative=False)
+    ps_all_nodes.set_radius(0.002,relative=True)
     
     # Add color to edges
     num_edges_in_a_rod = num_nodes_each_rod-1
@@ -535,7 +540,8 @@ if __name__ == '__main__':
     
 
     ps_all_nodes.set_material("clay")
-    ps.look_at((-5., 0., 1.), (0., 0., 0.))
+    # ps.look_at((-3., 0., 1.), (0., 0., 0.))
+    # ps.look_at((-3000., -3000, 0.), (0., 0., 0.))
     ps.set_up_dir("z_up")
     
 
@@ -547,13 +553,17 @@ if __name__ == '__main__':
     ps.screenshot('temp.png',transparent_bg=False)
     
     # %%
-    
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+    nodes = node_list[3]
+    nodes = nodes.reshape((-1,3))
+    nodes = nodes - cen
+    # ps.look_at((-3000., -3000, 0.), (0., 0., 0.))
     period = len(node_list)    
     ps_all_nodes.set_enabled(True)
-    ps.look_at((-10., 0., 1.), (0., 0., 0.))
+    # ps.look_at((-3., 0., 1.), (0., 0., 0.))
     for i_,t in enumerate(range(period)):
         all_node = node_list[i_]
-        all_node = all_node.reshape(num_rods,30)
+        all_node = all_node.reshape(num_rods,-1)
         nodes = all_node.reshape(-1,3)
         nodes = nodes - cen
         
