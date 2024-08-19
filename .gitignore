@@ -31,3 +31,4 @@ runs/*
 
 perform-segmentation/*
 qs/*
+filament_fields_output/*
