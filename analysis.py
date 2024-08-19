@@ -1372,11 +1372,7 @@ def get_closest_points(contact_entry,curr_nodes):
     
     return popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2
 
-
-
-    
-def analyze_csv_file(data_path,skip_frames):
-    
+def analyze_csv_file(data_path,skip_frames):    
     
     log_string = ''
     file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
