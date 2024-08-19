@@ -209,7 +209,7 @@ for i_,dc in enumerate(entanglement_data_container_list):
 plt.legend(fontsize=6)
 plt.xlabel('Time (sec)')
 plt.ylabel('Normalized total entanglement')
-plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tight')
 
 # %%
     
@@ -236,13 +236,13 @@ plt.ylabel(r'$Z$')
 
 plt.legend(loc='lower right',fontsize=4)
 # plt.xlim([0,10])
-plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.png',dpi=300,bbox_inches='tight')
 # %%
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 plt.plot(last_part_averaged,'o-')
 plt.xlabel(r'$\alpha$')
 plt.ylabel(r'$Z$')
-plt.savefig(f'{output_dir}/Z-over-alpha.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/Z-over-alpha.png',dpi=300,bbox_inches='tight')
 
 
 # %%
@@ -284,7 +284,7 @@ for e_avg in means:
     plt.plot(tt,e_avg,label=f'AR={ARs[i_]}',linewidth=0.5)
 ax.set_xlabel(r'$t$ (sec)')
 ax.set_ylabel(r'$\mu(e)$')
-plt.savefig(f'{output_dir}/entanglement-over-time-mean.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-over-time-mean.png',dpi=300,bbox_inches='tight')
 
     
     # plt.plot(tt,e_std/e_avg,label=f'AR={ARs[i_]}',linewidth=0.5)
@@ -302,7 +302,7 @@ ax.set_ylabel(r'$\sigma/\mu$')
 plt.yticks(rotation=90)
 
 # plt.legend(loc='lower left',fontsize=6)
-plt.savefig(f'{output_dir}/coef-var-over-time-e.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/coef-var-over-time-e.png',dpi=300,bbox_inches='tight')
 # %%
 
     
@@ -325,7 +325,7 @@ axs[1].set_ylim([0,2])
 plt.legend(loc='lower right',fontsize=6)
 
 
-plt.savefig(f'{output_dir}/coef-var-over-time-e-and-c.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/coef-var-over-time-e-and-c.png',dpi=300,bbox_inches='tight')
 
 # %%
 
@@ -362,7 +362,7 @@ fig,ax=plt.subplots(1,1,figsize=single_column_size)
 plt.errorbar(np.array([25,50,75,100,125,200,300]),avg_entanglement,yerr=std_entanglement,fmt='o')
 ax.set_xlabel(r'$\alpha$')
 ax.set_ylabel(r'$\mu$')
-plt.savefig(f'{output_dir}/entanglement-over-alpha-with-error.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-over-alpha-with-error.png',dpi=300,bbox_inches='tight')
 
 # %%
 single_column_size = (1.3,1.1)
@@ -372,7 +372,7 @@ ax.set_xlabel(r'$\alpha$')
 ax.set_ylabel(r'$\sigma/\mu$')
 # ax.set_xscale('log')
 # ax.set_yscale('log')
-plt.savefig(f'{output_dir}/entanglement-sigma-over-mu.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-sigma-over-mu.png',dpi=300,bbox_inches='tight')
 
 cve = std_entanglement/avg_entanglement
 
@@ -438,7 +438,7 @@ axs[0].set_ylabel(r'$\max(e)$')
 axs[1].plot(ARs,max_c,'o')
 axs[1].set_xlabel(r'$\alpha$')
 axs[1].set_ylabel(r'$\max(c)$')
-plt.savefig(f'{output_dir}/max-e-max-c.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/max-e-max-c.png',dpi=300,bbox_inches='tight')
 
 # %%
 fig,axs=plt.subplots(1,2,figsize=(12,6))
@@ -449,20 +449,20 @@ axs[0].set_ylabel(r'$\max(e)$')
 axs[1].plot(ARs,max_c/avg_entanglement,'o')
 axs[1].set_xlabel(r'$\alpha$')
 axs[1].set_ylabel(r'$\max(c)$')
-plt.savefig(f'{output_dir}/max-e-max-c-normalized.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/max-e-max-c-normalized.png',dpi=300,bbox_inches='tight')
 # %%
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 ax.plot(ARs,max_e/avg_entanglement,'o')
 ax.set_xlabel(r'$\alpha$')
 ax.set_ylabel(r'$\max(e)/\langle e \rangle$')
-plt.savefig(f'{output_dir}/max-e-over-alpha-normalized.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/max-e-over-alpha-normalized.png',dpi=300,bbox_inches='tight')
 
 # %%
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
 ax.plot(ARs,max_c/avg_contact,'o')
 ax.set_xlabel(r'$\alpha$')
 ax.set_ylabel(r'$\max(c)/\langle c \rangle$')
-plt.savefig(f'{output_dir}/max-c-over-alpha-normalized.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/max-c-over-alpha-normalized.png',dpi=300,bbox_inches='tight')
 # %%
 
 
@@ -496,7 +496,7 @@ for i_,hist_result in enumerate(histogram_results):
 ax.set_xlabel(r'$e(\mathbf{x})$')
 ax.set_ylabel('PDF')
 plt.legend()
-plt.savefig(f'{output_dir}/entanglement-power-law-distribution-big-panel.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-power-law-distribution-big-panel.png',dpi=300,bbox_inches='tight')
 
 # %%
 single_column_size = (1.3,1.1)
@@ -514,6 +514,7 @@ for i_,hist_result in enumerate(histogram_results):
 
     
     ax.loglog(xx,yy,'.-',markersize=1,linewidth=0.5)
+    
     # ax.loglog(xx,yy,'.-',markersize=1,label=fr'$\alpha={ARs[i_]}$',linewidth=0.5)
     # clr = ax.get_lines()[-1].get_color()
     
@@ -540,10 +541,43 @@ popt,pcov=curve_fit(three_fourth,x,y)
 ax.loglog(x,three_fourth(x,*popt),'--',linewidth=0.5,label=rf'y={popt[0]:.2f}x^{{-3/4}}')
 
 
-# plt.xticks(rotation=45, ha='right')
-plt.yticks(rotation=90, ha='right')
+
+
+for spine in ax.spines.values():
+    spine.set_linewidth(0.25) 
+    
+
+# Increase the size of minor ticks
+# ax.tick_params(axis='both', which='minor', length=4, width=0.5)
+
+# Customize tick formatter (optional, depends on your data range)
+# from matplotlib.ticker import LogFormatter
+# ax.xaxis.set_major_formatter(LogFormatter())
+# ax.yaxis.set_major_formatter(LogFormatter())
+
+# # Set limits if necessary to ensure all ticks are shown
+# ax.set_xlim(xx.min(), xx.max())
+# ax.set_ylim(yy.min(), yy.max())
+plt.tick_params(axis='y', which='minor')
+plt.tick_params(axis='x', which='minor')
+
+
+# plt.xticks(np.logspace(-3,3,6),rotation=45, ha='right')
+# plt.yticks([0.001,1],rotation=90, ha='right')
+
+# Enable minor ticks
+# ax.minorticks_on()
+
+# Customize tick formatter (optional, depends on your data range)
+# from matplotlib.ticker import LogFormatter
+# ax.xaxis.set_major_formatter(LogFormatter())
+# ax.yaxis.set_major_formatter(LogFormatter())
+
+# Set limits if necessary to ensure all ticks are shown
+# ax.set_xlim(xx.min(), xx.max())
+# ax.set_ylim(yy.min(), yy.max())
 # plt.legend(fontsize=6)
-plt.savefig(f'{output_dir}/entanglement-power-law-distribution.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/entanglement-power-law-distribution2.png',dpi=300,bbox_inches='tight')
 
 # %%
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
@@ -576,7 +610,8 @@ ax.set_xlabel(r'$c$')
 ax.set_ylabel(r'$p(c)$')
 plt.yticks(rotation=90, ha='right')
 plt.legend(fontsize=4)
-plt.savefig(f'{output_dir}/contact-power-law-distribution.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{output_dir}/contact-power-law-distribution.pdf',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/contact-power-law-distribution.png',dpi=300,bbox_inches='tight')
 
     
 # %%
@@ -680,7 +715,7 @@ ax.set_yscale('log')
 plt.xlabel(r'$\alpha$')
 plt.ylabel(r'$f$')
 plt.legend(fontsize=6)
-plt.savefig(f'{output_dir}/f-over-alpha.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{output_dir}/f-over-alpha.png',dpi=300,bbox_inches='tight')
 
 # %%
 output_root = f'/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
@@ -732,7 +767,7 @@ for i_,dc in enumerate(entanglement_data_container_list):
     N = int(search_result.group(1))
     AR = int(search_result.group(2))
     
-    if AR == 50:
+    if AR == 25:
                 
         phi_fields = dc.dataobj['phi_fields_over_time']
         # phi_fields = phi_fields[:667]
@@ -751,15 +786,18 @@ for i_,dc in enumerate(entanglement_data_container_list):
         phi_volume = phi_field_last_frame.reshape(image_size,image_size,image_size)
         e_volume = e_field_last_frame.reshape(image_size,image_size,image_size)
         c_volume = c_field_last_frame.reshape(image_size,image_size,image_size)
+        
+        avg_e = np.nanmean(e_volume)
+        avg_c = np.nanmean(c_volume)
 
         c_volume[np.isnan(e_volume)] = np.nan
 
         phi_image = np.mean(phi_volume,axis=0)
         phi_image = np.flipud(phi_image.T)
         e_image = np.mean(e_volume,axis=0)
-        e_image = np.flipud(e_image.T)
+        e_image = np.flipud(e_image.T)/avg_e
         c_image = np.mean(c_volume,axis=0)
-        c_image = np.flipud(c_image.T)
+        c_image = np.flipud(c_image.T)/avg_c
 
 
         double_column_size = (5,3.5)
@@ -770,11 +808,11 @@ for i_,dc in enumerate(entanglement_data_container_list):
         fig.colorbar(axs[0].imshow(phi_image,cmap='coolwarm'),
                     ax=axs[0],orientation='horizontal')
 
-        fig.colorbar(axs[1].imshow(e_image,cmap='coolwarm'),
-                        ax=axs[1],orientation='horizontal')
-
-        fig.colorbar(axs[2].imshow(c_image,cmap='coolwarm'),
+        fig.colorbar(axs[2].imshow(e_image,cmap='coolwarm'),
                         ax=axs[2],orientation='horizontal')
+
+        fig.colorbar(axs[1].imshow(c_image,cmap='coolwarm'),
+                        ax=axs[1],orientation='horizontal')
 
         for ax in axs:
             ax.axis('off')
