@@ -90,17 +90,17 @@ def process_contact_data(single_contact_info,curr_nodes):
     
     return contact_info
 def get_curr_force_essentials(curr_force_all_info,curr_nodes):
-            num_total_contacts = len(curr_force_all_info)
-            curr_force_essentials = np.zeros((num_total_contacts,6))
-            for query_index in range(num_total_contacts):
-                single_contact_info = curr_force_all_info[query_index]
-                contact_info = process_contact_data(single_contact_info,curr_nodes)        
-                pi = contact_info['contact_point_i']
-                pj = contact_info['contact_point_j']
-                cij = (pi+pj)/2
-                fij = contact_info['contact_force_i']        
-                curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
-            return curr_force_essentials
+    num_total_contacts = len(curr_force_all_info)
+    curr_force_essentials = np.zeros((num_total_contacts,6))
+    for query_index in range(num_total_contacts):
+        single_contact_info = curr_force_all_info[query_index]
+        contact_info = process_contact_data(single_contact_info,curr_nodes)        
+        pi = contact_info['contact_point_i']
+        pj = contact_info['contact_point_j']
+        cij = (pi+pj)/2
+        fij = contact_info['contact_force_i']        
+        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
+    return curr_force_essentials
 
 def main():
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -111,15 +111,15 @@ def main():
     folder_path = args.folder_path
     
     if args.protocol_id is None:
-        protocol_id = 'CarrotCake5'
-        folder_path ='/Users/yeonsu/Data/from_cluster/20240531-2224_RUN_EntangleCarrotCake5_N0625-AR125'
+        protocol_id = 'Modelo1'
+        folder_path ='/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PertrubCalmEEModelo1-Fullset/20240620-1302_RUN_PerturbCalmEEModelo1_N1500_AR300_freq100'
     
     # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
     print(f'Analyzing the dataset')
     print(f'Protocol ID: {protocol_id}')
     print(f'Folder path: {folder_path}')
     
-    R_omega_factor = 4
+    R_omega_factor = 1
     arrow_scale_factor = 100
     
     rod_length = 1
@@ -132,7 +132,7 @@ def main():
     visualize_rods_contacts = 1
     skip_frames = 10
     max_rows = 100000
-    overlap_factor = 5
+    overlap_factor = 2
     
     folder_path = Path(folder_path)
 
@@ -233,6 +233,48 @@ def main():
     total_entanglement_over_time = np.zeros(len(time_line))
     
     fF = filamentFields.filamentFields([],[])
+    
+    last_nodes = node_list[-1].reshape((-1,10,3))
+    last_force_all_info = contact_list[-1].reshape(-1,18)
+    last_force_essentials = get_curr_force_essentials(last_force_all_info,last_nodes)
+    
+    fF.update_filament_nodes_list(last_nodes)
+    fF.update_contact_array(last_force_essentials)
+    
+    fF.precompute(R_omega)
+    results = fF.analyze_local_volume_over_domain_from_precomputed(sampling_points, R_omega, rod_diameter)
+    n_volume = results[:,0].reshape((num_grids,num_grids,num_grids))
+    e_volume = results[:,3].reshape((num_grids,num_grids,num_grids))
+    e_volume.shape
+       
+    from skimage.morphology import convex_hull_image
+    convex_hull = convex_hull_image(n_volume > 0)
+    e_field_inside = e_volume[convex_hull]
+    plt.hist(e_field_inside,bins=100)
+    
+    Q1 = np.percentile(e_field_inside, 25)
+    Q3 = np.percentile(e_field_inside, 75)
+    IQR = Q3 - Q1
+    outlier_step = 1.5 * IQR
+    upper_bound = Q3 + outlier_step
+    
+    img = np.max(e_volume,axis=0)
+    img = np.flipud(img.T)
+    
+    plt.imshow(img)
+    
+    n_fields = np.zeros(len(sampling_points))
+    e_fields = np.zeros(len(sampling_points))
+    for iterator,sampling_point in enumerate(sampling_points):
+        fF.analyze_local_volume_from_precomputed(sampling_point, 4*R_omega, rod_diameter)
+        n_fields[iterator] = fF.return_number_of_labels()
+        e_fields[iterator] = fF.return_entanglement()
+        
+    n_volume = n_fields.reshape((num_grids,num_grids,num_grids))
+    e_volume = e_fields.reshape((num_grids,num_grids,num_grids))
+    
+
+
     start = time.time()
     last_frame = len(time_line)-1
     print(f'Last frame: {last_frame}')
