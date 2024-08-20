@@ -113,32 +113,47 @@ def compute_material_director(vertices,angle_list,m1,m2,d1,d2):
         
 import numpy as np
 
+def reconstruct_t_curr(kb, t_prev):
+    kb_norm = np.linalg.norm(kb)
+    if kb_norm == 0:
+        # No curvature, t_curr is aligned with t_prev
+        return t_prev
+
+    # Compute the rotation angle theta
+    theta = 2 * np.arcsin(0.5 * kb_norm)
+    
+    # Normalize kb to use as rotation axis
+    axis = kb / kb_norm
+    
+    # Use Rodrigues' rotation formula to rotate t_prev by theta around axis
+    t_curr = (
+        t_prev * np.cos(theta) +
+        np.cross(axis, t_prev) * np.sin(theta) +
+        axis * np.dot(axis, t_prev) * (1 - np.cos(theta))
+    )
+    
+    return t_curr / np.linalg.norm(t_curr)
+
 def reconstruct_vertices(kappa_1, kappa_2, initial_vertex, initial_tangent, arc_length):
     num_segments = len(kappa_1)
-    vertices = np.zeros((num_segments + 2, 3))
+    vertices = np.zeros((num_segments + 1, 3))
     tangents = np.zeros((num_segments + 1, 3))
     
     # Initialize the first vertex and tangent
     vertices[0] = initial_vertex
     tangents[0] = initial_tangent / np.linalg.norm(initial_tangent)
-    vertices[1] = vertices[0] + tangents[0] * (arc_length[1]-arc_length[0])
     
     # Initialize material frame
     m1 = np.cross(tangents[0], np.array([0.0, 0.0, -1.0]))
     m1 /= np.linalg.norm(m1)
     m2 = np.cross(tangents[0], m1)
     
-    # m1 = np.cross(tangents[0],np.array([0.0,0.0,-1.0]))
-    # m2 = np.cross(tangents[0],m1)
-    
     for i in range(num_segments):
-        # Compute the change in tangent based on kappa_1 and kappa_2
-        kb = kappa_1[i] * m1 + kappa_2[i] * m2
-        delta_tangent = np.cross(kb, tangents[i])
+        # Compute the curvature binormal vector from kappa_1 and kappa_2
+        curvature_binormal = kappa_1[i] * m1 + kappa_2[i] * m2
         
-        # Update the tangent vector
-        tangents[i + 1] = tangents[i] + delta_tangent * (arc_length[i+1] - arc_length[i])
-        tangents[i + 1] /= np.linalg.norm(tangents[i + 1])
+        # Reconstruct the next tangent vector
+        tangents[i + 1] = reconstruct_t_curr(curvature_binormal, tangents[i])
         
         # Parallel transport the material frame
         m1 = parallel_transport(m1, tangents[i], tangents[i + 1])
