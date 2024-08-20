@@ -6,7 +6,8 @@ import polyscope as ps
 import numpy as np
 
 # %%
-pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240708-1807_COMPILE_test/log_files/active_entanglement/node_20240708-180744.csv'
+# pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240708-1807_COMPILE_test/log_files/active_entanglement/node_20240708-180744.csv'
+pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240820-0150_COMPILE_Damping0.1_EndTime2_NonArcLenParam/log_files/active_entanglement/node_20240820-015025.csv'
 
 from pathlib import Path
 
@@ -28,18 +29,11 @@ spatial_data,timepoints = import_from_dismech(pth,num_rods)
 num_nodes_each_rod = spatial_data.shape[1]//3
 # %%
 num_time_points = spatial_data.shape[0]
-x0 = spatial_data[0]
+x0 = spatial_data[-1]
 nodes = x0.reshape(-1,3)
 edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
 
-# %%
-# x0 = np.loadtxt('/Users/yeonsu/GitHub/entanglement-optimization/vertices_n1.txt',delimiter=',')
-# rod_diameter = 0.015
-# num_nodes_each_rod = x0.shape[0]
-# x0.reshape(num_rods,-1).shape
-# nodes = x0.reshape(-1,3)
-# num_nodes_each_rod = 2
-# edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
+
 # %%
 colors = np.array([
     [76, 153, 204],   # light blue
@@ -53,7 +47,6 @@ colors = np.array([
     [204, 204, 76],   # sunflower yellow
     [102, 76, 204]    # indigo
 ])
-
 
 ps.init()
 
@@ -81,12 +74,12 @@ ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', en
 ps.set_up_dir("z_up")
 ps.set_front_dir("x_front")
 # ps.look_at((-0.5,-0.5,-0.5),(0,0,0))
-# ps.show()
+ps.show()
 ps.screenshot('temp.png',transparent_bg=False)
 
 # %%
-# ps.set_front_dir("x_front")
-ps.set_front_dir("y_front")
+ps.set_front_dir("x_front")
+# ps.set_front_dir("y_front")
 
 output_path = f'/Users/yeonsu/Videos/TestActiveWorms/{identifer}'
 import os
