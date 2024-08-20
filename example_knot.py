@@ -407,7 +407,7 @@ ps.set_up_dir('z_up')
 ps.show()
 
 # %%
-%matplotlib qt
+# %matplotlib qt
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
