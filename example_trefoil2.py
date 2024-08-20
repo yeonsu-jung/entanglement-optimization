@@ -15,10 +15,9 @@ num_vertices = 120
 t_power = 1
 
 t = np.linspace(0, (2 * np.pi)**t_power, num_vertices)
-t = t**(1/t_power)
-
-# plt.close('all')
-# plt.plot(t)
+t = (t-np.pi)**2 + np.pi
+plt.close('all')
+plt.plot(t,'o')
 
 # %%
 # TODO: deal with tight ends
@@ -79,14 +78,9 @@ initial_vertex = np.array([[0,0,0]])
 initial_tangent = np.array([[0,1,0]])
 # Example usage:
 # Assume kappa_1, kappa_2, initial_vertex, initial_tangent, and arc_length are defined
-reconstructed_vertices = drod.reconstruct_vertices(kappa_1, kappa_2, initial_vertex, initial_tangent, arc_length)
+scale_factor = 0.835
+reconstructed_vertices = drod.reconstruct_vertices(kappa_1*scale_factor, kappa_2*scale_factor, initial_vertex, initial_tangent, arc_length)
 
-
-
-
-
-
-# %%
 plt.close('all')
 fig = plt.figure()
 ax=fig.add_subplot(111,projection='3d')
