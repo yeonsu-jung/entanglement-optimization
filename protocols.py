@@ -79,7 +79,7 @@ def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):
 
 def create_random_rods(num_rods):
     # create jnp random array
-    key = random.key(0)
+    key = random.key(3)
     p1s = random.uniform(key, (num_rods,3), minval=-0.5, maxval=0.5)
     key = random.key(1)
     phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
@@ -550,12 +550,11 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
     
     num_rods = q_in.shape[0]//5
     q_pairs = create_pairs(jnp.reshape(q_in,(-1,5)))
-    print(q_pairs.shape)
-        
-    q = q_in    
+    
+    q = q_in
     for k in range(N_outer):
         params["amp"] = params["amp"]*1.3
-        f = lambda q: f_in(q,params)    
+        f = lambda q: f_in(q,params)
         df = grad(f)
         df0 = jnp.max(jnp.abs(df(q_in)))
         print(f"Initial error: {df0}")
@@ -573,20 +572,19 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         
         x = q_to_x(q)
         
-        with open(f"/Users/yeonsu/Data/relaxation_process.txt", "ab") as file:
-            # write a line
-            for i in range(q.shape[0]):
-                file.write(f"{q[i]:.4f}".encode())
-                file.write(b" ")
-            file.write(b"\n")
+        # with open(f"/Users/yeonsu/Data/relaxation_process.txt", "ab") as file:
+        #     # write a line
+        #     for i in range(q.shape[0]):
+        #         file.write(f"{q[i]:.4f}".encode())
+        #         file.write(b" ")
+        #     file.write(b"\n")
         
         pairs = create_pairs(x)
         d = all_pairwise_distances_xyz(pairs)
         col_rad = 1./AR/2.*scale_factor
         
-        packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
-        
-        print_distance_info(d,col_rad,packing_id,export_folder)
+        # packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
+        # print_distance_info(d,col_rad,packing_id,export_folder)
         
         if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-2):
             break
@@ -2594,7 +2592,7 @@ def SugarDonut():
 # %%
 if __name__ == "__main__":
     import datetime
-    num_rods = 9
+    num_rods = 25
     AR = 100
     now = datetime.datetime.now()
     dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
@@ -2604,13 +2602,21 @@ if __name__ == "__main__":
     
     # def _callback():
     #     print("Callback called")
-            
     # create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=None)
-    q0 = create_random_rods(num_rods)
+    # q0 = create_random_rods(num_rods)
+    rod_diameter = 1/AR
+    # q0 = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
+    container_size = onp.array([0.8,0.8,0.3])
+    q0 = create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000)
+
+    
+    plot_many_rods(q0.reshape(-1,5))
+    x = q_to_x(q0)
+    onp.savetxt(f'Rods-N25-AR100-Scale1.txt',x)
     # %%
     # q0 = create_intersecting_rods(num_rods)
     
-    Nmax = 1000
+    Nmax = 10
     col_rad = 1/AR/2
     params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025}
     q = relax_collision(q0,params,N_outer,Nmax)
@@ -2631,4 +2637,5 @@ if __name__ == "__main__":
     # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
     print(f"rod radius: {col_rad}")
     print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
-    print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+    print(f"Total number of rod pairs: {q_pairs.shape[0]}")    
+    
