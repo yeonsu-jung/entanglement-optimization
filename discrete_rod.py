@@ -1,5 +1,18 @@
 import numpy as np
 
+class DiscreteRod:
+    def __init__(self, vertices):
+        self.vertices = vertices
+        
+        self.num_vertices = vertices.shape[0]
+        self.tangents = np.diff(vertices, axis=0)
+        self.arc_length = np.cumsum(np.linalg.norm(self.tangents, axis=1))
+        self.tangents /= np.linalg.norm(self.tangents, axis=1)[:, None]
+        
+        
+    
+    
+
 def compute_kappa(vertices,m1,m2):
     tangents = np.diff(vertices,axis=0)    
     kb = 2 * np.cross(tangents[:-1], tangents[1:]) / (1 + np.sum(tangents[:-1] * tangents[1:], axis=1)[:, None])
