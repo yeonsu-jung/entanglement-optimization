@@ -647,7 +647,7 @@ def explode_in_point_sense(q):
 def entangle_and_relax(num_rods,params):
     
     # entangle
-    q_ent = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1.e-1,dt=1.e-3,logoutput=False,visualize=False)    
+    q_ent = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1.e-1,dt=1.e-3)
     
     # relax
     q_ent = jnp.array(q_ent,dtype=jnp.float64)
@@ -1624,7 +1624,8 @@ class logger():
     
     
 def batch_process():
-    packing_batch_id = sys.argv[1]
+    # packing_batch_id = sys.argv[1]
+    packing_batch_id = "test_0903"
     assert(packing_batch_id is not None)
     print(f"Creating a set of packings for batch: {packing_batch_id}")
     
@@ -2586,11 +2587,7 @@ def SugarDonut():
         plt.savefig(visual_folder / f'NonIntersectingBox-N{new_num_rods:06d}-AR{AR:03d}-Scale1.png',dpi=300)
         plt.close()
         
-        
-
-    
-# %%
-if __name__ == "__main__":
+def example_august_2024():
     import datetime
     num_rods = 25
     AR = 100
@@ -2613,7 +2610,7 @@ if __name__ == "__main__":
     plot_many_rods(q0.reshape(-1,5))
     x = q_to_x(q0)
     onp.savetxt(f'Rods-N25-AR100-Scale1.txt',x)
-    # %%
+    
     # q0 = create_intersecting_rods(num_rods)
     
     Nmax = 10
@@ -2639,3 +2636,24 @@ if __name__ == "__main__":
     print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*col_rad)}")
     print(f"Total number of rod pairs: {q_pairs.shape[0]}")    
     
+        
+        
+        
+# def create_packing():
+    # num_rods
+    # length fixed to 1
+    # AR
+    # container dimension
+    # container type: box, sphere, ...
+    # 
+    # return 1
+
+    
+# %%
+if __name__ == "__main__":
+    
+    num_rods = 500
+    AR = 100
+    dt_string, folder_name = archiving()
+    
+    example_Apr22(num_rods,AR,dt_string,folder_name)
