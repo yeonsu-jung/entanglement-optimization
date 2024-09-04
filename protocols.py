@@ -310,6 +310,64 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
     return q
 
 @numba.jit(nopython=True)
+def create_intersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000):
+    assert(len(container_size) == 3)
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-container_size[0]/2, container_size[0]/2)
+            y = onp.random.uniform(-container_size[1]/2, container_size[1]/2)
+            z = onp.random.uniform(-container_size[2]/2, container_size[2]/2)
+            
+            tmp = onp.random.uniform(-1,1)
+            phi = onp.arccos(tmp)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            # Check if the rod's endpoints are within the box boundaries
+            if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
+                onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
+                intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                # distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                # if distance < rod_diameter:
+                #     intersect = True
+                #     break
+                
+                # # Check if the rod's endpoints are within the box boundaries
+                # if (onp.any(p_j < -container_size/2) or onp.any(p_j > container_size/2) or
+                #     onp.any(p_jj < -container_size/2) or onp.any(p_jj > container_size/2)):
+                #     intersect = True
+                #     break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
+@numba.jit(nopython=True)
 def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diameter,container_size,max_attempts=10000):
     print('create_nonintersecting_random_rods whose centroids in a container')        
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -562,6 +620,7 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
         
         if (error < atol_min):
+            print(f"Error is smaller than atol_min: {error}")
             break
         
         print(f"Outer iteration: {k}")
@@ -572,24 +631,15 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         
         x = q_to_x(q)
         
-        # with open(f"/Users/yeonsu/Data/relaxation_process.txt", "ab") as file:
-        #     # write a line
-        #     for i in range(q.shape[0]):
-        #         file.write(f"{q[i]:.4f}".encode())
-        #         file.write(b" ")
-        #     file.write(b"\n")
-        
         pairs = create_pairs(x)
         d = all_pairwise_distances_xyz(pairs)
         col_rad = 1./AR/2.*scale_factor
         
-        # packing_id = f'Entrel-N{num_rods}-AR{AR}-Scale{scale_factor}'
-        # print_distance_info(d,col_rad,packing_id,export_folder)
-        
-        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-2):
+        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-6):
+            print("Minimum distance is close to 2*col_rad")
             break
         
-        atol = atol/1.3 # TO DO: factor out this numbers
+        # atol = atol/1.3 # TO DO: factor out this numbers
         dt = dt/1.3     # TO DO: factor out this numbers
     
     fval0 = f(q_in)
@@ -669,7 +719,7 @@ def relax_collision(q,params,N_outer,Nmax):
     q = collision_relaxation(q,total_harmonic_line,
                                  params,
                                  N_outer=N_outer,
-                                 Nmax=Nmax,atol=1e-5,dt=1.e-3,atol_min=1e-9,
+                                 Nmax=Nmax,atol=1e-7,dt=1.e-3,atol_min=1e-12,
                                  visualize=False)
     
     return q
@@ -2652,8 +2702,80 @@ def example_august_2024():
 # %%
 if __name__ == "__main__":
     
+    import datetime
+    N_outer = 5
+    Nmax = 1000
+    scale_factor = 1
+        
+        
     num_rods = 500
-    AR = 100
-    dt_string, folder_name = archiving()
+    now = datetime.datetime.now()
     
-    example_Apr22(num_rods,AR,dt_string,folder_name)
+    for AR in [299]:
+    
+        dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")        
+        packing_id = f'RandomRelaxedPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
+        
+        rod_diameter = 1/AR
+        container_size = onp.array([1,1,1]) + rod_diameter/2
+        q0 = create_intersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000)
+        
+        plot_many_rods(q0.reshape(-1,5))
+        plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_initial.png')
+        
+        params = {"col_rad": rod_diameter/2, "amp": 10., "sigma": 0.025}
+        q = relax_collision(q0,params,N_outer,Nmax)
+        plot_many_rods(q)
+        plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
+        
+        x = q_to_x(q)
+        center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+        x = x - jnp.array([*center,*center])    
+        x = scale_factor*x
+        
+        onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+        
+        q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+        d = pt.all_pairwise_distances(q_pairs)
+        
+        final_e = total_effective_potential(q)    
+        # print bunch of messages
+        print(f"Minimum distance: {jnp.min(d)}")
+        print(f"Distance median: {jnp.median(d)}")
+        print(f"Final entanglement: {final_e}")
+        # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
+        print(f"rod radius: {params['col_rad']}")
+        print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}")
+        print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+        
+        log_output = ""
+        log_output += f"Minimum distance: {jnp.min(d)}\n"
+        log_output += f"Distance median: {jnp.median(d)}\n"
+        log_output += f"Final entanglement: {final_e}\n"
+        log_output += f"rod radius: {params['col_rad']}\n"
+        
+        log_output += f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}\n"
+        log_output += f"Total number of rod pairs: {q_pairs.shape[0]}\n"
+        
+        # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
+        with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
+            f.write(log_output)
+    # export the output too
+    
+    
+    
+    # data_folder = '/Users/yeonsu/Data/'
+    # cache_folder = f"{data_folder}/cache"
+    # export_folder = f"{data_folder}/export"
+        
+    # N_outer = 5
+    # Nmax = 500
+    # scale_factor = 1
+        
+    # # num_rods = 100
+    # # AR = 20
+    
+    # for num_rods in [500]:
+    #     for AR in [20,50,100,200,300,500]:
+    #         dt_string, folder_name = archiving()
+    #         create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
