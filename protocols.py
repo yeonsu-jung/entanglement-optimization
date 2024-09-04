@@ -635,7 +635,7 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         d = all_pairwise_distances_xyz(pairs)
         col_rad = 1./AR/2.*scale_factor
         
-        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2/col_rad < 1e-3):
+        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2/col_rad < 1e-2):
             print("Minimum distance is close to 2*col_rad")
             break
         
@@ -709,7 +709,7 @@ def entangle_and_relax(num_rods,params):
     
     return q_rel, q_ent
     
-def relax_collision(q,params,N_outer,Nmax):
+def relax_collision(q,params,N_outer,Nmax,callback=None):    
     # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
     f = lambda q: total_harmonic_line(q,params)
     df = grad(f)    
@@ -720,7 +720,8 @@ def relax_collision(q,params,N_outer,Nmax):
                                  params,
                                  N_outer=N_outer,
                                  Nmax=Nmax,atol=1e-7,dt=1.e-3,atol_min=1e-12,
-                                 visualize=False)
+                                 visualize=False,
+                                 callback=callback)
     
     return q
 
@@ -2703,18 +2704,20 @@ def example_august_2024():
 if __name__ == "__main__":
     
     import datetime
-    N_outer = 5
+    N_outer = 10
     Nmax = 1000
     scale_factor = 1
-        
-        
+
     num_rods = 500
     now = datetime.datetime.now()
     
-    for AR in [299]:
+    def _callback():
+        print("Callback called")
+    
+    for AR in [200]:
     
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")        
-        packing_id = f'RandomRelaxedPacking-N{num_rods}-AR{AR}-Scale{scale_factor}'
+        packing_id = f'RandomRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
         
         rod_diameter = 1/AR
         container_size = onp.array([1,1,1]) + rod_diameter/2
@@ -2723,8 +2726,16 @@ if __name__ == "__main__":
         plot_many_rods(q0.reshape(-1,5))
         plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_initial.png')
         
-        params = {"col_rad": rod_diameter/2, "amp": 10., "sigma": 0.025}
-        q = relax_collision(q0,params,N_outer,Nmax)
+        # params = {"col_rad": rod_diameter/2, "amp": 10., "sigma": 0.025} # worked for 25, 50, 500 (?!)
+        params = {"col_rad": rod_diameter/2, "amp": 100., "sigma": 0.025}
+        # dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
+        #                  lambda _: amp*(dist-col_rad*2)**2,
+        #                  lambda _: -0.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+        # sigma: don't worry about it.
+        
+        q = relax_collision(q0,params,N_outer,Nmax,callback=_callback)
+        
+        
         plot_many_rods(q)
         plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
         
@@ -2760,22 +2771,4 @@ if __name__ == "__main__":
         # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
         with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
             f.write(log_output)
-    # export the output too
-    
-    
-    
-    # data_folder = '/Users/yeonsu/Data/'
-    # cache_folder = f"{data_folder}/cache"
-    # export_folder = f"{data_folder}/export"
-        
-    # N_outer = 5
-    # Nmax = 500
-    # scale_factor = 1
-        
-    # # num_rods = 100
-    # # AR = 20
-    
-    # for num_rods in [500]:
-    #     for AR in [20,50,100,200,300,500]:
-    #         dt_string, folder_name = archiving()
-    #         create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor)
+            
