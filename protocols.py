@@ -635,7 +635,7 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         d = all_pairwise_distances_xyz(pairs)
         col_rad = 1./AR/2.*scale_factor
         
-        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2*col_rad < 1e-6):
+        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2/col_rad < 1e-3):
             print("Minimum distance is close to 2*col_rad")
             break
         
