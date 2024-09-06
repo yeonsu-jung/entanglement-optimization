@@ -1485,7 +1485,7 @@ def create_entrel_packing(num_rods,AR,dt_string,N_outer,Nmax,scale_factor,q0=Non
     
     
     col_rad = 1./AR/2.
-    params = {"col_rad": col_rad, "amp": 10., "sigma": 0.025} # 10, 0.025 for initial batch
+    params = {"col_rad": col_rad, "amp": 100., "sigma": 0.025} # 10, 0.025 for initial batch
         
     q = relax_collision(q0,params,N_outer,Nmax)
     x = q_to_x(q)
@@ -2698,11 +2698,8 @@ def example_august_2024():
     # container type: box, sphere, ...
     # 
     # return 1
-
     
-# %%
-if __name__ == "__main__":
-    
+def RandomRelaxedPackings():
     import datetime
     N_outer = 10
     Nmax = 1000
@@ -2714,7 +2711,7 @@ if __name__ == "__main__":
     def _callback():
         print("Callback called")
     
-    for AR in [200]:
+    for AR in [20,50,75,100]:
     
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")        
         packing_id = f'RandomRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
@@ -2737,6 +2734,82 @@ if __name__ == "__main__":
         
         
         plot_many_rods(q)
+        plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
+        
+        x = q_to_x(q)
+        center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+        x = x - jnp.array([*center,*center])    
+        x = scale_factor*x
+        
+        onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+        
+        q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+        d = pt.all_pairwise_distances(q_pairs)
+        
+        final_e = total_effective_potential(q)    
+        # print bunch of messages
+        print(f"Minimum distance: {jnp.min(d)}")
+        print(f"Distance median: {jnp.median(d)}")
+        print(f"Final entanglement: {final_e}")
+        # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
+        print(f"rod radius: {params['col_rad']}")
+        print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}")
+        print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+        
+        log_output = ""
+        log_output += f"Minimum distance: {jnp.min(d)}\n"
+        log_output += f"Distance median: {jnp.median(d)}\n"
+        log_output += f"Final entanglement: {final_e}\n"
+        log_output += f"rod radius: {params['col_rad']}\n"
+        
+        log_output += f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}\n"
+        log_output += f"Total number of rod pairs: {q_pairs.shape[0]}\n"
+        
+        # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
+        with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
+            f.write(log_output)
+            
+
+    
+# %%
+if __name__ == "__main__":
+    
+    import datetime
+    N_outer = 10
+    Nmax = 1000
+    scale_factor = 1
+
+    num_rods = 500
+    now = datetime.datetime.now()
+    
+    cache_file = "q0.npy"
+    
+    if os.path.exists(cache_file):
+        q0 = onp.load(cache_file)
+    else:        
+        q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-8,dt=1e-3)
+        onp.save(cache_file,q0)
+        
+    e0 = total_effective_potential(q0)
+    print(f"Initial entanglement: {e0}")
+    print(f"Theoretical maximum: {num_rods*(num_rods-1)/2*0.5}")    
+    
+    def _callback():
+        print("Callback called")
+    
+    for AR in [200,300,500]:
+    
+        dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
+        packing_id = f'EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
+        
+        rod_diameter = 1/AR 
+        
+        plot_many_rods(q0.reshape(-1,5))
+        plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_initial.png')
+        
+        params = {"col_rad": rod_diameter/2, "amp": 100., "sigma": 0.025}
+        q = relax_collision(q0,params,N_outer,Nmax,callback=_callback)
+        plot_many_rods(q.reshape(-1,5))
         plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
         
         x = q_to_x(q)
