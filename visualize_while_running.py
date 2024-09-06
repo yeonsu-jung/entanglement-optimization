@@ -6,15 +6,15 @@ from data_io import import_all_log, import_from_dismech
 
 
 # %%
-# pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240819-1553_RUN_N25_Viscosity0/log_files/Rods-N25-AR100-Scale1-mu0.50-visc0.00-amp10.0_allLog_20240819-155319.csv'
-# time_line, node_list, contact_list = import_all_log(pth,max_rows=10000000)
+pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240902-1720_RUN_single_rod_still_AR300/log_files/SingleRod-N1-AR300-Scale1-mu0.50-visc0.00-amp10.0_allLog_20240902-172048.csv'
+time_line, node_list, contact_list = import_all_log(pth,max_rows=10000000)
 
-# import re
-# search_result = re.search('N(\d+)-AR(\d+)',Path(pth).stem)
-# num_rods = int(search_result.group(1))
-# AR = int(search_result.group(2))
+import re
+search_result = re.search('N(\d+)-AR(\d+)',Path(pth).stem)
+num_rods = int(search_result.group(1))
+AR = int(search_result.group(2))
+rod_diameter = 1/AR
 
-pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240819-1747_COMPILE_trefoil/log_files/active_entanglement/node_20240819-174709.csv'
 # pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240813-0135_COMPILE_AR20_2/log_files/node_20240813-013602.csv'
 # node_list, time_line= import_from_dismech(pth,500)
 # num_rods = 500
@@ -71,6 +71,7 @@ len(node_list)
 #     r2 = a_list_of_curves[i,-1]
 #     ax.plot([r1[0],r2[0]],[r1[1],r2[1]],[r1[2],r2[2]])
 # %%
+
 print(num_rods)
 import polyscope as ps
 ps.init()
