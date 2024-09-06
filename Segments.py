@@ -766,6 +766,11 @@ class Segments:
 
 # %%
 if __name__ == '__main__':
+    
+    # prune segments ()
+    
+    # 
+    
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'pruned_segments.pkl'
 
