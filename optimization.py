@@ -5,6 +5,213 @@ import numpy as onp
 from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
 from matplotlib import pyplot as plt
 
+def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+    # q0: initial degrees of freedom
+    # f: function to minimize
+    # df: gradient of f
+    # g: constraint function
+    # dg: gradient of g
+    # Nmax: maximum number of iterations
+    # atol: absolute tolerance
+    # dt: initial time step
+
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    
+    dtmin = 0.02*dt
+    alpha = alpha0
+    
+    Npos = jnp.zeros(q0.shape[0])
+
+    q = q0.copy()
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+    
+    dt_array = jnp.ones(q.shape)*dt
+    dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    num_existing_files = len(list(Path('qs').glob('*.npy')))
+    k = 0
+    
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = F*V
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        Npos = jnp.where(P>=0,Npos+1,0)
+        
+        dt_choice = jnp.array([dt_array * finc, dtmax])
+        
+        dt_array = jnp.where(P >= 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P < 0, dt * fdec, dt)
+        
+        alpha = jnp.where(P >= 0,jnp.where(Npos > Ndelay,
+                                alpha * fa,
+                                alpha),alpha)
+        
+        alpha = jnp.where(P < 0, alpha0, alpha)
+        # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
+        
+        # V = jnp.where(P >= 0,V + 0.5*dt*F,V)
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+        
+        V = tree_map(lambda v: (P >= 0) * v, V)
+        
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+
+        # Project q onto the constraint surface
+        g_val = g(q)
+        # dg = jax.grad(g)
+        dg_val = dg(q)
+        q = q - jnp.dot(q - g_val,dg_val)*dg_val
+
+
+        F = -df(q)
+        V = V + 0.25*dt*F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,10) == 0:
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            if callback is not None:
+                callback(q)
+            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+            k += 1
+        
+        if jnp.isnan(F).any():
+            print("NaN detected in variables")
+            
+        if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
+
+def optimize_fire_nonjax_individual_with_constraint2(q0,f,df,g,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+    # q0: initial degrees of freedom
+    # f: function to minimize
+    # df: gradient of f
+    # g: constraint function
+    # dg: gradient of g
+    # Nmax: maximum number of iterations
+    # atol: absolute tolerance
+    # dt: initial time step
+
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    
+    dtmin = 0.02*dt
+    alpha = alpha0
+    
+    Npos = jnp.zeros(q0.shape[0])
+
+    q = q0.copy()
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+    
+    dt_array = jnp.ones(q.shape)*dt
+    dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    num_existing_files = len(list(Path('qs').glob('*.npy')))
+    k = 0
+    
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = F*V
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        Npos = jnp.where(P>=0,Npos+1,0)
+        
+        dt_choice = jnp.array([dt_array * finc, dtmax])
+        
+        dt_array = jnp.where(P >= 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P < 0, dt * fdec, dt)
+        
+        alpha = jnp.where(P >= 0,jnp.where(Npos > Ndelay,
+                                alpha * fa,
+                                alpha),alpha)
+        
+        alpha = jnp.where(P < 0, alpha0, alpha)
+        # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
+        
+        # V = jnp.where(P >= 0,V + 0.5*dt*F,V)
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+        
+        V = tree_map(lambda v: (P >= 0) * v, V)
+        
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+
+        # Project q onto the constraint surface
+        g_val = g(q)
+        dg = jax.grad(g)
+        dg_val = dg(q)
+        # q = q - jnp.dot(q - g_val,dg_val)*dg_val
+        q = tree_map(lambda q: (g(q) >= 0) * q, q)
+
+
+        F = -df(q)
+        V = V + 0.25*dt*F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,10) == 0:
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            if callback is not None:
+                callback(q)
+            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+            k += 1
+        
+        if jnp.isnan(F).any():
+            print("NaN detected in variables")
+            
+        if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
+
 def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
@@ -34,6 +241,11 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
     F = -df(q)
     dt_array = jnp.ones(q.shape)*dt
     dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    num_existing_files = len(list(Path('qs').glob('*.npy')))
+    k = 0
     
     for i in range(Nmax):
 
@@ -72,7 +284,8 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
             print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
             if callback is not None:
                 callback(q)
-            # onp.save(f"qs/q_{i}.npy",onp.array(q))
+            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+            k += 1
         
         if jnp.isnan(F).any():
             print("NaN detected in variables")
@@ -454,7 +667,7 @@ def testing_individual_fire(q = None):
         else:
             q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
             onp.savetxt(cachefile,q0)
-            
+
         cachefile = 'entangled-rod-cache.txt'
         if os.path.exists(cachefile):
             q = onp.loadtxt(cachefile)
@@ -502,10 +715,37 @@ def testing_individual_fire(q = None):
     print()
     
 def main():
-    from protocols import create_large_entangled_packing
-    q = create_large_entangled_packing(500)
+    from protocols import create_large_entangled_packing, create_random_rods, total_effective_potential
+    from transforms import q_to_x
+    from potentials import dist_lin_seg, dist_lin_seg_nonjax
+    from jax import grad
+    from visualizations import plot_many_rods
+    # q = create_large_entangled_packing(500)
+
+    q0 = create_random_rods(2)
+    x = q_to_x(q0)
+    d = dist_lin_seg_nonjax(x[0,:3],x[0,3:],x[1,:3],x[1,3:])
+
+    params = {"col_rad":0.001,"amp":10.0}
     
-    testing_individual_fire(q)
+    f = total_effective_potential # which is actually just linking number
+    df = grad(f)
+
+    g = lambda q: total_harmonic_line(q,params)
+    dg = grad(g)
+
+
+    Nmax = 1000
+    q_opt, f_val, Npos, error = optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None)
+
+    x = q_to_x(q_opt)
+    d = dist_lin_seg_nonjax(x[0,:3],x[0,3:],x[1,:3],x[1,3:])
+    print(d)
+    
+    plot_many_rods(q_opt.reshape(-1,5))
+    plt.show()
+    
+    # testing_individual_fire(q)
     
 
 if __name__ == "__main__":
