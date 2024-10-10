@@ -1,7 +1,7 @@
 # %%
 import jax.numpy as jnp
 from jax import grad,random
-from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual
+from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual, optimize_fire_nonjax_individual_with_constraint
 
 from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances
 import numpy as onp
@@ -549,9 +549,53 @@ def create_entangled_rods(num_rods,f,Nmax=1e4,atol=1e-4,dt=1e-3,initial_q=None,c
      # print(f"q: {q_onp:.2f}")
     fval0 = f(q0)
     print(f"f_val, initial: {fval0:.2f}")
+    
     print(f"f_val: {f_val:.2f}")
     print(f"error: {error}") # which is maximum of gradient vector
     print(f"num_iterations: {num_iterations}")
+    
+    return q
+
+def create_entangled_rods_with_constraint(num_rods,f,g,Nmax=1e4,atol=1e-4,dt=1e-3,initial_q=None,callback=None):
+    if callback == None:
+        _callback = lambda q: None
+    else:
+        _callback = callback
+    
+    # f = total_effective_potential # bad name...
+    if initial_q == None:
+        q0 = create_random_rods(num_rods)
+    elif initial_q == "test":
+        q0 = create_intersecting_rods(num_rods)
+    elif initial_q == "aligned":
+        q0 = create_aligned_rods(num_rods)
+    
+    
+    # q0 = create_entangled_rods(num_rods,f,Nmax=1000,atol=1e-1,dt=1e-5,initial_q=None,callback=None)
+
+    df = grad(f)
+    df0 = df(q0)
+
+    dg = grad(g)
+    print(f"Initial error: {jnp.max(jnp.abs(df0))}")
+    atol = atol*jnp.max(jnp.abs(df0))
+        
+    q = q0
+    for k in range(1):
+        q, f_val, num_iterations, error = optimize_fire_nonjax_individual_with_constraint(q, f, df, g, dg, Nmax,atol, dt,callback=_callback)
+        # optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+        atol = atol/2
+        # print(f"iteration: {k}")
+        # print(f"f_val: {f_val:.2f}")
+        # print(f"num_iterations: {num_iterations}")
+        # print(f"error: {error}")
+    
+     # print(f"q: {q_onp:.2f}")
+    fval0 = f(q0)
+    print(f"f_val, initial: {fval0:.2f}")    
+    print(f"f_val: {f_val:.2f}")
+    print(f"error: {error}") # which is maximum of gradient vector
+    # print(f"num_iterations: {num_iterations}")
     
     return q
 
@@ -617,7 +661,8 @@ def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visual
         df0 = jnp.max(jnp.abs(df(q_in)))
         print(f"Initial error: {df0}")
         
-        q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
+        # q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
+        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax, atol, dt)
         
         if (error < atol_min):
             print(f"Error is smaller than atol_min: {error}")
@@ -2768,12 +2813,9 @@ def RandomRelaxedPackings():
         # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
         with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
             f.write(log_output)
-            
 
-    
-# %%
-if __name__ == "__main__":
-    
+def EntangleAndRelax():
+
     import datetime
     N_outer = 10
     Nmax = 1000
@@ -2797,7 +2839,7 @@ if __name__ == "__main__":
     def _callback():
         print("Callback called")
     
-    for AR in [200,300,500]:
+    for AR in [50]:
     
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
         packing_id = f'EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
@@ -2822,7 +2864,72 @@ if __name__ == "__main__":
         q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
         d = pt.all_pairwise_distances(q_pairs)
         
-        final_e = total_effective_potential(q)    
+        final_e = total_effective_potential(q)
+        # print bunch of messages
+        print(f"Minimum distance: {jnp.min(d)}")
+        print(f"Distance median: {jnp.median(d)}")
+        print(f"Final entanglement: {final_e}")
+        # print(f"Distance near contact: {jnp.median(d[d < 2*col_rad*(1+1.e-6)])}")
+        print(f"rod radius: {params['col_rad']}")
+        print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}")
+        print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+        
+        log_output = ""
+        log_output += f"Minimum distance: {jnp.min(d)}\n"
+        log_output += f"Distance median: {jnp.median(d)}\n"
+        log_output += f"Final entanglement: {final_e}\n"
+        log_output += f"rod radius: {params['col_rad']}\n"
+        
+        log_output += f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}\n"
+        log_output += f"Total number of rod pairs: {q_pairs.shape[0]}\n"
+        
+        # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
+        with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
+            f.write(log_output)
+            
+            
+
+    
+# %%
+if __name__ == "__main__":
+    
+    import datetime
+    N_outer = 10
+    Nmax = 1000
+    scale_factor = 1
+
+    num_rods = 100
+    now = datetime.datetime.now()
+    
+    def _callback():
+        print("Callback called")
+    
+    for AR in [50]:
+    
+        dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
+        packing_id = f'EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
+        
+        rod_diameter = 1/AR 
+        
+        params = {"col_rad": rod_diameter/2, "amp": 10., "sigma": 0.025}
+
+        g = lambda q: total_harmonic_line(q,params)
+        q = create_entangled_rods_with_constraint(num_rods,total_effective_potential,g,Nmax=5000,atol=1e-8,dt=1e-3)
+
+        plot_many_rods(q.reshape(-1,5))
+        plt.show()
+        # plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
+        
+        x = q_to_x(q)
+        center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
+        x = x - jnp.array([*center,*center])    
+        x = scale_factor*x        
+        # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}.txt',x)
+        
+        q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+        d = pt.all_pairwise_distances(q_pairs)
+        
+        final_e = total_effective_potential(q)
         # print bunch of messages
         print(f"Minimum distance: {jnp.min(d)}")
         print(f"Distance median: {jnp.median(d)}")
