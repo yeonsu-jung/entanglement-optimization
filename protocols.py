@@ -653,53 +653,35 @@ def maximally_entangled_rods(num_rods):
     onp.savetxt(f"/Users/yeonsu/Data/entangled_rods_N{num_rods}_{dt_string}.txt",q_onp)
     
 
-def collision_relaxation(q_in,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False,callback=None):
+def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False,callback=None):    
     
-    num_rods = q_in.shape[0]//5
-    q_pairs = create_pairs(jnp.reshape(q_in,(-1,5)))
-    
-    q = q_in
     for k in range(N_outer):
-        params["amp"] = params["amp"]*1.3
+        params["amp"] = params["amp"]*1
         f = lambda q: f_in(q,params)
         df = grad(f)
-        df0 = jnp.max(jnp.abs(df(q_in)))
-        print(f"Initial error: {df0}")
-        
         # q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
-        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax, atol, dt, callback=callback)
+        q, f_val, _, error = optimize_fire_nonjax_individual(q, f, df, Nmax, atol, dt, callback=callback)
         
         if (error < atol_min):
             print(f"Error is smaller than atol_min: {error}")
             break
         
-        print(f"Outer iteration: {k}")
-        print(f"f_val: {f_val:.2f}")
-        print(f"num_iterations: {num_iterations}")
-        print(f"error: {error}")
-        print(f"dt: {dt}")
+        # print(f"Outer iteration: {k}")
+        # print(f"f_val: {f_val:.2f}")
+        # print(f"error: {error}")
+        # print(f"dt: {dt}")
         
-        x = q_to_x(q)
-        col_rad = params['col_rad']
-        # AR = params["AR"]
-        # scale_factor = params["scale_factor"]
+        # x = q_to_x(q)
+        # col_rad = params['col_rad']
 
-        pairs = create_pairs(x)
-        d = all_pairwise_distances_xyz(pairs)
-        # col_rad = 1./AR/2.*scale_factor
+        # pairs = create_pairs(x)
+        # d = all_pairwise_distances_xyz(pairs)
+        # if ( jnp.abs(jnp.min(d) - 2*col_rad)/2/col_rad < 1e-2):
+        #     print("Minimum distance is close to 2*col_rad")
+        #     break
         
-        if ( jnp.abs(jnp.min(d) - 2*col_rad)/2/col_rad < 1e-2):
-            print("Minimum distance is close to 2*col_rad")
-            break
-        
-        # atol = atol/1.3 # TO DO: factor out this numbers
+        # atol = atol/1 # TO DO: factor out this numbers
         dt = dt/1.3     # TO DO: factor out this numbers
-    
-    fval0 = f(q_in)
-    print(f"f_val, initial: {fval0:.2f}")
-    print(f"f_val: {f_val:.2f}")
-    print(f"error: {error}") # which is maximum of gradient vector
-    print(f"num_iterations: {num_iterations}")
     
     
     return q
@@ -764,7 +746,7 @@ def entangle_and_relax(num_rods,params):
     
 def relax_collision(q,params,N_outer,Nmax,callback=None):    
     # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}
-    f = lambda q: total_harmonic_line_relax(q,params)
+    f = lambda q: total_harmonic_line(q,params)
     df = grad(f)    
     df0 = jnp.max(jnp.abs(df(q)))
     print(f"Initial error: {df0}")
@@ -2986,49 +2968,66 @@ def working():
 
 def not_working():
     import datetime
-    N_outer = 5
-    Nmax = 1000
+    N_outer = 10
+    Nmax = 500
     scale_factor = 1
     num_rods = 500
 
     now = datetime.datetime.now()
     
-    for AR in [20]:
-        dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
-        packing_id = f'EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
+    for AR in [10,20,50,75,100,200,300,500]:
+        # dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
+        dt_string = now.strftime("%Y-%m-%d_%H")
+        packing_id = f'{dt_string}_EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
 
         if not os.path.exists(f"results/{packing_id}"):
             os.makedirs(f"results/{packing_id}")
 
-        filename = f"results/{packing_id}/qq.npy"
-        onp.save(filename,[])
+        # filename = f"results/{packing_id}/qq.npy"
+        # onp.save(filename,[])
+        if os.path.exists(f"results/{packing_id}/qq.npy"):
+            qq = onp.load(f"results/{packing_id}/qq.npy")
+            q0 = qq[-1]
+        else:
+            q0 = create_entangled_rods(num_rods,total_effective_potential,Nmax=1000,atol=1e-8,dt=1e-3)
+            qq = []
 
         def _callback(q,callback_params):
             from npy_append_array import NpyAppendArray
             filename = f"results/{packing_id}/qq.npy"
             with NpyAppendArray(filename) as npaa:
                 npaa.append(onp.array(q))
+
+            q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+            d = pt.all_pairwise_distances(q_pairs)
+            print(f"Minimum distance: {jnp.min(d)}")
+
         
         rod_diameter = 1/AR
         params = {"col_rad": rod_diameter/2, "amp": 1., "sigma": 0.025, AR: AR}
 
-        g = lambda q: total_harmonic_line(q,params)
-        # q0 = create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
-        # q = create_entangled_rods_with_constraint(num_rods,total_effective_potential,g,N_outer=10,Nmax=2000,atol=1e-8,dt=1e-4,initial_q=q0)
-
         dt = 1e-3
-        q_entangled = create_entangled_rods(num_rods,total_effective_potential,Nmax=Nmax,N_outer=N_outer,atol=1e-8,dt=dt,initial_q=None,callback=_callback)
-
         import numpy as np
-        np.savetxt(f'results/{packing_id}/q_entangled.txt',q_entangled)
+        if os.path.exists(f'results/N{num_rods}/q_entangled.npy'):
+            q_entangled = np.load(f'results/N{num_rods}/q_entangled.npy')
+        else:
+            os.makedirs(f'results/N{num_rods}',exist_ok=True)
+            q_entangled = create_entangled_rods(num_rods,total_effective_potential,Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q=None,callback=_callback)
+            np.save(f'results/N{num_rods}/q_entangled.npy',q_entangled)
+        
+        # np.savetxt(f'results/{packing_id}/q_entangled.txt',q_entangled)
         
         params = {"col_rad": rod_diameter/2, "amp": 100., "sigma": 0.025}
+
+        if os.path.exists(f'results/{packing_id}/q_relaxed.txt'):
+            q_entangled = np.loadtxt(f'results/{packing_id}/q_relaxed.txt')
+
         q_relaxed = relax_collision(q_entangled,params,N_outer,Nmax,callback=_callback)
         np.savetxt(f'results/{packing_id}/q_relaxed.txt',q_relaxed)
 
         plot_many_rods(q_relaxed.reshape(-1,5))
-        plt.show()
-        # plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed.png')
+        plt.savefig(f'results/{packing_id}/relaxed.png')
+        plt.close()
         
         x = q_to_x(q_relaxed)
         center = jnp.mean((x[:,:3] + x[:,3:])/2,axis=0)
@@ -3050,6 +3049,7 @@ def not_working():
         print(f"Total number of rod pairs: {q_pairs.shape[0]}")
         
         log_output = ""
+        log_output = f"Initial entanglement: {total_effective_potential(q_entangled)}\n"
         log_output += f"Minimum distance: {jnp.min(d)}\n"
         log_output += f"Distance median: {jnp.median(d)}\n"
         log_output += f"Final entanglement: {final_e}\n"
@@ -3058,8 +3058,8 @@ def not_working():
         log_output += f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}\n"
         log_output += f"Total number of rod pairs: {q_pairs.shape[0]}\n"
         
-        # onp.savetxt(f'/Users/yeonsu/Data/export/{packing_id}_log.txt',log_output)
-        with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
+        # onp.savetxt(f'results/{packing_id}_log.txt',log_output)
+        with open(f'results/{packing_id}/log.txt','w') as f:
             f.write(log_output)
             
             
