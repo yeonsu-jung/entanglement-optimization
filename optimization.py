@@ -47,7 +47,7 @@ def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,
 
     # disgusting hack to save the q values
     from pathlib import Path
-    num_existing_files = len(list(Path('qs').glob('*.npy')))
+    num_existing_files = len(list(Path('qs2').glob('*.npy')))
     k = 0
     
     for i in range(Nmax):
@@ -86,16 +86,26 @@ def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,
         dg_val = dg(q)
         q = q - jnp.dot(q - g_val,dg_val)*dg_val
 
+        # q = jnp.where(g_val > 0, q - jnp.dot(g_val,dg_val)/jnp.dot(dg_val,dg_val)*dg_val, q)
 
         F = -df(q)
         V = V + 0.25*dt*F
 
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
-            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            
+
+            # TODO: add this to the callback
+            from potentials import create_pairs, all_pairwise_distances
+
+            q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+            d = all_pairwise_distances(q_pairs)
+
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}, min. distance: {jnp.min(d)}")
+
             if callback is not None:
                 callback(q)
-            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+            onp.save(f"qs2/q_{k+num_existing_files}.npy",onp.array(q))
             k += 1
         
         if jnp.isnan(F).any():
@@ -244,7 +254,6 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
 
     # disgusting hack to save the q values
     from pathlib import Path
-    num_existing_files = len(list(Path('qs').glob('*.npy')))
     k = 0
     
     for i in range(Nmax):
@@ -282,9 +291,9 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
             print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            callback_params = {"numbering": k}
             if callback is not None:
-                callback(q)
-            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+                callback(q,callback_params)
             k += 1
         
         if jnp.isnan(F).any():
@@ -737,6 +746,8 @@ def main():
 
     Nmax = 1000
     q_opt, f_val, Npos, error = optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None)
+
+    
 
     x = q_to_x(q_opt)
     d = dist_lin_seg_nonjax(x[0,:3],x[0,3:],x[1,:3],x[1,3:])
