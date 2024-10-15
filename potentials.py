@@ -418,7 +418,8 @@ def total_effective_potential(q):
     q_pairs = create_pairs(q)
     
     def body_fun(carry, q_pair):
-        # Increment carry by the result of effective_potential applied to q_pair
+        # Increment carry 
+        # by the result of effective_potential applied to q_pair
         return carry + collision_penalized_entanglement_potential(q_pair), None    
     # Perform scan; initial carry value is 0
     total, _ = lax.scan(body_fun, 0, q_pairs)
@@ -461,8 +462,123 @@ def pairwise_distance(q_pair):
     return dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
 @jit
+def pairwise_angle(q_pair):
+    x_i =     q_pair[0]
+    y_i =     q_pair[1]
+    z_i =     q_pair[2]
+    phi_i =   q_pair[3]
+    theta_i = q_pair[4]
+  
+    x_j =     q_pair[5]
+    y_j =     q_pair[6]
+    z_j =     q_pair[7]
+    phi_j =   q_pair[8]
+    theta_j = q_pair[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    # return jnp.arctan2(jnp.linalg.norm(jnp.cross(u_i, u_j)), jnp.dot(u_i, u_j))
+    return jnp.abs(jnp.arctan(jnp.linalg.norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
+
+@jit
+def pairwise_skewness(q_pair):
+    x_i =     q_pair[0]
+    y_i =     q_pair[1]
+    z_i =     q_pair[2]
+    phi_i =   q_pair[3]
+    theta_i = q_pair[4]
+  
+    x_j =     q_pair[5]
+    y_j =     q_pair[6]
+    z_j =     q_pair[7]
+    phi_j =   q_pair[8]
+    theta_j = q_pair[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+    
+    return skewness_lin_seg(p_i, p_ii, p_j, p_jj)
+
+
+@jit
+def skewness_lin_seg(point1s, point1e, point2s, point2e):
+    """Calculate the shortest distance between two line segments using JAX with cond."""
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    def case1():
+        (t,u) = lax.cond( D1 != 0. , 
+                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: lax.cond(D2 != 0.,
+                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,0.),
+                             None),
+                    None)        
+        return (t,u)
+    
+    def case2_1():
+        t = 0.
+        u = -S2/D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)
+    
+    def case2_2():
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = (t * R - S2) / D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)        
+    
+    def case2():
+        (t,u) = lax.cond( den == 0. , 
+                    lambda _: case2_1(),                    
+                    lambda _: case2_2(),
+                    None)        
+        return (t,u)
+    
+    (t,u) = lax.cond((D1 == 0.) & (D2 == 0.),
+                        lambda _: case1(),
+                        lambda _: case2(),
+                        None)
+    return (t+u)/2
+
+
+@jit
 def all_pairwise_distances(q_pairs):
     return vmap(pairwise_distance)(q_pairs)
+
+@jit
+def all_pairwise_angles(q_pairs):
+    return vmap(pairwise_angle)(q_pairs)
 
 @jit
 def pairwise_distance_xyz(q_pair):
@@ -475,6 +591,10 @@ def pairwise_distance_xyz(q_pair):
 @jit
 def all_pairwise_distances_xyz(q_pairs):
     return vmap(pairwise_distance_xyz)(q_pairs)
+
+@jit
+def all_pairwise_skewness(q_pairs):
+    return vmap(pairwise_skewness)(q_pairs)
 
 def create_pair3(m,n):
     M, _ = m.shape
@@ -657,6 +777,19 @@ def total_harmonic_line(q,params):
     
     def body_fun(carry, q_pair):
         # Increment carry by the result of effective_potential applied to q_pair
+        return carry + simple_harmonic_line_jump(q_pair,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    
+    return total
+
+@jit
+def total_harmonic_line_relax(q,params):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
+    def body_fun(carry, q_pair):
+        # Increment carry by the result of effective_potential applied to q_pair
         return carry + simple_harmonic_line(q_pair,params), None
     # Perform scan; initial carry value is 0
     total, _ = lax.scan(body_fun, 0, q_pairs)
@@ -779,6 +912,21 @@ def total_harmonic_line_with_gravity_floor(q,params):
     return 1e-3*total_ent + total # + grav_cont + total_floor_contact_potential
 
 @jit
+def total_angle_repulsion(q):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
+    # def body_fun(carry, q_pair):
+    #     # Increment carry by the result of effective_potential applied to q_pair
+    #     return carry + pairwise_angle(q_pair), None
+    # # Perform scan; initial carry value is 0
+    # total, _ = lax.scan(body_fun, 0, q_pairs)
+
+    # get minimum angle between rods
+    angles = all_pairwise_angles(q_pairs)
+    return -jnp.min(angles)
+
+@jit
 def rod_floor_interaction(q):
     rf_int = lax.cond(q < -1,
                         lambda _: 1.*(q+1)**2,
@@ -825,6 +973,40 @@ def simple_harmonic_line(q,params):
     dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
                          lambda _: amp*(dist-col_rad*2)**2,
                          lambda _: -0.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+                         
+                         None)
+    return dist_cont
+
+@jit
+def simple_harmonic_line_jump(q,params):
+    col_rad = params["col_rad"]
+    amp = params["amp"]    
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    
+    dist_cont = lax.cond(dist < (col_rad*2),
+                         lambda _: amp*(dist-col_rad*2)**2,
+                         lambda _: 0., # decrease to get more contacts
                          
                          None)
     return dist_cont
@@ -1000,8 +1182,7 @@ def check_arai_formula():
     print()
     
 
-if __name__ == "__main__":
-    check_arai_formula()
+def check_arai_formula2():
     
     p1 = np.array([704.37623584, 769.77342393, 234.01175294])
     p2 = np.array([673.55325552,791.00241085, 238.54406944])
@@ -1010,7 +1191,7 @@ if __name__ == "__main__":
     
     d = dist_lin_seg_nonjax(p1,p2,q1,q2)
     
-    
+     
     def my_cart2_sph(u):
         x = u[0]
         y = u[1]
@@ -1021,6 +1202,8 @@ if __name__ == "__main__":
         theta = jnp.arctan2(hxy, z)  # Polar angle (inclination)
         phi = jnp.arctan2(y, x)      # Azimuthal angle
         return r, theta, phi
+    
+    
     
     def x_to_q(x):
         # p1 = x[0:3]
@@ -1052,7 +1235,30 @@ if __name__ == "__main__":
     
     
     print(d)
-    
-    
 
-    
+
+if __name__ == "__main__":
+
+    from optimization import optimize_fire_nonjax_individual
+    from protocols import create_random_rods
+    q0 = create_random_rods(100)
+    f = total_angle_repulsion
+    df = grad(f)
+    Nmax = 3000
+    atol = 1e-6
+    dt = 1e-3
+    q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q0, f, df, Nmax,atol, dt)
+
+    q_pair = create_pairs(q.reshape(-1,5))
+    angles = all_pairwise_angles(q_pair)
+    np.min(angles)
+
+    from matplotlib import pyplot as plt
+    plt.hist(angles*180/np.pi, bins=100)
+
+    plt.show()
+
+    from visualizations import plot_many_rods
+
+    plot_many_rods(q.reshape(-1,5))
+    plt.show()
