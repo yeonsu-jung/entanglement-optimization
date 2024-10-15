@@ -33,3 +33,4 @@ perform-segmentation/*
 qs/*
 filament_fields_output/*
 *.mp4
+*.npy
