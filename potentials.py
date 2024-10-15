@@ -424,7 +424,7 @@ def total_effective_potential(q):
     # Perform scan; initial carry value is 0
     total, _ = lax.scan(body_fun, 0, q_pairs)
     
-    return total
+    return total    
 
 def total_effective_potential_ref(q):
     q = jnp.reshape(q, (-1, 5))
@@ -698,6 +698,16 @@ def effective_potential(q):
 
     return eff_pot
 
+# Original distance function (non-contact constraint)
+def dist_penalty(dist, min_dist, epsilon=1.e-5):
+    # Apply barrier only when the constraint is violated
+    # return -jnp.log(dist - min_dist) if dist > min_dist else jnp.inf
+
+    return lax.cond(dist > (min_dist),
+                        lambda _: -jnp.log( (dist-min_dist) ),
+                        lambda _: jnp.inf, # decrease to get more contacts
+                        None)
+
 @jit
 def collision_penalized_entanglement_potential(q):
     x_i = q[0]
@@ -722,12 +732,12 @@ def collision_penalized_entanglement_potential(q):
     p_jj = p_j + l*u_j
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
-    collision_radius = 0.01
-    dist_cont = 5.e4*(dist-collision_radius)**2
-    # dist_cont = 0.
-    
-    # eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
-    # eff_pot = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + dist_cont
+    # Minimum distance constraint
+    # min_dist = 0.02
+    # barrier = dist_penalty(dist, min_dist)
+    # min_dist = 0.02
+    # boundary_regularization = 1e12 * (1.0/(dist - min_dist)) ** 2
+       
     eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
     return eff_pot
 
@@ -969,13 +979,12 @@ def simple_harmonic_line(q,params):
     p_jj = p_j + l*u_j
 
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
-    
-    dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
+
+    return lax.cond(dist < (col_rad*2),
                          lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -0.e-7*amp*(dist-col_rad*2)**2, # decrease to get more contacts
-                         
+                         lambda _: -1.e-9*amp*(dist-col_rad*2)**2, # decrease to get more contacts
                          None)
-    return dist_cont
+    
 
 @jit
 def simple_harmonic_line_jump(q,params):
