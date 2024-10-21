@@ -299,6 +299,11 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
                                + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
 
+    # return -1/4/jnp.pi*(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+    #                            + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+    #                            + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+    #                            + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+
 def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
     p_i = jnp.array([x_i, y_i, z_i])
     p_j = jnp.array([x_j, y_j, z_j])
@@ -508,6 +513,9 @@ def pairwise_skewness(q_pair):
     
     return skewness_lin_seg(p_i, p_ii, p_j, p_jj)
 
+@jit
+def identity(x):
+    return x
 
 @jit
 def skewness_lin_seg(point1s, point1e, point2s, point2e):
@@ -526,9 +534,9 @@ def skewness_lin_seg(point1s, point1e, point2s, point2e):
     
     def case1():
         (t,u) = lax.cond( D1 != 0. , 
-                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: (identity(S1/D1),0.),
                     lambda _: lax.cond(D2 != 0.,
-                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,identity(-S2/D2)),
                              lambda _: (0.,0.),
                              None),
                     None)        
@@ -537,22 +545,22 @@ def skewness_lin_seg(point1s, point1e, point2s, point2e):
     def case2_1():
         t = 0.
         u = -S2/D2
-        uf = fixbound(u)
+        uf = identity(u)
         
         (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (identity((uf * R + S1) / D1), uf),
                     lambda _: (t, u),
                     None)
         
         return (t,u)
     
     def case2_2():
-        t = fixbound((S1 * D2 - S2 * R) / den)
+        t = identity((S1 * D2 - S2 * R) / den)
         u = (t * R - S2) / D2
-        uf = fixbound(u)
+        uf = identity(u)
         
         (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (identity((uf * R + S1) / D1), uf),
                     lambda _: (t, u),
                     None)
         
@@ -569,7 +577,7 @@ def skewness_lin_seg(point1s, point1e, point2s, point2e):
                         lambda _: case1(),
                         lambda _: case2(),
                         None)
-    return (t+u)/2
+    return t
 
 
 @jit
@@ -798,12 +806,16 @@ def total_harmonic_line_relax(q,params):
     q = jnp.reshape(q, (-1, 5))
     q_pairs = create_pairs(q)
     
-    def body_fun(carry, q_pair):
-        # Increment carry by the result of effective_potential applied to q_pair
-        return carry + simple_harmonic_line(q_pair,params), None
-    # Perform scan; initial carry value is 0
-    total, _ = lax.scan(body_fun, 0, q_pairs)
+    # def body_fun(carry, q_pair):
+    #     # Increment carry by the result of effective_potential applied to q_pair
+    #     return carry + simple_harmonic_line(q_pair,params), None
     
+    # total, _ = lax.scan(body_fun, 0, q_pairs) # Perform scan; initial carry value is 0
+
+    f = lambda q_pairs: simple_harmonic_line(q_pairs,params)
+    # total = vmap(f)(q_pairs)
+    total = jnp.sum(vmap(f)(q_pairs))
+
     return total
 
 @jit
@@ -982,7 +994,7 @@ def simple_harmonic_line(q,params):
 
     return lax.cond(dist < (col_rad*2),
                          lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -1.e-9*amp*(dist-col_rad*2)**2, # decrease to get more contacts
+                         lambda _: -1.e-4*amp*(dist-col_rad*2)**2, # decrease to get more contacts
                          None)
     
 
