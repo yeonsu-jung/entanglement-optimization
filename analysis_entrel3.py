@@ -141,6 +141,7 @@ for dta in chosen_data:
     local_dataset = {
         'time_line': time_line,
         'data_obj': dta,
+        'node_list': node_list,
         'rad_gyr_list': rad_gyr_list,
         'num_contacts_list': num_contacts_list,
     }
@@ -149,21 +150,91 @@ for dta in chosen_data:
 # %%
 # sort global_data_list by friction_coefficient
 global_data_list = sorted(global_data_list,key=lambda x: x['data_obj'].friction_coefficient)
+friction_coefficient_list = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+
+_trimmed = []
+to_remove = [11,12,13]
+for i in range(len(global_data_list)):
+    if i in to_remove:
+        continue
+    _trimmed.append(global_data_list[i])
+    
+    
 # %%
-fig,axs=plt.subplots(2,1)
+from transforms import x_to_q
+from potentials import total_effective_potential
+import time
+
+global_entanglement_over_time = {}
+for local_dataset in _trimmed:
+    time_line = local_dataset['time_line']
+    nodes_list = local_dataset['node_list']
+    num_contacts_list = local_dataset['num_contacts_list']
+
+    entanglement_over_time = []
+    start = time.time()
+    for i in range(0,len(nodes_list),30):
+        x = nodes_list[i].reshape(-1,6)
+        q = x_to_q(x)
+        e = -total_effective_potential(q)
+        entanglement_over_time.append(e)
+
+    
+    print(f'{local_dataset["data_obj"].friction_coefficient} took {time.time()-start:.2f} seconds')
+    skipped_time_line = time_line[::30]
+    
+    local_data = {
+        'time_line': skipped_time_line,
+        'entanglement': entanglement_over_time,
+    }
+
+    global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient] = local_data
+
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed:
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+    entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+    entanglement = np.array(entanglement)/(500*499/2)
+    ax.loglog(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+ax.set_xlabel('Time, $t$ (sec)')
+ax.set_ylabel('Normalized entanglement, $E$')
+# ax.legend(title='$\\mu$',loc='upper right')
+plt.savefig(f'/Users/yeonsu/Figures/Random3,1,2/EntanglementOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+
+
+# %%
+
+    
+# %%
+
+    
+
+
+
+# %%
+subfolder_name = 'Random3,1,2'
+figure_output_folder = f"/Users/yeonsu/Figures/{subfolder_name}"
+
+fig,axs=plt.subplots(2,1,figsize=(4,5))
 final_radius_of_gyration = []
-for local_dataset in global_data_list:
+for local_dataset in _trimmed:
     time_line = local_dataset['time_line']
     rad_gyr_list = local_dataset['rad_gyr_list']
     num_contacts_list = local_dataset['num_contacts_list']
-
-    axs[0].plot(time_line,rad_gyr_list,'-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+    
+    axs[0].semilogy(time_line,rad_gyr_list,'-',label=f'{local_dataset["data_obj"].friction_coefficient}')
     axs[1].plot(time_line,num_contacts_list)
 
     final_radius_of_gyration.append(rad_gyr_list[-1])
-axs[0].legend()
+axs[1].set_xlabel('Time, $t$ (sec)')
+axs[1].set_ylabel('Number of contacts')
+axs[0].set_ylabel('Radius of gyration, $R_g$')
+# small legend
+axs[0].legend(title='$\\mu$',loc='upper right',fontsize=7)
+plt.savefig(f'{figure_output_folder}/RadiusOfGyrationOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
 # %%
-subfolder_name = 'Random3,1,2'
 
 
 fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
@@ -171,11 +242,11 @@ fig,ax=plt.subplots(figsize=(2.5,2))
 plt.plot(fric_coeff,final_radius_of_gyration,'o-')
 plt.xlabel('Friction coefficient, $\\mu$')
 plt.ylabel('Radius of gyration, $R_g$')
-figure_output_folder = f"/Users/yeonsu/Figures/{subfolder_name}"
+
 
 if not os.path.exists(figure_output_folder):
     os.makedirs(figure_output_folder)
-    
+
 plt.savefig(f'{figure_output_folder}/RadiusOfGyration_AR{AR}.png',dpi=300,bbox_inches='tight')
 
 # %%
