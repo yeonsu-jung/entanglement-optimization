@@ -325,23 +325,24 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
     from pathlib import Path
     k = 0
     
+    break_or_continue = False
     for i in range(Nmax):
 
         # P = (F*V).sum() # dissipated power
         P = F*V
         V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
-        Npos = jnp.where(P>=0,Npos+1,0)
+        Npos = jnp.where(P>0,Npos+1,0)
         
         dt_choice = jnp.array([dt_array * finc, dtmax])
         
-        dt_array = jnp.where(P >= 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
-        dt_array = jnp.where(P < 0, dt * fdec, dt)
+        dt_array = jnp.where(P > 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P <= 0, dt * fdec, dt)
         
-        alpha = jnp.where(P >= 0,jnp.where(Npos > Ndelay,
+        alpha = jnp.where(P > 0,jnp.where(Npos > Ndelay,
                                 alpha * fa,
                                 alpha),alpha)
         
-        alpha = jnp.where(P < 0, alpha0, alpha)
+        alpha = jnp.where(P <= 0, alpha0, alpha)
         # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
         
         # V = jnp.where(P >= 0,V + 0.5*dt*F,V)

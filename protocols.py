@@ -521,15 +521,18 @@ def create_aligned_rods(num_rods):
     return q0.flatten()
 
 
-def create_entangled_rods(num_rods,f,random_keys,Nmax=1e4,N_outer=1,atol=1e-4,dt=1e-3,initial_q=None,callback=None):
+def create_entangled_rods(num_rods,f,random_keys,rod_diameter=0.1,Nmax=1e4,N_outer=1,atol=1e-4,dt=1e-3,initial_q=None,callback=None):
     if callback == None:
-        _callback = lambda q: None
+        _callback = None
     else:
         _callback = callback
     
     # f = total_effective_potential # bad name...
     if initial_q == None:
         q0 = create_random_rods(num_rods,random_keys)
+    elif initial_q == 'non-intersecting':
+        q0 = create_nonintersecting_random_rods(num_rods,rod_diameter)
+        q0 = jnp.array(q0,dtype=jnp.float64).flatten()
     elif initial_q == "test":
         q0 = create_intersecting_rods(num_rods)
     elif initial_q == "aligned":
@@ -2960,17 +2963,18 @@ def working():
         with open(f'/Users/yeonsu/Data/export/{packing_id}_log.txt','w') as f:
             f.write(log_output)
 
-def not_working():
+def standard_protocol():
     import numpy as np
     import datetime
     N_outer = 1
-    Nmax = 100
+    Nmax = 100000
     scale_factor = 1
-    num_rods = 500
+    num_rods = 20
     dt = 1.e-2
     amp = 100
 
-    random_keys = [5,7,9]
+    # random_keys = [65,72,99]
+    random_keys = [85,32,12]
     results_per_random_keys = f'results/{random_keys[0]},{random_keys[1]},{random_keys[2]}'
 
     if not os.path.exists(results_per_random_keys):
@@ -2978,7 +2982,8 @@ def not_working():
 
     now = datetime.datetime.now()
     
-    for AR in [20]:
+    for AR in [10,20,50,75,100,200,300,500]:
+    # for AR in [10,20,50]:
         rod_diameter = 1/AR
         params = {"col_rad": rod_diameter/2, "amp": 1., "sigma": 0.025, AR: AR}
 
@@ -3012,7 +3017,7 @@ def not_working():
 
         else:
             os.makedirs(f'{results_per_random_keys}/N{num_rods}',exist_ok=True)
-            q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q=None,callback=_callback)
+            q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="non-intersecting",callback=_callback)
             np.save(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy',q_entangled)
         
         params = {"col_rad": rod_diameter/2, "amp": amp, "sigma": 0.025}
@@ -3072,5 +3077,5 @@ def not_working():
     
 # %%
 if __name__ == "__main__":
-    not_working()
+    standard_protocol()
 # %%
