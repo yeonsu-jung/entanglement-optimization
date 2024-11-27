@@ -838,7 +838,179 @@ def main():
     plt.show()
     
     # testing_individual_fire(q)
+
+# @jit
+# def onestep_fire(q,f,df,atol=1e-4,dt = 0.002):
+#     dtmax = 10 * dt
+#     dtmin = 0.02 * dt
+
+#     alpha0 = 0.1  # example starting value for alpha
+#     alpha = alpha0
+#     Ndelay = 10   # example delay for adjusting dt
+#     finc = 1.1    # factor to increase dt
+#     fdec = 0.5    # factor to decrease dt
+#     fa = 0.99     # factor to adjust alpha
+    
+#     alpha0 = 0.1
+#     Ndelay = 5
+#     finc = 1.1
+#     fdec = 0.5
+#     fa = 0.99
+#     Nnegmax = 200000
+    
+#     error = 10*atol 
+    
+#     dtmin = 0.02*dt
+#     alpha = alpha0
+    
+#     Npos = jnp.zeros(q.shape[0])
+#     V = jnp.zeros(q.shape)
+#     F = -df(q)
+#     dt_array = jnp.ones(q.shape)*dt
+#     dtmax = 10*dt_array
+
+#     # disgusting hack to save the q values
+#     P = F*V
+#     V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+#     Npos = jnp.where(P>0,Npos+1,0)
+    
+#     dt_choice = jnp.array([dt_array * finc, dtmax])
+#     dt_array = jnp.where(P > 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+#     dt_array = jnp.where(P <= 0, dt * fdec, dt)
+    
+#     alpha = jnp.where(P > 0,jnp.where(Npos > Ndelay,
+#                             alpha * fa,
+#                             alpha),alpha)
+#     alpha = jnp.where(P <= 0, alpha0, alpha)
+
+#     V = V + 0.25*dt*F
+#     q = q + 0.5*dt*V
+#     F = -df(q)
+#     V = V + 0.25*dt*F
+#     V = tree_map(lambda v: (P >= 0) * v, V)
+    
+#     V = V + 0.25*dt*F
+#     q = q + 0.5*dt*V
+#     F = -df(q)
+#     V = V + 0.25*dt*F
+
+#     # error = jnp.max(jnp.abs(F))
+
+#     # del V, F  
+#     return q
+
+from jax import jit, lax
+import jax.numpy as jnp
+
+
+def onestep_fire(q, df, atol=1e-4, dt=0.002):
+    """
+    Perform one step of the FIRE (Fast Inertial Relaxation Engine) algorithm.
+
+    Parameters:
+    - q: Current positions (array-like)
+    - f: Force function f(q)
+    - df: Function to compute the gradient of f
+    - atol: Absolute tolerance for convergence
+    - dt: Initial time step
+
+    Returns:
+    - q: Updated positions after one FIRE step
+    """
+    # Constants
+    alpha0 = 0.1
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Ndelay = 10
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+
+    # Initialize variables
+    alpha = alpha0
+    Npos = 0
+    V = jnp.zeros_like(q)
+    F = -df(q)
+    P = jnp.dot(F.ravel(), V.ravel())
+    error = 10 * atol
+
+    def update_velocity(V, F, alpha):
+        """Update velocity using the FIRE algorithm."""
+        norm_F = jnp.linalg.norm(F)
+        norm_V = jnp.linalg.norm(V)
+        safe_norm_F = jnp.where(norm_F > 0, norm_F, 1.0)
+        return (1 - alpha) * V + alpha * F * norm_V / safe_norm_F
+
+    def conditionally_update_parameters(P, Npos, dt, alpha):
+        """Update time step and alpha based on power P."""
+        def positive_power_updates():
+            new_dt = jnp.minimum(dt * finc, dtmax)
+            new_alpha = alpha * fa if Npos > Ndelay else alpha
+            return new_dt, new_alpha
+
+        def negative_power_updates():
+            new_dt = dt * fdec
+            new_alpha = alpha0
+            return new_dt, new_alpha
+
+        dt, alpha = lax.cond(
+            P > 0,
+            positive_power_updates,
+            negative_power_updates
+        )
+        return dt, alpha
+
+    # FIRE algorithm loop
+    V = update_velocity(V, F, alpha)
+    dt, alpha = conditionally_update_parameters(P, Npos, dt, alpha)
+
+    # Update positions and velocities
+    V = V + 0.5 * dt * F
+    q = q + dt * V
+    F = -df(q)
+    V = V + 0.5 * dt * F
+
+    # Reset velocity if P is negative
+    V = jnp.where(P < 0, 0.0, V)
+
+    # Convergence check (optional: uncomment if needed)
+    # error = jnp.max(jnp.abs(F))
+    # if error < atol:
+    #     return q
+
+    return q
+
+    
+def test_onestep_fire():
+    from protocols import create_random_rods, create_nonintersecting_random_rods_contained
+    from potentials import total_effective_potential
+
+    q0 = create_random_rods(100,[25,32,12])
+    f = jit(total_effective_potential)
+    df = jit(grad(f))
     
 
+    q = q0.copy()
+    q = jnp.array(q.flatten(),dtype=jnp.float64)
+
+    temp = lambda q: onestep_fire(q,df,atol=1e-4,dt=1.e-2)
+    temp = jit(temp)
+
+    for i in range(10000):
+        # q, df, atol=1e-4, dt=0.002
+        q = temp(q)
+        if i % 500 == 0:
+            print(f"Iteration: {i}")
+    
+    from matplotlib import pyplot as plt
+    from visualizations import plot_many_rods
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    plot_many_rods(q0.reshape(-1,5),ax=ax,opt_dict={'color':'k'})
+    plot_many_rods(q.reshape(-1,5),ax=ax,opt_dict={'color':'r'})
+    plt.show()    
+
+    return
+
 if __name__ == "__main__":
-    main()
+    # main()
+    test_onestep_fire()
