@@ -76,10 +76,10 @@ import matplotlib.pyplot as plt
 
 # Dictionary to define the number of points for each variable
 variable_points = {
-    'd_ij': 7,  # e.g., use 7 points for d_ij
-    'theta': 6, # use 6 points for theta
-    'ai': 8,    # use 8 points for ai
-    'aj': 5     # use 5 points for aj
+    'd_ij': 10,  # e.g., use 7 points for d_ij
+    'theta': 10, # use 6 points for theta
+    'ai': 10,    # use 8 points for ai
+    'aj': 10    # use 5 points for aj
 }
 
 # Generate ranges dynamically
@@ -102,7 +102,8 @@ for i, d_ij in enumerate(d_ij_vals):
                 acn2[i, j, k, l] = acn_from_antiderivative(d_ij, theta, ai, aj)
                 acn3[i, j, k, l] = acn_from_numerical_integration(d_ij, theta, ai, aj)
 # %%
-markers = ['o', 's', '^']
+markers = ['s', 'v', '^']
+linestyles = ['-', '--', ':']
 # Function to create a single plot with overlapping curves for comparison
 def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices):
     plt.figure(figsize=(2.5, 2))
@@ -116,20 +117,21 @@ def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices
     ):
         # Take the mean over the fixed indices to compare across the given variable
         acn_mean = np.mean(acn, axis=fixed_indices)*(1 + offset*k)  # Add a small offset for better visualization
-        print(acn_mean)
-        plt.plot(variable_vals, acn_mean, label=label, marker=markers[k])
+        plt.plot(variable_vals, acn_mean, label=label, marker=markers[k],linewidth=1,alpha=1,markersize=(5-k),linestyle=linestyles[k])
         k += 1
     
     # Labels and title
     plt.xlabel(variable_label)
     plt.ylabel('ACN')
-    plt.title(f'ACN Comparison vs {variable_label}')
+    # plt.title(f'ACN Comparison vs {variable_label}')
     
     # Show legend for each method
     # plt.legend()
     
     # Display the plot
     plt.tight_layout()
+    # plt.savefig(f'ACN_{variable_label}.png', dpi=300, bbox_inches='tight')
+    # plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
     plt.show()
 
 # Example plotting comparisons
@@ -144,3 +146,49 @@ plot_acn_comparison(ai_vals, 'ai', (d_ij_vals, theta_vals, aj_vals), (0, 1, 3))
 
 # For 'aj', we fix d_ij, theta, and ai (axes 0, 1, 2)
 plot_acn_comparison(aj_vals, 'aj', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
+# %%
+# convexity?
+# Check convexity of the ACN values
+
+# random point
+q1 = np.random.randn(10)
+q2 = np.random.randn(10)
+q3 = (q1 + q2) / 2
+
+# %%
+theta = np.pi/2
+l = 1
+x1,y1,z1 = -l/2+(ai-0.5),0,0
+phi_i,theta_i = np.pi/2,0
+phi_j,theta_j = np.pi/2,theta
+u_j = np.array([np.sin(phi_j)*np.cos(theta_j), np.sin(phi_j)*np.sin(theta_j), np.cos(phi_j)])
+
+z2 = d_ij
+x2 = -l/2*u_j[0]+(aj-0.5)*u_j[0]
+y2 = -l/2*u_j[1]+(aj-0.5)*u_j[1]
+q1 = np.array([x1,y1,z1,phi_i,theta_i,x2,y2,z2,phi_j,theta_j])
+
+phi_j,theta_j = np.pi/2,theta*0.
+u_j = np.array([np.sin(phi_j)*np.cos(theta_j), np.sin(phi_j)*np.sin(theta_j), np.cos(phi_j)])
+z3 = d_ij*1.
+x3 = -l/2*u_j[0]+(aj-0.5)*u_j[0]
+y3 = -l/2*u_j[1]+(aj-0.5)*u_j[1]
+
+q2 = np.array([x1,y1,z1,phi_i,theta_i,x3,y3,z3,phi_j,theta_j])
+q3 = (q1+q2)/2
+
+acn1 = compute_linking_number(q1[0], q1[1], q1[2], q1[3], q1[4], q1[5], q1[6], q1[7] , q1[8], q1[9], 1)
+acn2 = compute_linking_number(q2[0], q2[1], q2[2], q2[3], q2[4], q2[5], q2[6], q2[7] , q2[8], q2[9], 1)
+acn3 = compute_linking_number(q3[0], q3[1], q3[2], q3[3], q3[4], q3[5], q3[6], q3[7] , q3[8], q3[9], 1)
+# %%
+print(acn2/2 + acn1/2)
+print(acn3)
+# print(acn1, acn2, acn3)
+# %%
+from visualizations import plot_many_rods
+fig,ax=plt.subplots(subplot_kw= {'projection':'3d'})
+plot_many_rods(q1.reshape(-1,5),ax=ax,opt_dict={'color':'red'})
+plot_many_rods(q2.reshape(-1,5),ax=ax,opt_dict={'color':'green'})
+plot_many_rods(q3.reshape(-1,5),ax=ax,opt_dict={'color':'blue'})
+ax.view_init(30, 0)
+# %%
