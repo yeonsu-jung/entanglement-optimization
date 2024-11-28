@@ -5,7 +5,8 @@ import numpy as np
 from data_io import import_all_log, save_as_mat
 from scipy.io import loadmat
 from matplotlib import pyplot as plt
-meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick")
+
+meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
 
 def plot_rods(xyz,ax=None):
     if ax is None:
@@ -93,8 +94,6 @@ for pth in pathlist:
     else:
         print(f'{mat_file_path} already exists')
 
-    
-
     data_list.append(SingleKickData(dt_string, AR, num_rods, kick_amplitude, friction_coefficient, mat_file_path))
 print(data_list)
 
@@ -112,6 +111,7 @@ for dta in data_list:
     if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.2) and dta.kick_amplitude == 1.0:
         # data = loadmat(dta.data_path,simplify_cells=True)
         chosen_data.append(dta)
+
 # %%
 global_data_list = []
 for dta in chosen_data:
@@ -119,6 +119,7 @@ for dta in chosen_data:
     
     time_line = data['time_line']
     node_list = data['node_list']
+    velocity_list = data['velocity_list']
     contacts_list = data['contact_list']
 
     nodes_at_last_frame = node_list[-1]
@@ -142,22 +143,23 @@ for dta in chosen_data:
         'time_line': time_line,
         'data_obj': dta,
         'node_list': node_list,
+        'velocity_list': velocity_list,
         'rad_gyr_list': rad_gyr_list,
         'num_contacts_list': num_contacts_list,
     }
     global_data_list.append(local_dataset)
 
-# %%
 # sort global_data_list by friction_coefficient
 global_data_list = sorted(global_data_list,key=lambda x: x['data_obj'].friction_coefficient)
 friction_coefficient_list = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
-
+# %%
 _trimmed = []
-to_remove = [11,12,13]
-for i in range(len(global_data_list)):
-    if i in to_remove:
-        continue
-    _trimmed.append(global_data_list[i])
+_trimmed = global_data_list
+# to_remove = [11,12,13]
+# for i in range(len(global_data_list)):
+#     if i in to_remove:
+#         continue
+#     _trimmed.append(global_data_list[i])
     
     
 # %%
@@ -166,11 +168,15 @@ from potentials import total_effective_potential
 import time
 
 global_entanglement_over_time = {}
+
 for local_dataset in _trimmed:
     time_line = local_dataset['time_line']
     nodes_list = local_dataset['node_list']
+    velocity_list = local_dataset['velocity_list']
     num_contacts_list = local_dataset['num_contacts_list']
 
+    kinetic_energy_over_time = []
+    mean_velocity_over_time = []
     entanglement_over_time = []
     start = time.time()
     for i in range(0,len(nodes_list),30):
@@ -179,6 +185,17 @@ for local_dataset in _trimmed:
         e = -total_effective_potential(q)
         entanglement_over_time.append(e)
 
+        v = velocity_list[i]
+        v = v.reshape(-1,6)
+
+        centroid_velocity = np.mean(v,axis=0)
+        non_rigid_body_velocity = v - centroid_velocity
+        mean_velocity = np.mean(np.linalg.norm(non_rigid_body_velocity,axis=1))
+        mean_velocity_over_time.append(mean_velocity)
+
+        kinetic_energy = 0.5*np.sum(np.linalg.norm(v,axis=1)**2)
+        kinetic_energy_over_time.append(kinetic_energy)
+
     
     print(f'{local_dataset["data_obj"].friction_coefficient} took {time.time()-start:.2f} seconds')
     skipped_time_line = time_line[::30]
@@ -186,9 +203,22 @@ for local_dataset in _trimmed:
     local_data = {
         'time_line': skipped_time_line,
         'entanglement': entanglement_over_time,
+        'mean_velocity': mean_velocity_over_time,
+        'kinetic_energy': kinetic_energy_over_time,
     }
 
     global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient] = local_data
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed:
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+    kinetic_energy = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['kinetic_energy']
+    ax.plot(time_line,kinetic_energy,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+    
+# %%
+
+
+
 
 # %%
 fig,ax=plt.subplots(figsize=(2.5,2))
@@ -248,7 +278,16 @@ if not os.path.exists(figure_output_folder):
     os.makedirs(figure_output_folder)
 
 plt.savefig(f'{figure_output_folder}/RadiusOfGyration_AR{AR}.png',dpi=300,bbox_inches='tight')
-
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed:
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+    mean_velocity = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['mean_velocity']
+    ax.plot(time_line,mean_velocity,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Mean relative velocity, $v$ (L/sec)')
+plt.savefig(f'{figure_output_folder}/MeanVelocityOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+# %%
 # %%
 file_id = f'N{num_rods}-AR{int(AR):04d}-Kick{1.0}'
 output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}'
