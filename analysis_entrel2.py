@@ -32,6 +32,8 @@ pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99
 pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0300-Scale1/q_relaxed.txt")
 pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0500-Scale1/q_relaxed.txt")
 
+
+# pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/85,32,12/2024-10-24_14_EntangledRelaxedPacking-N0050-AR0500-Scale1/q_relaxed.txt')
 # %%
 # sort by AR
 pathlist = sorted(pathlist,key=lambda x: float(x.split('-AR')[1].split('-')[0]))
@@ -137,7 +139,8 @@ for angles in angle_list:
 plt.xlabel('Pairwise angle, $\\theta$')
 plt.ylabel('Probability density, $P(\\theta)$')
 # plt.legend(np.array(AR_list).astype(int))
-plt.savefig(f'{common_folder}/angle_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+# plt.savefig(f'{common_folder}/angle_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+
 # %%
 plt.figure(figsize=(2.5,2))
 ax=plt.gca()
@@ -165,10 +168,10 @@ plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel(r'$e/n_p$')
 plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 # %%
-pth = pathlist[7]
+pth = pathlist[0]
 q = np.loadtxt(pth)
 
-_,AR,_=parse_pathname(pth)
+_,AR,_,_ = parse_pathname(pth)
 
 import polyscope as ps
 from visualizations import prep_for_polyscope
@@ -203,3 +206,5 @@ ps.set_bounding_box(low, high)
 
 ps.set_up_dir("z_up")
 ps.screenshot(f'EntRel_{AR}.png',transparent_bg=False)
+
+# %%
