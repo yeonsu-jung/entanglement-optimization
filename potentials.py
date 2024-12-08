@@ -83,7 +83,7 @@ def dist_lin_seg(point1s, point1e, point2s, point2e):
                     None)        
         return (t,u)
     
-    (t,u) = lax.cond((D1 == 0.) & (D2 == 0.),
+    (t,u) = lax.cond( (D1 == 0.) & (D2 == 0.),
                         lambda _: case1(),
                         lambda _: case2(),
                         None)
@@ -267,6 +267,21 @@ def compute_linking_number_vectorized(q):
     theta_j = q[9]
 
     return compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+
+def compute_linking_number_vectorized_with_l(q,l):
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+    
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    return compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l)
 
 def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
     p_i = jnp.array([x_i, y_i, z_i])
@@ -467,6 +482,26 @@ def pairwise_distance(q_pair):
     return dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
 @jit
+def nematic_tensor(q):
+    phi_i =   q[3]
+    theta_i = q[4]
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+
+    return jnp.outer(u_i, u_i)
+
+@jit
+def compute_nematic_order(qq):
+    qq = jnp.reshape(qq, (-1, 5))
+    
+    def body_fun(carry, q):
+        # Increment carry by the result of effective_potential applied to q_pair
+        return carry + nematic_tensor(q), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, qq)
+
+
+
+@jit
 def pairwise_angle(q_pair):
     x_i =     q_pair[0]
     y_i =     q_pair[1]
@@ -512,6 +547,31 @@ def pairwise_skewness(q_pair):
     p_jj = p_j + l*u_j
     
     return skewness_lin_seg(p_i, p_ii, p_j, p_jj)
+
+def pairwise_contact_point(q_pair):
+    x_i =     q_pair[0]
+    y_i =     q_pair[1]
+    z_i =     q_pair[2]
+    phi_i =   q_pair[3]
+    theta_i = q_pair[4]
+  
+    x_j =     q_pair[5]
+    y_j =     q_pair[6]
+    z_j =     q_pair[7]
+    phi_j =   q_pair[8]
+    theta_j = q_pair[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l*u_i
+    p_jj = p_j + l*u_j
+
+    return contact_point_lin_seg(p_i, p_ii, p_j, p_jj)
+
 
 @jit
 def identity(x):
@@ -577,8 +637,74 @@ def skewness_lin_seg(point1s, point1e, point2s, point2e):
                         lambda _: case1(),
                         lambda _: case2(),
                         None)
-    return t
+    return t,u
 
+def contact_point_lin_seg(point1s, point1e, point2s, point2e):
+    """Calculate the shortest distance between two line segments using JAX with cond."""
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    def case1():
+        (t,u) = lax.cond( D1 != 0. , 
+                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: lax.cond(D2 != 0.,
+                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,0.),
+                             None),
+                    None)        
+        return (t,u)
+    
+    def case2_1():
+        t = 0.
+        u = -S2/D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)
+    
+    def case2_2():
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = (t * R - S2) / D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)        
+    
+    def case2():
+        (t,u) = lax.cond( den == 0. , 
+                    lambda _: case2_1(),                    
+                    lambda _: case2_2(),
+                    None)        
+        return (t,u)
+    
+    (t,u) = lax.cond((D1 == 0.) & (D2 == 0.),
+                        lambda _: case1(),
+                        lambda _: case2(),
+                        None)
+    
+    p1 = point1s + d1*t
+    p2 = point2s + d2*u
+    # d1 * t - d2 * u - d12
+    # d12 = point2s - point1s
+
+    return (p1+p2)/2
 
 @jit
 def all_pairwise_distances(q_pairs):
@@ -1257,9 +1383,7 @@ def check_arai_formula2():
     
     print(d)
 
-
-if __name__ == "__main__":
-
+def test_random_data():
     from optimization import optimize_fire_nonjax_individual
     from protocols import create_random_rods
     q0 = create_random_rods(100)
@@ -1283,3 +1407,92 @@ if __name__ == "__main__":
 
     plot_many_rods(q.reshape(-1,5))
     plt.show()
+
+def test_skewness():
+    from optimization import optimize_fire_nonjax_individual
+    from protocols import create_random_rods
+    from transforms import x_to_q, q_to_x
+
+    line_1 = [
+        [-.5,0,0],
+        [.5,0,0]
+    ]
+
+    line_2 = [
+        [0,-.5,1],
+        [0,.5,1]
+    ]
+
+    line_1 = np.array(line_1).flatten()
+    line_2 = np.array(line_2).flatten()
+
+    q1 = x_to_q(line_1)
+    q2 = x_to_q(line_2)
+
+    x1 = q_to_x(q1)
+    x2 = q_to_x(q2)
+
+    print(line_1 - x1)
+    print(line_2 - x2)
+
+    from matplotlib import pyplot as plt
+    
+    q1 = x_to_q(line_1)
+    q2 = x_to_q(line_2)
+
+    x1 = q_to_x(q1)
+    x2 = q_to_x(q2)
+
+    q_pair = np.concatenate([q1,q2],axis=1)
+    q_pair = q_pair.flatten()
+    q_pair = jnp.array(q_pair)
+    skewness = pairwise_skewness(q_pair)
+    print(skewness)
+
+    return
+
+def test_contact_point():
+    # pairwise_contact_point
+    from optimization import optimize_fire_nonjax_individual
+    from protocols import create_random_rods
+    from transforms import x_to_q, q_to_x
+
+    line_1 = [
+        [-.5,0,0],
+        [.5,0,0]
+    ]
+
+    line_2 = [
+        [0,-.5,0.2],
+        [0,.5,0.2]
+    ]
+
+    line_1 = np.array(line_1).flatten()
+    line_2 = np.array(line_2).flatten()
+
+    q1 = x_to_q(line_1)
+    q2 = x_to_q(line_2)
+
+    x1 = q_to_x(q1)
+    x2 = q_to_x(q2)
+
+    print(line_1 - x1)
+    print(line_2 - x2)
+
+    from matplotlib import pyplot as plt
+    
+    q1 = x_to_q(line_1)
+    q2 = x_to_q(line_2)
+
+    x1 = q_to_x(q1)
+    x2 = q_to_x(q2)
+
+    q_pair = np.concatenate([q1,q2],axis=1)
+    q_pair = q_pair.flatten()
+    q_pair = jnp.array(q_pair)
+    contact_point = pairwise_contact_point(q_pair)
+    print(contact_point)
+
+if __name__ == "__main__":
+    # test_skewness()
+    test_contact_point()
