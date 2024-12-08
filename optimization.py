@@ -4,12 +4,22 @@ from jax.tree_util import tree_map
 import numpy as onp
 from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
 from matplotlib import pyplot as plt
+from potentials import create_pairs, all_pairwise_distances
 
-def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
+def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+    # q0: initial degrees of freedom
+    # f: function to minimize
+    # df: gradient of f
+    # g: constraint function
+    # dg: gradient of g
+    # Nmax: maximum number of iterations
+    # atol: absolute tolerance
+    # dt: initial time step
+
     dtmax = 10 * dt
     dtmin = 0.02 * dt
     alpha0 = 0.1  # example starting value for alpha
-    alpha = alpha0    
+    alpha = alpha0
     Ndelay = 10   # example delay for adjusting dt
     finc = 1.1    # factor to increase dt
     fdec = 0.5    # factor to decrease dt
@@ -32,8 +42,14 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
     q = q0.copy()
     V = jnp.zeros(q.shape)
     F = -df(q)
+    
     dt_array = jnp.ones(q.shape)*dt
     dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    num_existing_files = len(list(Path('qs2').glob('*.npy')))
+    k = 0
     
     for i in range(Nmax):
 
@@ -64,17 +80,307 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
         
         V = V + 0.25*dt*F
         q = q + 0.5*dt*V
+
+        # Project q onto the constraint surface
+        g_val = g(q)
+        # dg = jax.grad(g)
+        dg_val = dg(q)
+        q = q - jnp.dot(q - g_val,dg_val)*dg_val
+
+        # q = jnp.where(g_val > 0, q - jnp.dot(g_val,dg_val)/jnp.dot(dg_val,dg_val)*dg_val, q)
+
+        F = -df(q)
+        V = V + 0.25*dt*F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,10) == 0:
+            
+
+            # TODO: add this to the callback
+            from potentials import create_pairs, all_pairwise_distances
+
+            q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+            d = all_pairwise_distances(q_pairs)
+
+            print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}, min. distance: {jnp.min(d)}")
+
+            if callback is not None:
+                callback(q)
+            onp.save(f"qs2/q_{k+num_existing_files}.npy",onp.array(q))
+            k += 1
+        
+        if jnp.isnan(F).any():
+            print("NaN detected in variables")
+            
+        if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
+
+def optimize_fire_nonjax_individual_with_constraint2(q0,f,df,g,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+    # q0: initial degrees of freedom
+    # f: function to minimize
+    # df: gradient of f
+    # g: constraint function
+    # dg: gradient of g
+    # Nmax: maximum number of iterations
+    # atol: absolute tolerance
+    # dt: initial time step
+
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    
+    dtmin = 0.02*dt
+    alpha = alpha0
+    
+    Npos = jnp.zeros(q0.shape[0])
+
+    q = q0.copy()
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+    
+    dt_array = jnp.ones(q.shape)*dt
+    dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    num_existing_files = len(list(Path('qs').glob('*.npy')))
+    k = 0
+    
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = F*V
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        Npos = jnp.where(P>=0,Npos+1,0)
+        
+        dt_choice = jnp.array([dt_array * finc, dtmax])
+        
+        dt_array = jnp.where(P >= 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P < 0, dt * fdec, dt)
+        
+        alpha = jnp.where(P >= 0,jnp.where(Npos > Ndelay,
+                                alpha * fa,
+                                alpha),alpha)
+        
+        alpha = jnp.where(P < 0, alpha0, alpha)
+        # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
+        
+        # V = jnp.where(P >= 0,V + 0.5*dt*F,V)
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+        
+        V = tree_map(lambda v: (P >= 0) * v, V)
+        
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+
+        # Project q onto the constraint surface
+        g_val = g(q)
+        dg = jax.grad(g)
+        dg_val = dg(q)
+        # q = q - jnp.dot(q - g_val,dg_val)*dg_val
+        q = tree_map(lambda q: (g(q) >= 0) * q, q)
+
+
         F = -df(q)
         V = V + 0.25*dt*F
 
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
             print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            if callback is not None:
+                callback(q)
+            onp.save(f"qs/q_{k+num_existing_files}.npy",onp.array(q))
+            k += 1
         
         if jnp.isnan(F).any():
             print("NaN detected in variables")
             
         if error < atol: break
+
+        if logoutput: print(f(q),error)
+
+    # del V, F  
+    return q, f(q), Npos, error
+
+import jax.numpy as jnp
+from jax import jit, grad, tree_map
+import numpy as np
+from functools import partial
+
+@partial(jit, static_argnames=['f', 'df', 'callback'])
+def optimize_fire_jax_individual(q0, f, df, Nmax, atol=1e-4, dt=0.002, logoutput=False, callback=None):
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1
+    alpha = alpha0
+    Ndelay = 10  
+    finc = 1.1  
+    fdec = 0.5  
+    fa = 0.99  
+    Nnegmax = 200000
+    error = 10 * atol  
+
+    q = q0.copy()
+    V = jnp.zeros_like(q)
+    F = -df(q)
+
+    Npos = jnp.zeros(q0.shape[0])
+    dt_array = jnp.full_like(q, dt)
+    dtmax_array = jnp.full_like(q, dtmax)
+
+    for i in range(Nmax):
+        # Compute power P = F ⋅ V
+        P = jnp.sum(F * V, axis=-1)
+
+        # Update velocity using FIRE mixing rule
+        V = (1 - alpha) * V + alpha * F * (jnp.linalg.norm(V) / jnp.linalg.norm(F))
+
+        # Update dt and alpha based on power P
+        dt_array = jnp.where(P >= 0, 
+                             jnp.where(Npos > Ndelay, jnp.minimum(dt_array * finc, dtmax_array), dt_array),
+                             dt * fdec)
+        alpha = jnp.where(P >= 0, 
+                          jnp.where(Npos > Ndelay, alpha * fa, alpha), 
+                          alpha0)
+        Npos = jnp.where(P >= 0, Npos + 1, 0)
+
+        # Integrate positions and velocities (Verlet-like scheme)
+        V += 0.25 * dt_array * F
+        q += 0.5 * dt_array * V
+        F = -df(q)
+        V += 0.25 * dt_array * F
+
+        # Error evaluation
+        error = jnp.max(jnp.abs(F))
+        if i % 10 == 0:
+            print(f"Iteration: {i}, fval: {f(q):.7f}, error: {error:.7f}")
+            if callback is not None:
+                callback(q, {"numbering": i // 10})
+
+        # Check for termination or NaNs
+        if jnp.isnan(F).any():
+            print("NaN detected in variables")
+            break
+        if error < atol:
+            break
+
+        if logoutput:
+            print(f(q), error)
+
+    return q, f(q), Npos, error
+
+
+def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+    alpha0 = 0.1  # example starting value for alpha
+    alpha = alpha0
+    Ndelay = 10   # example delay for adjusting dt
+    finc = 1.1    # factor to increase dt
+    fdec = 0.5    # factor to decrease dt
+    fa = 0.99     # factor to adjust alpha
+    
+    alpha0 = 0.1
+    Ndelay = 5
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Nnegmax = 200000
+    
+    error = 10*atol 
+    
+    dtmin = 0.02*dt
+    alpha = alpha0
+    
+    Npos = jnp.zeros(q0.shape[0])
+
+    q = q0.copy()
+    V = jnp.zeros(q.shape)
+    F = -df(q)
+    dt_array = jnp.ones(q.shape)*dt
+    dtmax = 10*dt_array
+
+    # disgusting hack to save the q values
+    from pathlib import Path
+    k = 0
+    
+    break_or_continue = False
+    for i in range(Nmax):
+
+        # P = (F*V).sum() # dissipated power
+        P = F*V
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+        Npos = jnp.where(P>0,Npos+1,0)
+        
+        dt_choice = jnp.array([dt_array * finc, dtmax])
+        
+        dt_array = jnp.where(P > 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+        dt_array = jnp.where(P <= 0, dt * fdec, dt)
+        
+        alpha = jnp.where(P > 0,jnp.where(Npos > Ndelay,
+                                alpha * fa,
+                                alpha),alpha)
+        
+        alpha = jnp.where(P <= 0, alpha0, alpha)
+        # P = tree_map(lambda p: (F_dot_P >= 0) * p, P)
+        
+        # V = jnp.where(P >= 0,V + 0.5*dt*F,V)
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+        
+        V = tree_map(lambda v: (P >= 0) * v, V)
+        
+        V = V + 0.25*dt*F
+        q = q + 0.5*dt*V
+        F = -df(q)
+        V = V + 0.25*dt*F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,100) == 0:
+            q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+            d = all_pairwise_distances(q_pairs)
+            print(f"Iteration: {i:3d}, "
+                    f"fval: {f(q):12.7f}, "
+                    f"error: {error:12.7f}, "
+                    f"min. dist.: {jnp.min(d):12.7f}")
+
+            callback_params = {"numbering": k, "min_distance": jnp.min(d)}
+            if callback is not None:
+                break_or_continue = callback(q,callback_params)
+
+            if break_or_continue:
+                print("Callback requested to break the loop")
+                break
+
+            k += 1
+        
+        # if jnp.isnan(F).any():
+        #     print("NaN detected in variables")
+            
+        # if error < atol: break
 
         if logoutput: print(f(q),error)
 
@@ -140,9 +446,12 @@ def optimize_fire_nonjax(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False):
         F = -df(q)
         V = V + 0.5*dt*F
 
+        onp.save(f"qs/q_{i}.npy",onp.array(q))
         error = jnp.max(jnp.abs(F))
         if onp.mod(i,10) == 0:
             print(f"Iteration: {i}, fval: {f(q):.7f},error: {error:.7f}")
+            
+
         
         if onp.isnan(F).any():            
             print("NaN detected in variables")
@@ -448,7 +757,7 @@ def testing_individual_fire(q = None):
         else:
             q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
             onp.savetxt(cachefile,q0)
-            
+
         cachefile = 'entangled-rod-cache.txt'
         if os.path.exists(cachefile):
             q = onp.loadtxt(cachefile)
@@ -496,11 +805,212 @@ def testing_individual_fire(q = None):
     print()
     
 def main():
-    from protocols import create_large_entangled_packing
-    q = create_large_entangled_packing(500)
+    from protocols import create_large_entangled_packing, create_random_rods, total_effective_potential
+    from transforms import q_to_x
+    from potentials import dist_lin_seg, dist_lin_seg_nonjax
+    from jax import grad
+    from visualizations import plot_many_rods
+    # q = create_large_entangled_packing(500)
+
+    q0 = create_random_rods(2)
+    x = q_to_x(q0)
+    d = dist_lin_seg_nonjax(x[0,:3],x[0,3:],x[1,:3],x[1,3:])
+
+    params = {"col_rad":0.001,"amp":10.0}
     
-    testing_individual_fire(q)
+    f = total_effective_potential # which is actually just linking number
+    df = grad(f)
+
+    g = lambda q: total_harmonic_line(q,params)
+    dg = grad(g)
+
+
+    Nmax = 1000
+    q_opt, f_val, Npos, error = optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None)
+
     
 
+    x = q_to_x(q_opt)
+    d = dist_lin_seg_nonjax(x[0,:3],x[0,3:],x[1,:3],x[1,3:])
+    print(d)
+    
+    plot_many_rods(q_opt.reshape(-1,5))
+    plt.show()
+    
+    # testing_individual_fire(q)
+
+# @jit
+# def onestep_fire(q,f,df,atol=1e-4,dt = 0.002):
+#     dtmax = 10 * dt
+#     dtmin = 0.02 * dt
+
+#     alpha0 = 0.1  # example starting value for alpha
+#     alpha = alpha0
+#     Ndelay = 10   # example delay for adjusting dt
+#     finc = 1.1    # factor to increase dt
+#     fdec = 0.5    # factor to decrease dt
+#     fa = 0.99     # factor to adjust alpha
+    
+#     alpha0 = 0.1
+#     Ndelay = 5
+#     finc = 1.1
+#     fdec = 0.5
+#     fa = 0.99
+#     Nnegmax = 200000
+    
+#     error = 10*atol 
+    
+#     dtmin = 0.02*dt
+#     alpha = alpha0
+    
+#     Npos = jnp.zeros(q.shape[0])
+#     V = jnp.zeros(q.shape)
+#     F = -df(q)
+#     dt_array = jnp.ones(q.shape)*dt
+#     dtmax = 10*dt_array
+
+#     # disgusting hack to save the q values
+#     P = F*V
+#     V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
+#     Npos = jnp.where(P>0,Npos+1,0)
+    
+#     dt_choice = jnp.array([dt_array * finc, dtmax])
+#     dt_array = jnp.where(P > 0, jnp.where(Npos > Ndelay,jnp.min(dt_choice),dt_array),dt_array)
+#     dt_array = jnp.where(P <= 0, dt * fdec, dt)
+    
+#     alpha = jnp.where(P > 0,jnp.where(Npos > Ndelay,
+#                             alpha * fa,
+#                             alpha),alpha)
+#     alpha = jnp.where(P <= 0, alpha0, alpha)
+
+#     V = V + 0.25*dt*F
+#     q = q + 0.5*dt*V
+#     F = -df(q)
+#     V = V + 0.25*dt*F
+#     V = tree_map(lambda v: (P >= 0) * v, V)
+    
+#     V = V + 0.25*dt*F
+#     q = q + 0.5*dt*V
+#     F = -df(q)
+#     V = V + 0.25*dt*F
+
+#     # error = jnp.max(jnp.abs(F))
+
+#     # del V, F  
+#     return q
+
+from jax import jit, lax
+import jax.numpy as jnp
+
+
+def onestep_fire(q, df, atol=1e-4, dt=0.002):
+    """
+    Perform one step of the FIRE (Fast Inertial Relaxation Engine) algorithm.
+
+    Parameters:
+    - q: Current positions (array-like)
+    - f: Force function f(q)
+    - df: Function to compute the gradient of f
+    - atol: Absolute tolerance for convergence
+    - dt: Initial time step
+
+    Returns:
+    - q: Updated positions after one FIRE step
+    """
+    # Constants
+    alpha0 = 0.1
+    finc = 1.1
+    fdec = 0.5
+    fa = 0.99
+    Ndelay = 10
+    dtmax = 10 * dt
+    dtmin = 0.02 * dt
+
+    # Initialize variables
+    alpha = alpha0
+    Npos = 0
+    V = jnp.zeros_like(q)
+    F = -df(q)
+    P = jnp.dot(F.ravel(), V.ravel())
+    error = 10 * atol
+
+    def update_velocity(V, F, alpha):
+        """Update velocity using the FIRE algorithm."""
+        norm_F = jnp.linalg.norm(F)
+        norm_V = jnp.linalg.norm(V)
+        safe_norm_F = jnp.where(norm_F > 0, norm_F, 1.0)
+        return (1 - alpha) * V + alpha * F * norm_V / safe_norm_F
+
+    def conditionally_update_parameters(P, Npos, dt, alpha):
+        """Update time step and alpha based on power P."""
+        def positive_power_updates():
+            new_dt = jnp.minimum(dt * finc, dtmax)
+            new_alpha = alpha * fa if Npos > Ndelay else alpha
+            return new_dt, new_alpha
+
+        def negative_power_updates():
+            new_dt = dt * fdec
+            new_alpha = alpha0
+            return new_dt, new_alpha
+
+        dt, alpha = lax.cond(
+            P > 0,
+            positive_power_updates,
+            negative_power_updates
+        )
+        return dt, alpha
+
+    # FIRE algorithm loop
+    V = update_velocity(V, F, alpha)
+    dt, alpha = conditionally_update_parameters(P, Npos, dt, alpha)
+
+    # Update positions and velocities
+    V = V + 0.5 * dt * F
+    q = q + dt * V
+    F = -df(q)
+    V = V + 0.5 * dt * F
+
+    # Reset velocity if P is negative
+    V = jnp.where(P < 0, 0.0, V)
+
+    # Convergence check (optional: uncomment if needed)
+    # error = jnp.max(jnp.abs(F))
+    # if error < atol:
+    #     return q
+
+    return q
+
+    
+def test_onestep_fire():
+    from protocols import create_random_rods, create_nonintersecting_random_rods_contained
+    from potentials import total_effective_potential
+
+    q0 = create_random_rods(100,[25,32,12])
+    f = jit(total_effective_potential)
+    df = jit(grad(f))
+    
+
+    q = q0.copy()
+    q = jnp.array(q.flatten(),dtype=jnp.float64)
+
+    temp = lambda q: onestep_fire(q,df,atol=1e-4,dt=1.e-2)
+    temp = jit(temp)
+
+    for i in range(10000):
+        # q, df, atol=1e-4, dt=0.002
+        q = temp(q)
+        if i % 500 == 0:
+            print(f"Iteration: {i}")
+    
+    from matplotlib import pyplot as plt
+    from visualizations import plot_many_rods
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    plot_many_rods(q0.reshape(-1,5),ax=ax,opt_dict={'color':'k'})
+    plot_many_rods(q.reshape(-1,5),ax=ax,opt_dict={'color':'r'})
+    plt.show()    
+
+    return
+
 if __name__ == "__main__":
-    main()
+    # main()
+    test_onestep_fire()

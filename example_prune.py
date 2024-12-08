@@ -18,6 +18,7 @@ from scipy.ndimage import uniform_filter1d
 
 from clustering import find_connected_components,explode_local_cluster
 import time
+from fitting import fit_rod
 
 def edge_lengths(curve):
     return (np.sqrt(np.sum(np.diff(curve,axis=0)**2,axis=1)))
@@ -48,6 +49,27 @@ def inspect_segments(segments):
     for i,seg in enumerate(segments):
         segments_length_list[i] = np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))   
         
+        
+    fig,ax=plt.subplots(1,1)
+    ax.hist(segments_length_list,bins=100)
+    ax.set_xlim([0,1000])
+    
+    from fitting import fit_rod
+
+    segments_error_list = np.zeros(N_segments)
+    for i,seg in enumerate(segments):
+        rr = np.array(seg,dtype=np.float64)
+        fit_result = fit_rod(rr,0.00001,10000)
+        segments_error_list[i] = fit_result['err']
+        
+    fig,ax=plt.subplots(1,1)
+    ax.hist(segments_error_list,bins=100)
+        
+    print(f'Maximum segment length: {np.max(segments_length_list)} at index {np.argmax(segments_length_list)}')
+    print(f'Maximum segment error: {np.max(segments_error_list)} at index {np.argmax(segments_error_list)}')
+    
+    return segments_length_list,segments_error_list
+
     fig,ax=plt.subplots(1,1)
     ax.hist(segments_length_list,bins=100)
     ax.set_xlim([0,1000])
@@ -115,14 +137,14 @@ def break_curved_rods(seg,curvature_threshold):
             start_idx = bp
         segs.append(seg[start_idx:])
         return segs
-
-if __name__ == '__main__':
+    
+def old_packings():
     linearity_threshold = 0.5
     radius_curvature_threshold = 500
         
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
     segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'segments.mat'
-    adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
+    # adjacency_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'adjacency_distance_scale0p98_threshold0p3_ij_score.pkl'
 
     mat_obj = loadmat(segments_file_path)
     segments = mat_obj['segments']
@@ -169,6 +191,66 @@ if __name__ == '__main__':
     
     pickle_out = open(segments_file_path.parent / 'pruned_segments.pkl','wb')
     pickle.dump(segments,pickle_out)
+    
+
+if __name__ == '__main__':
+    linearity_threshold = 0.5
+    radius_curvature_threshold = 500
+        
+    segments_file_path = Path("/Users/yeonsu/GitHub/entanglement-source-codes/rod-packing-cp/PackingData/RealRodPacking_N500_AR66/segments.mat")
+    rod_data_root_dir = segments_file_path.parent
+
+    mat_obj = loadmat(segments_file_path)
+    segments = mat_obj['segments']
+    segments = [seg[0] for seg in segments]
+    N_segments = len(segments)
+
+    for i,segment in enumerate(segments):
+        segments[i] = np.array(segment,dtype=np.float64)
+        
+    segments = initial_prune_segments(segments)
+    segments_length_list,segments_error_list = inspect_segments(segments)
+    new_segments = break_segments(segments)
+
+    for i,seg in enumerate(new_segments):
+        new_segments[i] = sort_curve(seg)
+        
+    segments_length_list,segments_error_list = inspect_segments(new_segments)
+
+    fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
+    broken_segments_list = []
+    for i in np.where(segments_error_list>1)[0]:
+        rr = new_segments[i]
+        broken_pieces = break_curved_rods(rr,10)    
+        for bp in broken_pieces:
+            ax.plot(bp[:,0],bp[:,1],bp[:,2])    
+            broken_segments_list.append(bp)
+            
+
+    # delete segments_error_list>1
+    new_segments2 = [seg for i,seg in enumerate(new_segments) if segments_error_list[i]<=1]
+    new_segments2 = new_segments2 + broken_segments_list
+    
+    
+    
+    # print(f'Staircase clustering: {segments_file_path.parent}')
+    print(f'Number of segments: {len(new_segments2)}')
+    
+    segments_length_list,segments_error_list = inspect_segments(new_segments2)
+    
+    pruned_segments = new_segments2
+    
+    layered = np.zeros(len(new_segments2),dtype=object)
+    for i,seg in enumerate(new_segments2):
+        layered[i] = np.array([seg[:,0],seg[:,1],seg[:,2]]).T
+    pruned_segments = layered
+    # rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    segments_file_path = rod_data_root_dir / 'pruned_segments.mat'
+    
+    
+    
+    from scipy.io import savemat
+    savemat(segments_file_path,{'pruned_segments':pruned_segments})
     
     
 

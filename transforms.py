@@ -10,6 +10,17 @@ def sph2cart(phi,theta):
     z = jnp.cos(phi)
     return jnp.array([x,y,z]).transpose()
 
+def cart2sph(u):
+    x = u[:,0]
+    y = u[:,1]
+    z = u[:,2]
+    
+    hxy = jnp.hypot(x, y)
+    r = jnp.hypot(hxy, z)
+    theta = jnp.arctan2(hxy, z)  # Polar angle (inclination)
+    phi = jnp.arctan2(y, x)      # Azimuthal angle
+    return r, theta, phi
+
 def q_to_x(q):
     # q = jnp.array(q)
     q = q.reshape((-1,5))
@@ -17,6 +28,15 @@ def q_to_x(q):
     x = x.at[:,:3].set(q[:,:3])
     x = x.at[:,3:6].set(sph2cart(q[:,3],q[:,4]) + x[:,0:3])
     return x
+
+def x_to_q(x):
+    # x = jnp.array(x)
+    x = x.reshape((-1,6))
+    q = jnp.zeros((x.shape[0],5))
+    q = q.at[:,:3].set(x[:,:3])
+    _,th,phi=cart2sph(x[:,3:6] - x[:,:3])
+    q = q.at[:,3:5].set(jnp.array([th,phi]).transpose())
+    return q
 
 # jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
 

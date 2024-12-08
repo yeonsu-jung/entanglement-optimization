@@ -233,3 +233,198 @@ def show_rods_and_fields():
     plt.close('all')
     
     print(f'Elapsed time: {time.time()-start}')
+
+
+#  for polyscope
+
+
+def edge_for_polyscope(segments):
+    # segments: list of segments
+    edges = []
+    for i,seg in enumerate(segments):
+        edges += [[i, i + 1] for i in range(len(seg) - 1)]
+    return np.array(edges)
+
+def color_for_polyscope(segments):
+    colors = np.array([
+        [76, 153, 204],   # light blue
+        [204, 76, 153],   # pinkish red
+        [76, 204, 153],   # mint green
+        [153, 204, 76],   # light olive green
+        [204, 153, 76],   # goldenrod
+        [153, 76, 204],   # medium purple
+        [204, 76, 102],   # crimson
+        [76, 204, 204],   # cyan
+        [204, 204, 76],   # sunflower yellow
+        [102, 76, 204]    # indigo
+    ])
+    
+    # segments: list of segments
+    colors = []
+    for i,seg in enumerate(segments):
+        colors += [np.array([i/len(segments), 0, 0]) for i in range(len(seg))]
+        
+    return np.array(colors)
+
+
+def prep_for_polyscope(r_list,num_nodes):
+    nodes = np.vstack(r_list)
+    colors = np.array([
+        [76, 153, 204],   # light blue
+        [204, 76, 153],   # pinkish red
+        [76, 204, 153],   # mint green
+        [153, 204, 76],   # light olive green
+        [204, 153, 76],   # goldenrod
+        [153, 76, 204],   # medium purple
+        [204, 76, 102],   # crimson
+        [76, 204, 204],   # cyan
+        [204, 204, 76],   # sunflower yellow
+        [102, 76, 204]    # indigo
+        ])/255
+    
+    colors_interpolated = np.zeros((len(r_list), 3))
+    for i in range(3):
+        colors_interpolated[:, i] = np.interp(
+            np.linspace(0, 1, num_nodes),
+            np.linspace(0, 1, colors.shape[0]),
+            colors[:, i]
+        )
+
+    edge_colors = []
+    edges = []
+
+    starting_index = 0
+    for i in range(len(r_list)):
+        num_edges = len(r_list[i])-1
+        to_add = [[starting_index + j,starting_index + j+1] for j in range(num_edges)]
+        edges.append(to_add)
+        edge_colors.append(np.array([colors_interpolated[i] for j in range(num_edges)]))
+        starting_index += num_edges+1
+    edges = np.vstack(edges)
+    edge_colors = np.vstack(edge_colors)
+    
+    return nodes,edges,edge_colors
+
+# %%
+def live_view_with_polyscope(a_list_of_curves):
+    nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves)
+    
+    import polyscope as ps
+    ps.init()
+
+    ps_curves = ps.register_curve_network("filaments",nodes,edges)
+    ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges')
+
+    ps.set_up_dir("z_up")
+    ps.show()
+    
+# def screenshot_with_polyscope(a_list_of_curves):
+#     nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves)
+    
+#     import polyscope as ps
+#     ps.init()
+
+#     ps_curves = ps.register_curve_network("filaments",nodes,edges)
+#     ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges')
+
+#     ps.set_up_dir("z_up")
+#     ps.show()
+    
+#     return ps_curves
+    
+# %%
+if __name__ == '__main__':
+    from data_io import import_all_log
+    from pathlib import Path
+
+    pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240711-0258_COMPILE_metal_nest_relaxation/log_files/metal_nest_allLog_20240711-025850.csv'
+    time_line, node_list, contact_list = import_all_log(pth,max_rows=1000000)
+
+    folder_path = Path(pth).parent
+    subfolder_name = 'Inbox'
+
+    file_id = pth.split('/')[-1].split('.')[0].split('_allLog_')[-2]
+    surfix = pth.split('.')[-2].split('allLog_')[-1]
+    file_id = f'worm_1_{file_id}'
+
+    # worm 1
+    num_rods = 1451
+    AR = 0.3/0.002/2
+    rod_diameter = 0.25
+        
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
+    import os
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # live_view_with_polyscope(a_list_of_curves)
+    len(node_list)
+    # %%
+    import polyscope as ps
+    ps.init()
+    a_list_of_curves = node_list[-1].reshape(1451,-1,3)
+    nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves,1451)
+    ps_curves = ps.register_curve_network("filaments",nodes,edges)
+    ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges',enabled=True)
+    ps.set_up_dir("z_up")
+    file_path = f'{output_path}/frame_{0:04d}.png'
+    ps.screenshot(file_path)
+    # %%
+    time_line, node_list, contact_list = import_all_log(pth,max_rows=1000000)
+    skip_factor = 5
+    for i,a_list_of_curves in enumerate(node_list[::skip_factor]):
+        a_list_of_curves = a_list_of_curves.reshape(12,-1,3)
+        nodes = np.vstack(a_list_of_curves)
+        ps_curves.update_node_positions(nodes)
+        file_path = f'{output_path}/frame_{i:04d}.png'
+        ps.screenshot(file_path)
+        
+
+
+
+
+    # %%
+
+    pth = '/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20240710-1839_RUN_StandModelo1_9999_9999_9999/cruved_rod_test_allLog_20240710-183926.csv'
+    time_line, node_list, contact_list = import_all_log(pth)
+
+    folder_path = Path(pth).parent
+    subfolder_name = 'Inbox'
+
+    file_id = pth.split('/')[-1].split('.')[0].split('_allLog_')[-2]
+    surfix = pth.split('.')[-2].split('allLog_')[-1]
+    file_id = f'worm_1_{file_id}'
+
+    # worm 1
+    num_rods = 12
+    AR = 0.3/0.002/2
+    rod_diameter = 0.25
+        
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
+    import os
+
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+
+    # live_view_with_polyscope(a_list_of_curves)
+    len(node_list)
+    # %%
+    import polyscope as ps
+    ps.init()
+    a_list_of_curves = node_list[0].reshape(12,-1,3)
+    nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves)
+    ps_curves = ps.register_curve_network("filaments",nodes,edges)
+    ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges',enabled=True)
+    ps.set_up_dir("z_up")
+    file_path = f'{output_path}/frame_{0:04d}.png'
+    ps.screenshot(file_path)
+    # %%
+    time_line, node_list, contact_list = import_all_log(pth,max_rows=1000000)
+    skip_factor = 5
+    for i,a_list_of_curves in enumerate(node_list[::skip_factor]):
+        a_list_of_curves = a_list_of_curves.reshape(12,-1,3)
+        nodes = np.vstack(a_list_of_curves)
+        ps_curves.update_node_positions(nodes)
+        file_path = f'{output_path}/frame_{i:04d}.png'
+        ps.screenshot(file_path)

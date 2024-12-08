@@ -90,17 +90,17 @@ def process_contact_data(single_contact_info,curr_nodes):
     
     return contact_info
 def get_curr_force_essentials(curr_force_all_info,curr_nodes):
-            num_total_contacts = len(curr_force_all_info)
-            curr_force_essentials = np.zeros((num_total_contacts,6))
-            for query_index in range(num_total_contacts):
-                single_contact_info = curr_force_all_info[query_index]
-                contact_info = process_contact_data(single_contact_info,curr_nodes)        
-                pi = contact_info['contact_point_i']
-                pj = contact_info['contact_point_j']
-                cij = (pi+pj)/2
-                fij = contact_info['contact_force_i']        
-                curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
-            return curr_force_essentials
+    num_total_contacts = len(curr_force_all_info)
+    curr_force_essentials = np.zeros((num_total_contacts,6))
+    for query_index in range(num_total_contacts):
+        single_contact_info = curr_force_all_info[query_index]
+        contact_info = process_contact_data(single_contact_info,curr_nodes)        
+        pi = contact_info['contact_point_i']
+        pj = contact_info['contact_point_j']
+        cij = (pi+pj)/2
+        fij = contact_info['contact_force_i']        
+        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
+    return curr_force_essentials
 
 def main():
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -111,15 +111,15 @@ def main():
     folder_path = args.folder_path
     
     if args.protocol_id is None:
-        protocol_id = 'CarrotCake2-ExciteEntangle'
-        folder_path ='/Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05'
+        protocol_id = 'Modelo1'
+        folder_path ='/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/PertrubCalmEEModelo1-Fullset/20240620-1302_RUN_PerturbCalmEEModelo1_N1500_AR300_freq100'
     
     # python analyze_sim_dataset.py CarrotCake2-ExciteEntangle /Users/yeonsu/Data/from_cluster/20240528-1714_RUN_EntangleCarrotCake4,N1000_AR200_mu0.2_visc0_boxsize0.5_freq10_amp0.05
     print(f'Analyzing the dataset')
     print(f'Protocol ID: {protocol_id}')
     print(f'Folder path: {folder_path}')
     
-    R_omega_factor = 4
+    R_omega_factor = 1
     arrow_scale_factor = 100
     
     rod_length = 1
@@ -131,8 +131,8 @@ def main():
     visualize_fields = 1
     visualize_rods_contacts = 1
     skip_frames = 10
-    max_rows = 100
-    overlap_factor = 5
+    max_rows = 100000
+    overlap_factor = 2
     
     folder_path = Path(folder_path)
 
@@ -165,10 +165,12 @@ def main():
     num_grids = int((xlim[1]-xlim[0])/h_omega*2)
 
     time_line, node_list, contact_list = import_all_log(pth,max_rows=max_rows)
+    time_line0 = time_line
     time_line = np.array(time_line)
     time_line = time_line[time_line <= 10]
     
     
+        
     # find analysis-data
     TF_found = False
     for pth in Path(os.getcwd()).parent.glob('./analysis-data'):
@@ -208,7 +210,15 @@ def main():
     print(f'Number of rods: {num_rods}')
     print(f'Aspect ratio: {AR}')
     print(f'Output folder: {output_folder}')
-
+    
+    last_curve = node_list[time_line0.index(time_line[-1])].reshape((-1,10,3))
+    fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
+    for rod in last_curve:
+        ax.plot(rod[:,0],rod[:,1],rod[:,2],linewidth=0.5)
+    ax.view_init(elev=0, azim=0)
+    plt.savefig(f'{data_output_folder}/lastFrame.png',dpi=300)
+    np.savetxt(f'{data_output_folder}/lastFrame.txt',last_curve.reshape(-1,30))
+        
     # mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),mid_y,np.linspace(zlim[0],zlim[1],num_grids))
     mg = np.meshgrid(np.linspace(xlim[0],xlim[1],num_grids),np.linspace(-ylim[0],ylim[1],num_grids),np.linspace(zlim[0],zlim[1],num_grids))
     sampling_points = np.array([mg[0].flatten(),mg[1].flatten(),mg[2].flatten()]).T
@@ -222,9 +232,52 @@ def main():
     Q_fields_over_time = np.zeros((len(time_line),len(sampling_points),9))
     total_entanglement_over_time = np.zeros(len(time_line))
     
-    fF = filamentFields.filamentFields([],[])    
+    fF = filamentFields.filamentFields([],[])
+    
+    last_nodes = node_list[-1].reshape((-1,10,3))
+    last_force_all_info = contact_list[-1].reshape(-1,18)
+    last_force_essentials = get_curr_force_essentials(last_force_all_info,last_nodes)
+    
+    fF.update_filament_nodes_list(last_nodes)
+    fF.update_contact_array(last_force_essentials)
+    
+    fF.precompute(R_omega)
+    results = fF.analyze_local_volume_over_domain_from_precomputed(sampling_points, R_omega, rod_diameter)
+    n_volume = results[:,0].reshape((num_grids,num_grids,num_grids))
+    e_volume = results[:,3].reshape((num_grids,num_grids,num_grids))
+    e_volume.shape
+       
+    from skimage.morphology import convex_hull_image
+    convex_hull = convex_hull_image(n_volume > 0)
+    e_field_inside = e_volume[convex_hull]
+    plt.hist(e_field_inside,bins=100)
+    
+    Q1 = np.percentile(e_field_inside, 25)
+    Q3 = np.percentile(e_field_inside, 75)
+    IQR = Q3 - Q1
+    outlier_step = 1.5 * IQR
+    upper_bound = Q3 + outlier_step
+    
+    img = np.max(e_volume,axis=0)
+    img = np.flipud(img.T)
+    
+    plt.imshow(img)
+    
+    n_fields = np.zeros(len(sampling_points))
+    e_fields = np.zeros(len(sampling_points))
+    for iterator,sampling_point in enumerate(sampling_points):
+        fF.analyze_local_volume_from_precomputed(sampling_point, 4*R_omega, rod_diameter)
+        n_fields[iterator] = fF.return_number_of_labels()
+        e_fields[iterator] = fF.return_entanglement()
+        
+    n_volume = n_fields.reshape((num_grids,num_grids,num_grids))
+    e_volume = e_fields.reshape((num_grids,num_grids,num_grids))
+    
+
+
     start = time.time()
     last_frame = len(time_line)-1
+    print(f'Last frame: {last_frame}')
     for frame in range(0,len(time_line),1):
         curr_nodes = node_list[frame].reshape((-1,10,3))
         curr_force_all_info = contact_list[frame].reshape(-1,18)
@@ -291,7 +344,7 @@ def main():
         
         if visualize_fields and (frame % skip_frames == 0):
             n_image = np.max(n_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
-            S_image = np.max(S_fields.reshape((num_grids,num_grids,num_grids)),axis=0)            
+            S_image = np.max(S_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             e_image = np.max(e_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             c_image = np.max(c_fields.reshape((num_grids,num_grids,num_grids)),axis=0)
             f_image = np.max(f_fields.reshape((num_grids,num_grids,num_grids)),axis=0)

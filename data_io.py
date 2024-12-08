@@ -1,13 +1,14 @@
+# %%
 from numpy import loadtxt, savetxt
 import jax.numpy as jnp
 import numpy as np
 import datetime
 import re
 
-from visualizations import set_3d_plot, plot_many_rods
+# from visualizations import set_3d_plot, plot_many_rods
 from matplotlib import pyplot as plt
 
-from utils import parse_id_string
+# from utils import parse_id_string
 import glob
 import scipy.io
 import os
@@ -16,6 +17,7 @@ from scipy.io import loadmat
 
 
 def parse_path_string(pth):    
+    pth = str(pth)
     filename = pth.split('/')[-1]        
     file_id = filename.split('-mu')[0]
     
@@ -309,10 +311,10 @@ def foo():
     plot_many_curves(nodes_at_a_time,num_rods,ax)
     plt.show()
     
-def import_all_log(alllog_pth, max_rows = 10):
+def import_all_log(alllog_pth, start_row=0,max_rows = 10,skip_rows=1):
     with open(alllog_pth) as f:
         lines = f.readlines()
-    lines = lines[:max_rows]
+    lines = lines[start_row:max_rows:skip_rows]
         
     time_line = []
     node_list = []
@@ -333,32 +335,27 @@ def import_all_log(alllog_pth, max_rows = 10):
                 contact_list.append(np.array([float(x) for x in next_line.split(',')]))
                 
     return time_line, node_list, contact_list
+# %%
+def pullout_video_frames_single_file(alllog_pth):
+    log_string = ''
     
-if __name__ == '__main__':
-    
-    
-    
-    alllog_pth = ''
-    protocol_id = 'CarrotCake2'
-    
-    file_id,surfix,num_rods = parse_path_string(alllog_pth)
-    time_line, node_list, contact_list = import_all_log(alllog_pth)
-    output_path = f'/Users/yeonsu/Videos/{protocol_id}/{file_id}_{surfix}'
+    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(alllog_pth)
+    time_line, node_list, contact_list = import_all_log(alllog_pth,max_rows=100000)
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
     if not os.path.exists(output_path):
         os.makedirs(output_path)
         start_point = 0
-    else:
-        # count number of files in the directory
-        num_files = len(os.listdir(output_path))
-        start_point = num_files
-    start_point -= 10
     
     print(f'Size of time_line: {len(time_line)}')
     print(f'Number of rods: {num_rods}')
     
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+    
+    start_point = 0
     fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
     for i in range(start_point,len(node_list),1):
-        nodes_in_matrix = node_list[i].reshape((num_rods,-1))
+        nodes_in_matrix = node_list[i].reshape((-1,30))
         for node in nodes_in_matrix:
             rr = node.reshape((-1,3))
             ax.plot(rr[:,0],rr[:,1],rr[:,2])
@@ -372,4 +369,208 @@ if __name__ == '__main__':
         plt.savefig(f'{output_path}/frames_{i:04d}.png', dpi=300, bbox_inches='tight', pad_inches=0)
         ax.clear()
         
-    print
+    with open(f'{output_path}/log.txt','w') as f:
+        f.write(log_string)
+        
+def batch_pullout_video(pathlist):
+    for folder_path in pathlist:
+        folder_path = Path(folder_path)
+
+        possible_paths = []
+        for pth in folder_path.glob('**/*.csv'):
+            if 'lastFrame' in str(pth):
+                continue
+            else:
+                possible_paths.append(pth)    
+        if len(possible_paths) == 0:
+            print('No csv files found in the folder')
+            exit()
+        elif len(possible_paths) > 1:
+            print('Multiple csv files found in the folder')
+            # find heaviest file
+            max_size = 0
+            for pth in possible_paths:
+                size = os.path.getsize(pth)
+                if size > max_size:
+                    max_size = size
+                    heaviest_file = pth
+            possible_paths = [heaviest_file]
+        data_path = possible_paths[0]
+        subfolder_name = 'EatEntangledCarrotCake5'
+        
+        print(f'Processing {folder_path}')
+        print(f'Protocol ID: {subfolder_name}')
+        print(f'Data paths: {str(data_path)}')
+        
+        pullout_video_frames_single_file(data_path)
+    
+# %%
+if __name__ == '__main__':
+    pathlist = []
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0125-ar025')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0250-ar050')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0375-ar075')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0500-ar100')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2224_run_entanglecarrotcake5_n0625-ar125')
+    
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n125_ar25_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n250_ar50_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n375_ar75_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n500_ar100_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240602-0259_run_perturbeecarrotcake5_n625_ar125_g0.5')
+    
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0125_ar025_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0250_ar050_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0375_ar075_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0500_ar100_g0.5')
+    # pathlist.append('/users/yeonsu/data/from_cluster/20240531-2228_run_jostlecarrotcake5_n0625_ar125_g0.5')
+    # subfolder_name = 'eatjostledcarrotcake5'
+    
+    
+    
+    # folder_path = pathlist[4]
+    # folder_path = path(folder_path)
+    # # python data_io.py
+    # possible_paths = []
+    # for pth in folder_path.glob('**/*.csv'):
+    #     if 'lastframe' in str(pth):
+    #         continue
+    #     else:
+    #         possible_paths.append(pth)    
+    # if len(possible_paths) == 0:
+    #     print('no csv files found in the folder')
+    #     exit()
+    # elif len(possible_paths) > 1:
+    #     print('multiple csv files found in the folder')
+    #     # find heaviest file
+    #     max_size = 0
+    #     for pth in possible_paths:
+    #         size = os.path.getsize(pth)
+    #         if size > max_size:
+    #             max_size = size
+    #             heaviest_file = pth
+    #     possible_paths = [heaviest_file]
+    # data_path = possible_paths[0]
+        
+    data_path = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240710-1829_COMPILE_worm_1/log_files/cruved_rod_test_allLog_20240710-183010.csv'
+    folder_path = Path(data_path).parent
+    subfolder_name = 'Inbox'
+    
+    
+    print(f'processing {folder_path}')
+    print(f'protocol id: {subfolder_name}')
+    print(f'data paths: {str(data_path)}')
+    
+    # pullout_video_frames_single_file(data_path)
+    # %%
+    log_string = ''
+    
+    
+    # file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    # file_id = 'cruved_rod_test_allLog'
+    file_id = data_path.split('/')[-1].split('.')[0]
+    surfix = file_id.split('allLog_')[-1]
+    num_rods = 12
+    AR = 0.3/0.002/2
+    
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+    output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}_{surfix}'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+        start_point = 0
+    
+    print(f'Size of time_line: {len(time_line)}')
+    print(f'Number of rods: {num_rods}')
+    
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+    
+    # %%    
+    colors = np.array([
+    [76, 153, 204],   # light blue
+    [204, 76, 153],   # pinkish red
+    [76, 204, 153],   # mint green
+    [153, 204, 76],   # light olive green
+    [204, 153, 76],   # goldenrod
+    [153, 76, 204],   # medium purple
+    [204, 76, 102],   # crimson
+    [76, 204, 204],   # cyan
+    [204, 204, 76],   # sunflower yellow
+    [102, 76, 204]    # indigo
+    ])
+    # %%
+    nodes = node_list[0]
+    nodes = nodes.reshape((-1,3))
+    cen = np.mean(nodes)
+    
+    # %%
+    import polyscope as ps
+    # %%
+    rod_diameter = 1/AR
+    nodes = node_list[3]
+    nodes = nodes.reshape((-1,3))
+    nodes = nodes - cen
+    
+    num_nodes_each_rod = 25
+    edges = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
+
+    
+    ps.init()
+    ps.set_SSAA_factor(3)
+    ps.set_navigation_style("free")
+
+    # ps.set_ground_plane_mode("tile")
+    ps.set_ground_plane_mode("none") 
+    ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
+    ps.set_ground_plane_height_factor(-0.25) # adjust the plane height
+    ps.set_shadow_darkness(0.1)              # lighter shadows
+    ps.set_view_projection_mode("perspective")
+    # ps.set_transparency_mode('simple')
+
+    ps_all_nodes = ps.register_curve_network("all_nodes", nodes, edges, enabled=True)
+    ps_all_nodes.set_radius(0.002,relative=True)
+    
+    # Add color to edges
+    num_edges_in_a_rod = num_nodes_each_rod-1
+    vals_edge = np.ones((len(edges),3))
+    for i in range(num_rods):
+        vals_edge[i*num_edges_in_a_rod:(i+1)*num_edges_in_a_rod] = colors[i%10]/255
+
+    ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', enabled=True)
+    
+
+    ps_all_nodes.set_material("clay")
+    # ps.look_at((-3., 0., 1.), (0., 0., 0.))
+    # ps.look_at((-3000., -3000, 0.), (0., 0., 0.))
+    ps.set_up_dir("z_up")
+    
+
+    ps_all_nodes.set_transparency(1)    
+    ps_all_nodes.set_enabled(True)
+
+
+    ps.set_screenshot_extension(".png");
+    ps.screenshot('temp.png',transparent_bg=False)
+    
+    # %%
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+    nodes = node_list[3]
+    nodes = nodes.reshape((-1,3))
+    nodes = nodes - cen
+    # ps.look_at((-3000., -3000, 0.), (0., 0., 0.))
+    period = len(node_list)    
+    ps_all_nodes.set_enabled(True)
+    # ps.look_at((-3., 0., 1.), (0., 0., 0.))
+    for i_,t in enumerate(range(period)):
+        all_node = node_list[i_]
+        all_node = all_node.reshape(num_rods,-1)
+        nodes = all_node.reshape(-1,3)
+        nodes = nodes - cen
+        
+        ps_all_nodes.set_transparency(1.)
+        ps_all_nodes.update_node_positions(nodes)
+        
+        screenshot_path = f'{output_path}/rod_{num_rods}_AR_{AR}_{i_:04d}.png'
+        ps.screenshot(screenshot_path,transparent_bg=False)
+    
+    # %%

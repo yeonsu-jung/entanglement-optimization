@@ -1,5 +1,5 @@
 # %%
-%matplotlib qt
+# %matplotlib qt
 import matplotlib
 import numpy as np
 import jax.numpy as jnp
@@ -7,11 +7,12 @@ import jax
 from jax import jit
 from potentials import create_pairs, all_pairwise_distances, dist_lin_seg, all_distances_between_curves2
 from matplotlib import pyplot as plt
-
+from data_io import import_all_log, parse_path_string
 from visualizations import set_3d_plot, plot_edges, plot_many_curves, plot_many_rods
 from data_io import read_data, import_from_dismech, import_from_dismech_hook
 from transforms import q_to_u, q_to_x, x_to_rpairs, x_to_epairs,vert_to_edge
 import numba
+from distances import lumelsky_dist_vec
 
 import matplotlib.animation as animation
 import sys
@@ -22,11 +23,95 @@ import re
 
 import glob
 import networkx as nx
+import filamentFields
 
 jax.config.update("jax_enable_x64", True)
 
 
 from numba import jit as njit
+
+
+def guess_contact_point(fi1,fi2):
+    fi1x = fi1[0]
+    fi1y = fi1[1]
+    fi1z = fi1[2]
+    fi2x = fi2[0]
+    fi2y = fi2[1]
+    fi2z = fi2[2]
+    
+    force_tol = 1e-6
+    if ((fi1x**2 + fi1y**2 + fi1z**2) < force_tol) and ((fi2x**2 + fi2y**2 + fi2z**2) < force_tol):
+        return np.nan
+    
+    x_frac = fi2x/(fi1x+fi2x)
+    y_frac = fi2y/(fi1y+fi2y)
+    z_frac = fi2z/(fi1z+fi2z)
+    
+    return x_frac
+
+def process_contact_data(single_contact_info,curr_nodes):
+    # dismech originally computes force as a gradient of potential
+    # thus here we need to change its sign
+    rod_i = int(single_contact_info[4])
+    rod_j = int(single_contact_info[5])
+    node_i1 = int(single_contact_info[0])
+    node_i2 = int(single_contact_info[2])
+    node_j1 = int(single_contact_info[1])
+    node_j2 = int(single_contact_info[3])
+
+    fi1 = -single_contact_info[6:9]
+    fi2 = -single_contact_info[9:12]
+    fj1 = -single_contact_info[12:15]
+    fj2 = -single_contact_info[15:18]
+
+    ni1 = curr_nodes[rod_i][node_i1]
+    ni2 = curr_nodes[rod_i][node_i2]
+    nj1 = curr_nodes[rod_j][node_j1]
+    nj2 = curr_nodes[rod_j][node_j2]
+    
+    contact_point_i = guess_contact_point(fi1,fi2) * (ni2-ni1) + ni1
+    contact_force_i = fi1 + fi2
+    contact_point_j = guess_contact_point(fj1,fj2) * (nj2-nj1) + nj1
+    contact_force_j = fj1 + fj2
+    
+    log_contact_force_i = np.sign(contact_force_i) * np.log(np.abs(contact_force_i) + 1e-6)
+    log_contact_force_j = np.sign(contact_force_j) * np.log(np.abs(contact_force_j) + 1e-6)
+    
+    contact_info = {"rod_i":rod_i,
+                    "rod_j":rod_j,
+                    "node_i1":node_i1,
+                    "node_i2":node_i2,
+                    "node_j1":node_j1,
+                    "node_j2":node_j2,
+                    "contact_point_i":contact_point_i,
+                    "contact_force_i":contact_force_i,
+                    "contact_point_j":contact_point_j,
+                    "contact_force_j":contact_force_j,
+                    "log_contact_force_i":log_contact_force_i,
+                    "log_contact_force_j":log_contact_force_j,
+                    "ni1":ni1,
+                    "ni2":ni2,
+                    "nj1":nj1,
+                    "nj2":nj2,
+                    "fi1":fi1,
+                    "fi2":fi2,
+                    "fj1":fj1,
+                    "fj2":fj2}
+    
+    return contact_info
+
+def get_curr_force_essentials(curr_force_all_info,curr_nodes):
+    num_total_contacts = len(curr_force_all_info)
+    curr_force_essentials = np.zeros((num_total_contacts,6))
+    for query_index in range(num_total_contacts):
+        single_contact_info = curr_force_all_info[query_index]
+        contact_info = process_contact_data(single_contact_info,curr_nodes)
+        pi = contact_info['contact_point_i']
+        pj = contact_info['contact_point_j']
+        cij = (pi+pj)/2
+        fij = contact_info['contact_force_i']        
+        curr_force_essentials[query_index] = np.array([cij[0],cij[1],cij[2],fij[0],fij[1],fij[2]])
+    return curr_force_essentials        
 
 def get_local_fields_at_a_point(centerlines, point, R, h, rod_diameter, rod_length):    
     _,labels,edges_all_in_one = get_edges_labels_from_centerlines(centerlines)
@@ -224,43 +309,6 @@ def get_local_fields_over_domain(centerlines, R, h, rod_diameter, rod_length):
     return n_field, phi_field, e_field, S_field, center_x, center_y, center_z
 
 
-def import_all_log(alllog_pth):
-    with open(alllog_pth) as f:
-        lines = f.readlines()
-        
-    time_line = []
-    node_list = []
-    contact_list = []
-    for i,line in enumerate(lines):
-        if 'Time' in line:
-            time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
-            
-        if 'Node' in line:
-            next_line = lines[i+1]                       
-            node_list.append(np.array([float(x) for x in next_line.split(',')]))
-            
-        if 'Force' in line:
-            next_line = lines[i+1]
-            if next_line == "\n":
-                contact_list.append(np.array([]))
-            else:
-                contact_list.append(np.array([float(x) for x in next_line.split(',')]))
-                
-    return time_line, node_list, contact_list
-
-def parse_path_string(pth):
-    
-    filename = pth.split('/')[-1]        
-    file_id = filename.split('-mu')[0]
-    
-    surfix_match = re.search(r'\d{8}-\d{6}', filename)
-    surfix = surfix_match.group(0) if surfix_match else None
-    
-    num_rods_match = re.search(r'-N(\d+)-', filename)
-    num_rods = int(num_rods_match.group(1)) if num_rods_match else None
-    
-    return file_id, surfix, num_rods
-
 @njit(nopython=True)
 def compute_linking_number_for_edges(e_i,e_j):
     r_ij = e_i[0:3] - e_j[0:3]
@@ -341,7 +389,31 @@ def compute_linking_number(p_i,p_ii,p_j,p_jj):
                                + np.arcsin(my_clip(my_dot(n2,n3),-1.+tol,1.-tol))
                                + np.arcsin(my_clip(my_dot(n3,n4),-1.+tol,1.-tol))
                                + np.arcsin(my_clip(my_dot(n4,n1),-1.+tol,1.-tol)))
+
+def compute_linking_number_jax(p_i1,p_i2,p_j1,p_j2):
+    r_i1j1 = p_i1 - p_j1
+    r_i1j2 = p_i1 - p_j2
+    r_i2j1 = p_i2 - p_j1
+    r_i2j2 = p_i2 - p_j2
+
+    tol = 1e-6
+    n1 = jnp.cross(r_i1j1, r_i1j2)
+    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n2 = jnp.cross(r_i1j2, r_i2j2)
+    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n3 = jnp.cross(r_i2j2, r_i2j1)
+    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n4 = jnp.cross(r_i2j1, r_i1j1)
+    n4 = n4/(jnp.linalg.norm(n4)+tol)
     
+    return (-1/4/jnp.pi)*jnp.abs(jnp.arcsin(jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+    
+compute_linking_number_jax_batched = jax.jit(jax.vmap(jax.vmap(compute_linking_number_jax, (0,0,None,None)), (None,None,0,0)))
+    
+# numba
 
 @njit(nopython=True)
 def my_clip(x, xmin, xmax):
@@ -1245,7 +1317,221 @@ def testLk():
     ax.plot([p1[0],p2[0]],[p1[1],p2[1]],[p1[2],p2[2]],'k')
     ax.plot([p3[0],p4[0]],[p3[1],p4[1]],[p3[2],p4[2]],'r')
     ax.axis('equal')
+    
+def plot_closest_points(contact_entry,curr_nodes):
+    contact_ij = curr_force_all_info[:,4:6].astype(int)
+    contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(curr_nodes)))
+    graph.add_edges_from(contact_ij)
+    
+    graph[10]
+    
+    fig,ax=plt.subplots(1,1,figsize=(10,10),subplot_kw={'projection':'3d'})
+    hub_rod_label = 10
+    hub_rod = curr_nodes[hub_rod_label]
+    hub_rod_next = next_nodes[hub_rod_label]
+    ax.plot(hub_rod[:,0],hub_rod[:,1],hub_rod[:,2],'k',linewidth=1)
+    ax.plot(hub_rod_next[:,0],hub_rod_next[:,1],hub_rod_next[:,2],'r',linewidth=1)
+    
+    scale_factor = 100
+    velocity_of_hub_rod = hub_rod_next - hub_rod
+    velocity_of_hub_rod *= scale_factor
+    ax.quiver(hub_rod[0,0],hub_rod[0,1],hub_rod[0,2],velocity_of_hub_rod[0,0],velocity_of_hub_rod[0,1],velocity_of_hub_rod[0,2],color='b')
+    
+    neighbors_of_hub = list(graph[hub_rod_label])
+    for neighbors in neighbors_of_hub:
+        rod = curr_nodes[neighbors]
+        rod_next = next_nodes[neighbors]
+        rod_velolcity = rod_next - rod
+        rod_velolcity *= scale_factor
+        ax.plot(rod[:,0],rod[:,1],rod[:,2],'r',linewidth=0.2)
+        ax.plot(rod_next[:,0],rod_next[:,1],rod_next[:,2],'r',linewidth=0.2)
+        ax.quiver(rod[:,0],rod[:,1],rod[:,2],rod_velolcity[:,0],rod_velolcity[:,1],rod_velolcity[:,2],color='b')
+    ax.view_init(0,0)
+    plt.show()
+    
+def get_closest_points(contact_entry,curr_nodes):
+    rodlabel_i = int(contact_entry[4])
+    rodlabel_j = int(contact_entry[5])
+    
+    ind_i1 = int(contact_entry[0])
+    ind_i2 = int(contact_entry[2])
+    ind_j1 = int(contact_entry[1])
+    ind_j2 = int(contact_entry[3])
+    
+    x_i1 = curr_nodes[rodlabel_i][ind_i1]
+    x_i2 = curr_nodes[rodlabel_i][ind_i2]
+    x_j1 = curr_nodes[rodlabel_j][ind_j1]
+    x_j2 = curr_nodes[rodlabel_j][ind_j2]
+    
+    t,u,d1,d2,d12 = lumelsky_dist_vec(x_i1,x_i2,x_j1,x_j2)
+    popt_i = x_i1 + d1*t
+    popt_j = x_j1 + d2*u
+    dvec = d1*t - d2*u - d12
+    
+    return popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2
+
+def analyze_csv_file(data_path,skip_frames):    
+    
+    log_string = ''
+    file_id,surfix,num_rods,AR,datetime_string = parse_path_string(data_path)
+    time_line, node_list, contact_list = import_all_log(data_path,max_rows=100000)
+
+    time_line = np.array(time_line)
+    time_line = time_line[time_line <= 10]
+    node_list = node_list[:len(time_line)]
+    contact_list = contact_list[:len(time_line)]
+
+    time_line = time_line[1:]
+    node_list = node_list[1:]
+    contact_list = contact_list[1:]
+
+    print(f'Size of time_line: {len(time_line)}')
+    print(f'Number of rods: {num_rods}')
+
+    log_string = log_string + f'Number of rods: {num_rods}\n'
+    log_string = log_string + f'Number of time points: {len(time_line)}\n'
+
+    total_number_of_contacts = np.zeros(len(time_line))
+    total_force_sum = np.zeros(len(time_line))
+
+    last_frame = len(time_line)-1
+    print(f'Last frame: {last_frame}')
+    
+    initial_nodes = node_list[0].reshape((-1,10,3))        
+    timeline_checkout = range(0,len(time_line)-1,skip_frames)
+    avg_velocities_over_time = np.zeros( len(timeline_checkout) )
+    centroid_velocities_over_time = np.zeros( len(timeline_checkout) )
+    avg_contact_displacement_over_time = np.zeros( len(timeline_checkout) )
+    avg_initial_centroid_displacement_over_time = np.zeros( len(timeline_checkout) )        
+    fraction_of_nodes_in_largest_cluster_over_time = np.zeros( len(timeline_checkout) )
+    lk_mat_over_time = []
+    
+    fF = filamentFields.filamentFields([],[])
+    
+    for i_frame,frame in enumerate(timeline_checkout):
         
+        curr_nodes = node_list[frame].reshape((-1,10,3))
+        next_nodes = node_list[frame+1].reshape((-1,10,3))
+        curr_force_all_info = contact_list[frame].reshape(-1,18)
+        next_force_all_info = contact_list[frame+1].reshape(-1,18)
+        
+        initial_node_displacement = curr_nodes - initial_nodes
+        avg_initial_centroid_displacement =  np.mean(np.linalg.norm(np.mean(initial_node_displacement,axis=1),axis=1))
+        avg_initial_centroid_displacement_over_time[i_frame] = avg_initial_centroid_displacement
+        
+        contact_displacement_list = np.zeros(len(curr_force_all_info))
+        
+        contact_ij = curr_force_all_info[:,4:6].astype(int)
+        # contact_ij_next_frame = next_force_all_info[:,4:6].astype(int)            
+        graph = nx.Graph()
+        graph.add_nodes_from(range(len(curr_nodes)))
+        graph.add_edges_from(contact_ij)
+        clusters = list(nx.connected_components(graph))
+        
+        # largest clusters
+        largest_cluster = max(clusters,key=len)
+        fraction_of_nodes_in_largest_cluster = len(largest_cluster)/len(curr_nodes)
+        fraction_of_nodes_in_largest_cluster_over_time[i_frame] = fraction_of_nodes_in_largest_cluster
+        
+        # fF.update_filament_nodes_list(curr_nodes)
+        # fF.precompute(1000) # arbitrarily large number
+        # fF.compute_filament_linking_matrix()
+        # lk_mat = fF.return_filament_linking_matrix()
+        # lk_mat_over_time.append(lk_mat)
+        
+        for i_,contact_entry in enumerate(curr_force_all_info):
+            popt_i,popt_j,dvec,x_i1,x_i2,x_j1,x_j2 = get_closest_points(contact_entry,curr_nodes)
+            popt_i_next,popt_j_next,dvec_next,x_i1_next,x_i2_next,x_j1_next,x_j2_next = get_closest_points(contact_entry,next_nodes)
+            contact_displacement = dvec_next - dvec
+            contact_displacement_norm = np.linalg.norm(contact_displacement)
+            contact_displacement_list[i_] = contact_displacement_norm
+            
+        average_contact_displacement = np.mean(contact_displacement_list)
+        avg_contact_displacement_over_time[i_frame] = average_contact_displacement
+        
+        # node velocities
+        rod_velocities = np.zeros((num_rods,10,3))
+        for i_rod in range(0,num_rods,1):
+            curr_rod = curr_nodes[i_rod]
+            next_rod = next_nodes[i_rod]
+            rod_velocities[i_rod] = next_rod - curr_rod
+            
+        avg_velocity_at_the_frame = np.mean(np.linalg.norm(rod_velocities.reshape(-1,3),axis=1))
+        avg_velocities_over_time[i_frame] = avg_velocity_at_the_frame
+        
+        centroid_velocities_at_the_frame = np.mean(rod_velocities,axis=1)
+        centroid_velocities_over_time[i_frame] = np.mean(np.linalg.norm(centroid_velocities_at_the_frame,axis=1))
+        
+    output_dict = { 'data_path': data_path,
+                    'num_rods': num_rods,
+                    'AR': AR,
+                    'actual_timeline': time_line[timeline_checkout],
+                    'avg_velocities_over_time': avg_velocities_over_time,
+                    'centroid_velocities_over_time': centroid_velocities_over_time,
+                    'avg_contact_displacement_over_time': avg_contact_displacement_over_time,
+                    'avg_initial_centroid_displacement_over_time': avg_initial_centroid_displacement_over_time,
+                    'lk_mat_over_time': lk_mat_over_time,
+                    'fraction_of_nodes_in_largest_cluster_over_time': fraction_of_nodes_in_largest_cluster_over_time}
+    
+    return output_dict
+    
 # %%
 if __name__ == '__main__':
-    main()
+    import pickle
+    import filamentFields
+    from distances import lumelsky_dist_vec
+    from pathlib import Path
+    
+    parent_folders = []
+    parent_folders.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/HeavyHangModelo1'))
+    
+    
+    output_root = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision'
+    analysis_id = 'Micromechanics-HeavyHangModelos'
+    skip_frames = 5
+    
+    output_path = f'{output_root}/{analysis_id}'
+    if not os.path.exists(output_path):
+        os.makedirs(output_path)
+    
+    output_dict_list_repeated = []
+    for parent_folder in parent_folders:
+        pathlist = [str(x) for x in parent_folder.iterdir() if x.is_dir()]
+        
+        ARs = []
+        for pth in pathlist:
+            search_result = re.search(r'N(\d+)[-_]AR(\d+)', pth)
+            ARs.append(int(search_result.group(2)))
+
+        pathlist = [x for _,x in sorted(zip(ARs,pathlist))]
+        ARs = sorted(ARs)
+        
+        # find csv file
+        
+        data_path_list = []
+        for pth in pathlist:        
+            data_path = None
+            for file in Path(pth).rglob('*.csv'):
+                if str(file.stem).endswith('lastFrame'):
+                    continue        
+                data_path = file
+                data_path_list.append(data_path)
+                break
+        
+        
+        
+        ##### function implementation below
+        output_dict_list = []
+        for data_path in data_path_list:
+            output_dict = analyze_csv_file(data_path,skip_frames)
+            output_dict_list.append(output_dict)
+            
+        output_dict_list_repeated.append(output_dict_list)
+        
+        with open(f'{output_path}/output_dict_list_repeated.pkl','wb') as f:
+            pickle.dump(output_dict_list_repeated,f)
+        
+    
+    

@@ -28,3 +28,9 @@ imgui.ini
 .polyscope.ini
 
 runs/*
+
+perform-segmentation/*
+qs/*
+filament_fields_output/*
+*.mp4
+*.npy
