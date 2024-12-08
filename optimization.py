@@ -373,7 +373,7 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
 
             if break_or_continue:
                 print("Callback requested to break the loop")
-                break
+                break            
 
             k += 1
         
@@ -988,19 +988,89 @@ def test_onestep_fire():
     q0 = create_random_rods(100,[25,32,12])
     f = jit(total_effective_potential)
     df = jit(grad(f))
-    
+
+    from potentials import total_harmonic_line
+
+    col_rad = 0.0001
+    params = {
+        "col_rad": col_rad,
+        "amp": 1
+    }
+    g = lambda q: total_harmonic_line(q,params)
+    dg = grad(g)
+
+    g(q0)
 
     q = q0.copy()
     q = jnp.array(q.flatten(),dtype=jnp.float64)
 
-    temp = lambda q: onestep_fire(q,df,atol=1e-4,dt=1.e-2)
-    temp = jit(temp)
+    entangle_step = lambda q: onestep_fire(q,df,atol=1e-4,dt=1.e-2)
+    entangle_step = jit(entangle_step)
+
+    project_step = lambda q: onestep_fire(q,dg,atol=1e-4,dt=0.001)
+    project_step = jit(project_step)
 
     for i in range(10000):
         # q, df, atol=1e-4, dt=0.002
-        q = temp(q)
+        q = entangle_step(q)
+
+        # projection
+        while 1:
+            q_pairs = create_pairs(q.reshape(-1,5))
+            distances = all_pairwise_distances(q_pairs)
+            q = project_step(q)
+            if (jnp.abs(col_rad - jnp.min(distances)) < 1e-1*col_rad):
+                break
+        # print(params["col_rad"] - jnp.min(distances))
         if i % 500 == 0:
-            print(f"Iteration: {i}")
+            print(f"Iteration: {i}, min. distance: {jnp.min(distances)}")
+    
+    from matplotlib import pyplot as plt
+    from visualizations import plot_many_rods
+    fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
+    plot_many_rods(q0.reshape(-1,5),ax=ax,opt_dict={'color':'k'})
+    plot_many_rods(q.reshape(-1,5),ax=ax,opt_dict={'color':'r'})
+    plt.show()    
+
+    return
+
+def entangle_and_release():
+    from protocols import create_random_rods, create_nonintersecting_random_rods_contained
+    from potentials import total_effective_potential
+
+    q0 = create_random_rods(100,[25,32,12])
+    f = jit(total_effective_potential)
+    df = jit(grad(f))
+
+    from potentials import total_harmonic_line
+
+    col_rad = 1/500/2
+    params = {
+        "col_rad": col_rad,
+        "amp": 100
+    }
+    g = lambda q: total_harmonic_line(q,params)
+    dg = jit(grad(g))
+
+    q = q0.copy()
+    q = jnp.array(q.flatten(),dtype=jnp.float64)
+
+    entangle_step = lambda q: onestep_fire(q,df,atol=1e-4,dt=1.e-2)
+    entangle_step = jit(entangle_step)
+
+    project_step = lambda q: onestep_fire(q,dg,atol=1e-4,dt=1.e-2)
+    project_step = jit(project_step)
+
+    for i in range(10000):
+        # q, df, atol=1e-4, dt=0.002
+        q = entangle_step(q)
+
+    for i in range(30000):
+        q = project_step(q)
+        if i % 500 == 0:
+            q_pairs = create_pairs(q.reshape(-1,5))
+            distances = all_pairwise_distances(q_pairs)
+            print(f"Iteration: {i}, min. distance: {jnp.min(distances)}")
     
     from matplotlib import pyplot as plt
     from visualizations import plot_many_rods
@@ -1013,4 +1083,5 @@ def test_onestep_fire():
 
 if __name__ == "__main__":
     # main()
-    test_onestep_fire()
+    # test_onestep_fire()
+    entangle_and_release()
