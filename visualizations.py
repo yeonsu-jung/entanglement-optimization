@@ -63,11 +63,11 @@ def plot_many_rods(q,ax=None,opt_dict={}):
         
     N = q.shape[0]
     for i in range(N):        
-        plot_rod(q[i,:],opt_dict)
+        plot_rod(q[i,:],ax,opt_dict)
         
     return ax
 
-def plot_rod(q_single,opt_dict):
+def plot_rod(q_single,ax,opt_dict):
     q_np = np.array(q_single)
     x1 = q_np[0]
     y1 = q_np[1]
@@ -79,7 +79,7 @@ def plot_rod(q_single,opt_dict):
     x11 = x1 + rod_length*jnp.sin(phi1)*jnp.cos(theta1)
     y11 = y1 + rod_length*jnp.sin(phi1)*jnp.sin(theta1)
     z11 = z1 + rod_length*jnp.cos(phi1)
-    plt.plot([x1, x11], [y1, y11], [z1, z11],**opt_dict)
+    ax.plot([x1, x11], [y1, y11], [z1, z11],**opt_dict)
     
 def plot_rods(q):
     q_np = np.array(q)
