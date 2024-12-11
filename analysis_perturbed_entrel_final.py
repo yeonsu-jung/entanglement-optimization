@@ -7,8 +7,14 @@ from scipy.io import loadmat
 from matplotlib import pyplot as plt
 
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_')
+
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
+meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
+
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,12,720")
-meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_Rerun")
+# meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_Rerun")
+# meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/89,32,178_")
 
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,152,720_AR100")
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,152,720_AR500")
@@ -115,9 +121,15 @@ print(data_list)
 AR = 500
 chosen_data = []
 for dta in data_list:
-    if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.2) and dta.kick_amplitude == 0.1:
+    # if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.21) and dta.kick_amplitude == 0.01:
+    if dta.AR == AR and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
+
+    # if dta.kick_amplitude == 0.01 and dta.num_rods == 200:
+    # if dta.AR == AR and (dta.friction_coefficient > 0.2) and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
         # data = loadmat(dta.data_path,simplify_cells=True)
+        kick_amplitude = dta.kick_amplitude
         chosen_data.append(dta)
+        print(dta)
 
 # %%
 global_data_list = []
@@ -139,7 +151,6 @@ for dta in chosen_data:
         contacts_at_frame = contacts_list[i]
         xyz = nodes_at_frame.reshape(-1,6)
         centroids = (xyz[:,:3]+xyz[:,3:])/2
-
         global_centroid = np.mean(centroids,axis=0)
         moment_arm = centroids - global_centroid
         radius_of_gyration = np.mean(np.linalg.norm(moment_arm,axis=1))
@@ -198,7 +209,6 @@ for local_dataset in _trimmed:
         non_rigid_body_velocity = v - centroid_velocity
         mean_velocity = np.mean(np.linalg.norm(non_rigid_body_velocity,axis=1))
         mean_velocity_over_time.append(mean_velocity)
-
         kinetic_energy = 0.5*np.sum(np.linalg.norm(v,axis=1)**2)
         kinetic_energy_over_time.append(kinetic_energy)
 
@@ -218,6 +228,9 @@ for local_dataset in _trimmed:
     time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
     kinetic_energy = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['kinetic_energy']
     ax.plot(time_line,kinetic_energy,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Kinetic energy, $K$ (J)')
+# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
     
 # %%
 from analysis_functions import create_folder
@@ -234,7 +247,7 @@ ax.axhline(0.5,linestyle='--',color='k')
 ax.set_xlabel('Time, $t$ (sec)')
 ax.set_ylabel('Norm. entanglement, $E$')
 # ax.legend(title='$\\mu$',loc='upper right')
-plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
 
 # %%
 subfolder_name = f'Random{random_keys}'
@@ -260,8 +273,12 @@ axs[0].set_ylabel('Radius of gyration, $R_g$')
 # small legend
 axs[0].legend(title='$\\mu$',loc='upper right',fontsize=7)
 plt.savefig(f'{figure_output_folder}/RadiusOfGyrationOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+# %%
+
+
 
 # %%
+
 fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
 fric_coeff = np.array(fric_coeff)
 
@@ -292,7 +309,27 @@ plt.ylabel('Mean relative velocity, $v$ (L/sec)')
 plt.savefig(f'{figure_output_folder}/MeanVelocityOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
 
 # %%
-file_id = f'N{num_rods}-AR{int(AR):04d}-Kick{1.0}'
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed:
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+    mean_velocity = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['mean_velocity']
+    ax.plot(time_line,mean_velocity,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Mean relative velocity, $v$ (L/sec)')
+
+# %%
+dta = chosen_data[0]
+data = loadmat(dta.data_path,simplify_cells=True)
+time_line = data['time_line']
+node_list = data['node_list']
+velocity_list = data['velocity_list']
+contacts_list = data['contact_list']
+friction_coefficient = dta.friction_coefficient
+num_rods = dta.num_rods
+density = 1000
+
+# %%
+file_id = f'N{num_rods}-AR{int(AR):04d}-Kick{kick_amplitude}-Friction{friction_coefficient}-Density{density}'
 output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}'
 
 import os
@@ -300,27 +337,16 @@ if not os.path.exists(output_path):
     os.makedirs(output_path)
 
 # %%
-
-
-# %%
-dta = chosen_data[-4]
-data = loadmat(dta.data_path,simplify_cells=True)
-time_line = data['time_line']
-node_list = data['node_list']
-velocity_list = data['velocity_list']
-contacts_list = data['contact_list']
-
-# %%
 import polyscope as ps
 from visualizations import prep_for_polyscope
 
 rod_diameter = 1/AR
+# rod_diameter = 1/500
 ps.init()
 
 _t = 0
 a_list_of_curves = node_list[_t].reshape(num_rods,-1,3)
 nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves,num_rods)
-
 min_z = np.min(nodes[:,2])
 # ps.set_ground_plane_height_factor(-min_z)
                
@@ -338,7 +364,7 @@ print(f'Number of frames: {num_files_already}')
 
 # %%
 skip_factor = 10
-for i,a_list_of_curves in enumerate(node_list[num_files_already::skip_factor]):
+for i, a_list_of_curves in enumerate(node_list[num_files_already::skip_factor]):
     a_list_of_curves = a_list_of_curves.reshape(num_rods,-1,3)
     # num_rods = len(a_list_of_curves)
     nodes = np.vstack(a_list_of_curves)
@@ -348,3 +374,5 @@ for i,a_list_of_curves in enumerate(node_list[num_files_already::skip_factor]):
 
 import subprocess
 subprocess.run(['ffmpeg', '-framerate', '10', '-i', f'{output_path}/frame_%04d.png', '-r', '30', '-pix_fmt', 'yuv420p', f'{output_path}/output.mp4'])
+# %%
+
