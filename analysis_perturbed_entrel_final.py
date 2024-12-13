@@ -6,11 +6,15 @@ from data_io import import_all_log, save_as_mat
 from scipy.io import loadmat
 from matplotlib import pyplot as plt
 
+from transforms import x_to_q
+from potentials import total_effective_potential
+import time
+
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_')
 
-# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
-meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
+meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
 
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,12,720")
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_Rerun")
@@ -119,119 +123,166 @@ print(data_list)
 # find this
 
 AR = 500
-chosen_data = []
-for dta in data_list:
-    # if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.21) and dta.kick_amplitude == 0.01:
-    if dta.AR == AR and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
+AR_data = []
+AR_entanglement_data = []
 
-    # if dta.kick_amplitude == 0.01 and dta.num_rods == 200:
-    # if dta.AR == AR and (dta.friction_coefficient > 0.2) and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
-        # data = loadmat(dta.data_path,simplify_cells=True)
-        kick_amplitude = dta.kick_amplitude
-        chosen_data.append(dta)
-        print(dta)
+for AR in [50,100,200,300,500]:
+    chosen_data = []
+    for dta in data_list:
+        # if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.21) and dta.kick_amplitude == 0.01:
+        if dta.AR == AR and dta.kick_amplitude == 1. and dta.num_rods == 200:
 
-# %%
-global_data_list = []
-for dta in chosen_data:
-    data = loadmat(dta.data_path,simplify_cells=True)
+        # if dta.kick_amplitude == 0.01 and dta.num_rods == 200:
+        # if dta.AR == AR and (dta.friction_coefficient > 0.2) and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
+            # data = loadmat(dta.data_path,simplify_cells=True)
+            kick_amplitude = dta.kick_amplitude
+            chosen_data.append(dta)
+            print(dta)
+
+    global_data_list = []
+    for dta in chosen_data:
+        data = loadmat(dta.data_path,simplify_cells=True)
+        
+        time_line = data['time_line']
+        node_list = data['node_list']
+        velocity_list = data['velocity_list']
+        contacts_list = data['contact_list']
+
+        nodes_at_last_frame = node_list[-1]
+        xyz = nodes_at_last_frame.reshape(-1,6)
+
+        rad_gyr_list = []
+        num_contacts_list = []
+        for i in range(len(node_list)):
+            nodes_at_frame = node_list[i]
+            contacts_at_frame = contacts_list[i]
+            xyz = nodes_at_frame.reshape(-1,6)
+            centroids = (xyz[:,:3]+xyz[:,3:])/2
+            global_centroid = np.mean(centroids,axis=0)
+            moment_arm = centroids - global_centroid
+            radius_of_gyration = np.mean(np.linalg.norm(moment_arm,axis=1))
+            rad_gyr_list.append(radius_of_gyration)
+            num_contacts_list.append(len(contacts_at_frame)//8/500)
+
+        local_dataset = {
+            'AR': AR,
+            'time_line': time_line,
+            'data_obj': dta,
+            'node_list': node_list,
+            'velocity_list': velocity_list,
+            'rad_gyr_list': rad_gyr_list,
+            'num_contacts_list': num_contacts_list,
+        }
+        global_data_list.append(local_dataset)
+
+    # sort global_data_list by friction_coefficient
+    global_data_list = sorted(global_data_list,key=lambda x: x['data_obj'].friction_coefficient)
+    AR_data.append(global_data_list)
+
+    friction_coefficient_list = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+
+    _trimmed = []
+    _trimmed = global_data_list
+
+    global_entanglement_over_time = {}
+    time_skip = 10
+
+    for local_dataset in _trimmed:
+        time_line = local_dataset['time_line']
+        nodes_list = local_dataset['node_list']
+        velocity_list = local_dataset['velocity_list']
+        num_contacts_list = local_dataset['num_contacts_list']
+
+        AR = local_dataset['AR']
+        rod_radius = 1/AR/2
+        rod_length = 1
+        rod_density = 1000
+        rod_volume = np.pi*rod_radius**2*rod_length
+        rod_mass = rod_density*rod_volume
+        rod_inertia = rod_mass*(rod_length**2/12 + rod_radius**2/4)
+
+        centroid_velocity_over_time = []
+        kinetic_energy_over_time = []
+        mean_velocity_over_time = []
+        entanglement_over_time = []
+        start = time.time()
+        for i in range(0,len(nodes_list),time_skip):
+            x = nodes_list[i].reshape(-1,6)
+            q = x_to_q(x)
+            e = -total_effective_potential(q)
+            entanglement_over_time.append(e)
+
+            v = velocity_list[i].reshape(-1,6)
+            v1 = v[:,:3]
+            v2 = v[:,3:]
+
+            centroid_velocity = (v1+v2)/2
+            centroid_velocity_over_time.append(centroid_velocity)
+
+            linear_kinetic_energy = 0.5*rod_mass*np.sum(np.linalg.norm(centroid_velocity,axis=1)**2)
+
+            v1r = v1 - centroid_velocity
+            v2r = v2 - centroid_velocity
+
+            moment_arm_for_omega = (x[:,3:]-x[:,:3])/2
+            omega = np.cross(moment_arm_for_omega,v1r)
+            angular_kinetic_energy = 0.5*np.sum(omega**2*rod_inertia)
+            
+            
+            non_rigid_body_velocity = v.reshape(-1,6) - np.tile(centroid_velocity,(1,2))
+            
+            mean_velocity = np.mean(np.linalg.norm(non_rigid_body_velocity,axis=1))
+            mean_velocity_over_time.append(mean_velocity)
+            # kinetic_energy = 0.5*np.sum(np.linalg.norm(v,axis=1)**2)
+            # kinetic_energy = 0.5*np.sum(v**2)
+            kinetic_energy = linear_kinetic_energy + angular_kinetic_energy
+            kinetic_energy_over_time.append(kinetic_energy)
+
+        print(f'{local_dataset["data_obj"].friction_coefficient} took {time.time()-start:.2f} seconds')
+        skipped_time_line = time_line[::time_skip]
+        
+        local_data = {
+            'time_line': skipped_time_line,
+            'entanglement': entanglement_over_time,
+            'mean_velocity': mean_velocity_over_time,
+            'kinetic_energy': kinetic_energy_over_time,
+            'centroid_velocity': centroid_velocity_over_time,
+        }
+        global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient] = local_data
+    AR_entanglement_data.append(global_entanglement_over_time)
     
-    time_line = data['time_line']
-    node_list = data['node_list']
-    velocity_list = data['velocity_list']
-    contacts_list = data['contact_list']
-
-    nodes_at_last_frame = node_list[-1]
-    xyz = nodes_at_last_frame.reshape(-1,6)
-
-    rad_gyr_list = []
-    num_contacts_list = []
-    for i in range(len(node_list)):
-        nodes_at_frame = node_list[i]
-        contacts_at_frame = contacts_list[i]
-        xyz = nodes_at_frame.reshape(-1,6)
-        centroids = (xyz[:,:3]+xyz[:,3:])/2
-        global_centroid = np.mean(centroids,axis=0)
-        moment_arm = centroids - global_centroid
-        radius_of_gyration = np.mean(np.linalg.norm(moment_arm,axis=1))
-        rad_gyr_list.append(radius_of_gyration)
-        num_contacts_list.append(len(contacts_at_frame)//8/500)
-
-    local_dataset = {
-        'time_line': time_line,
-        'data_obj': dta,
-        'node_list': node_list,
-        'velocity_list': velocity_list,
-        'rad_gyr_list': rad_gyr_list,
-        'num_contacts_list': num_contacts_list,
-    }
-    global_data_list.append(local_dataset)
-
-# sort global_data_list by friction_coefficient
-global_data_list = sorted(global_data_list,key=lambda x: x['data_obj'].friction_coefficient)
-friction_coefficient_list = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
-# %%
-_trimmed = []
-_trimmed = global_data_list
-# to_remove = [11,12,13]
-# for i in range(len(global_data_list)):
-#     if i in to_remove:
-#         continue
-#     _trimmed.append(global_data_list[i])
-
-# %%
-from transforms import x_to_q
-from potentials import total_effective_potential
-import time
-
-global_entanglement_over_time = {}
-time_skip = 10
-for local_dataset in _trimmed:
-    time_line = local_dataset['time_line']
-    nodes_list = local_dataset['node_list']
-    velocity_list = local_dataset['velocity_list']
-    num_contacts_list = local_dataset['num_contacts_list']
-
-    kinetic_energy_over_time = []
-    mean_velocity_over_time = []
-    entanglement_over_time = []
-    start = time.time()
-    for i in range(0,len(nodes_list),time_skip):
-        x = nodes_list[i].reshape(-1,6)
-        q = x_to_q(x)
-        e = -total_effective_potential(q)
-        entanglement_over_time.append(e)
-
-        v = velocity_list[i]
-        v = v.reshape(-1,6)
-
-        centroid_velocity = np.mean(v,axis=0)
-        non_rigid_body_velocity = v - centroid_velocity
-        mean_velocity = np.mean(np.linalg.norm(non_rigid_body_velocity,axis=1))
-        mean_velocity_over_time.append(mean_velocity)
-        kinetic_energy = 0.5*np.sum(np.linalg.norm(v,axis=1)**2)
-        kinetic_energy_over_time.append(kinetic_energy)
-
-    print(f'{local_dataset["data_obj"].friction_coefficient} took {time.time()-start:.2f} seconds')
-    skipped_time_line = time_line[::time_skip]
-    
-    local_data = {
-        'time_line': skipped_time_line,
-        'entanglement': entanglement_over_time,
-        'mean_velocity': mean_velocity_over_time,
-        'kinetic_energy': kinetic_energy_over_time,
-    }
-    global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient] = local_data
 # %%
 fig,ax=plt.subplots(figsize=(2.5,2))
 for local_dataset in _trimmed:
     time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
     kinetic_energy = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['kinetic_energy']
-    ax.plot(time_line,kinetic_energy,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+    ax.loglog(time_line,kinetic_energy,'-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+ax.axhline(kinetic_energy[0],linestyle='--',color='k')
+
 plt.xlabel('Time, $t$ (sec)')
-plt.ylabel('Kinetic energy, $K$ (J)')
-# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+plt.ylabel('Kinetic energy, $K$ (?)')
+# plt.legend()
+plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
     
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed[:1]:
+
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+
+    centroid_velocity = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['centroid_velocity']
+    centroid_velocity = np.array(centroid_velocity)
+    centroid_velocity.shape
+    centroid_velocity_mag = np.linalg.norm(centroid_velocity,axis=2)
+    ax.plot(time_line,centroid_velocity_mag,'-',label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+
+
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Mean relative velocity, $v$ (L/sec)')
+# plt.legend()
+
 # %%
 from analysis_functions import create_folder
 create_folder(f'/Users/yeonsu/Figures/Random{random_keys}/')
@@ -272,7 +323,8 @@ axs[1].set_ylabel('Number of contacts')
 axs[0].set_ylabel('Radius of gyration, $R_g$')
 # small legend
 axs[0].legend(title='$\\mu$',loc='upper right',fontsize=7)
-plt.savefig(f'{figure_output_folder}/RadiusOfGyrationOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{figure_output_folder}/RadiusOfGyrationOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+
 # %%
 
 
@@ -299,6 +351,78 @@ if not os.path.exists(figure_output_folder):
 plt.savefig(f'{figure_output_folder}/RadiusOfGyration_AR{AR}.png',dpi=300,bbox_inches='tight')
 
 # %%
+
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list in AR_data:
+    
+    fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+    fric_coeff = np.array(fric_coeff)
+
+    final_radius_of_gyration = []
+    for ix, local_dataset in enumerate(global_data_list):
+        time_line = local_dataset['time_line']
+        rad_gyr_list = local_dataset['rad_gyr_list']
+        num_contacts_list = local_dataset['num_contacts_list']
+        fric_coef = local_dataset['data_obj'].friction_coefficient
+        final_radius_of_gyration.append(rad_gyr_list[-1])
+    
+    plt.plot(fric_coeff,final_radius_of_gyration,'o-',label=f'AR={local_dataset["AR"]}')
+    plt.xlabel('Friction coefficient, $\\mu$')
+    plt.ylabel('Radius of gyration, $R_g$')
+
+plt.legend(fontsize=8)
+plt.savefig(f'{figure_output_folder}/RadiusOfGyration_all_AR_kick{kick_amplitude}.png',dpi=300,bbox_inches='tight')
+
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list in AR_data:
+    
+    fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+    fric_coeff = np.array(fric_coeff)
+
+    final_radius_of_gyration = []
+    final_num_contacts = []
+    for ix, local_dataset in enumerate(global_data_list):
+        time_line = local_dataset['time_line']
+        rad_gyr_list = local_dataset['rad_gyr_list']
+        num_contacts_list = local_dataset['num_contacts_list']
+        fric_coef = local_dataset['data_obj'].friction_coefficient
+        final_radius_of_gyration.append(rad_gyr_list[-1])
+        final_num_contacts.append(num_contacts_list[-1])
+    
+    plt.plot(fric_coeff,final_num_contacts,'o-',label=f'AR={local_dataset["AR"]}')
+    plt.xlabel('Friction coefficient, $\\mu$')
+    plt.ylabel('Final num contacts, $N_c$')
+
+plt.legend(fontsize=8)
+# plt.savefig(f'{figure_output_folder}/NumContacts_all_AR_kick{kick_amplitude}.png',dpi=300,bbox_inches='tight')
+
+# %%
+# AR_entanglement_data
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list,global_entanglement_over_time in zip(AR_data,AR_entanglement_data):
+    
+    fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+    fric_coeff = np.array(fric_coeff)
+
+    final_entanglement = []
+
+    for local_dataset in global_data_list:
+        time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+        entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+        entanglement = np.array(entanglement)/(num_rods*(num_rods-1)/2)
+        final_entanglement.append(entanglement[-1])
+        # ax.loglog(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+    
+    plt.plot(fric_coeff,final_entanglement,'o-',label=f'AR={local_dataset["AR"]}')
+    plt.xlabel('Friction coefficient, $\\mu$')
+    plt.ylabel(r'Final entanglement, $\tilde{e}$')
+    # break
+
+plt.legend(fontsize=8)
+plt.savefig(f'{figure_output_folder}/Entanglement_all_AR_kick{kick_amplitude}.png',dpi=300,bbox_inches='tight')
+
+# %%
 fig,ax=plt.subplots(figsize=(2.5,2))
 for local_dataset in _trimmed:
     time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
@@ -318,7 +442,7 @@ plt.xlabel('Time, $t$ (sec)')
 plt.ylabel('Mean relative velocity, $v$ (L/sec)')
 
 # %%
-dta = chosen_data[0]
+dta = chosen_data[1]
 data = loadmat(dta.data_path,simplify_cells=True)
 time_line = data['time_line']
 node_list = data['node_list']
