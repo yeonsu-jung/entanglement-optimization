@@ -134,6 +134,7 @@ def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices
     # plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
     plt.show()
 
+# %%
 # Example plotting comparisons
 # For 'd_ij', we fix theta, ai, and aj (axes 1, 2, 3)
 plot_acn_comparison(d_ij_vals, 'd_ij', (theta_vals, ai_vals, aj_vals), (1, 2, 3))
@@ -149,6 +150,33 @@ plot_acn_comparison(aj_vals, 'aj', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
 # %%
 # convexity?
 # Check convexity of the ACN values
+d_ij = 0.01
+theta = np.pi/2
+ai = 0 
+aj = 0
+
+ai_list = np.linspace(-5,6,100)
+lk_list = np.zeros_like(ai_list)
+
+plt.figure(figsize=(5,4))
+for theta in [np.pi/4,np.pi/3,np.pi/2]:
+    for idx,ai in enumerate(ai_list):
+        lk_list[idx] = acn_from_area_formula(d_ij, theta, ai, aj)
+    plt.plot(ai_list,lk_list,'o-')
+
+plt.axvline(0.5)
+plt.axvline(1)
+plt.axvline(0)
+
+# %%
+
+
+
+
+
+
+
+# %%
 
 # random point
 q1 = np.random.randn(10)
