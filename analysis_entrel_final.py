@@ -326,3 +326,16 @@ ps.set_up_dir("z_up")
 ps.screenshot(f'EntRel_{AR}.png',transparent_bg=False)
 
 # %%
+def foo(x,n):
+    return x**n/(1+x**n)
+
+popt,pcov=curve_fit(foo,AR_list,normalized,p0=[5])
+
+x_fit = np.linspace(0,500,100)
+y_fit = foo(x_fit,*popt)
+plt.plot(x_fit,y_fit)
+plt.plot(AR_list,normalized,'o-')
+
+
+
+# %%
