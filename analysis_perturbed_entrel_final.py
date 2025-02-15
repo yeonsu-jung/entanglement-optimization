@@ -15,7 +15,11 @@ import time
 
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/3_1_2_K1.0')
-meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/456,514,148')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/456,514,148')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/32_0_98_720')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,12,720')
+meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/3_1_2_720')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
 
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
 
@@ -129,7 +133,7 @@ AR = 500
 AR_data = []
 AR_entanglement_data = []
 
-for AR in [50,100,200,300,500]:
+for AR in [50]:
     chosen_data = []
     for dta in data_list:
         # if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.21) and dta.kick_amplitude == 0.01:
@@ -251,8 +255,11 @@ for AR in [50,100,200,300,500]:
         }
         global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient] = local_data
     AR_entanglement_data.append(global_entanglement_over_time)
-    
+
 # %%
+#     
+# %%
+
 fig,ax=plt.subplots(figsize=(2.5,2))
 for local_dataset in _trimmed:
     time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
@@ -264,7 +271,7 @@ ax.axhline(kinetic_energy[0],linestyle='--',color='k')
 plt.xlabel('Time, $t$ (sec)')
 plt.ylabel('Kinetic energy, $K$ (?)')
 plt.legend()
-plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
     
 # %%
 fig,ax=plt.subplots(figsize=(2.5,2))
@@ -299,7 +306,24 @@ ax.axhline(0.5,linestyle='--',color='k')
 ax.set_xlabel('Time, $t$ (sec)')
 ax.set_ylabel('Norm. entanglement, $E$')
 # ax.legend(title='$\\mu$',loc='upper right')
-# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTimeLogLog_AR{AR}.png',dpi=300,bbox_inches='tight')
+# %%
+
+fig,ax=plt.subplots(figsize=(2.5,2))
+for local_dataset in _trimmed:
+    time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+    entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+    entanglement = np.array(entanglement)/(num_rods*(num_rods-1)/2)
+    ax.plot(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+ax.axhline(0.5,linestyle='--',color='k')
+ax.set_xlabel('Time, $t$ (sec)')
+ax.set_ylabel('Norm. entanglement, $E$')
+# ax.legend(title='$\\mu$',loc='upper right')
+# plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTimeLinear_AR{AR}.svg')
+plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/EntanglementOverTimeLinear_AR{AR}.png',dpi=300,bbox_inches='tight')
+
+
 
 # %%
 subfolder_name = f'Random{random_keys}'
@@ -419,8 +443,8 @@ for global_data_list,global_entanglement_over_time in zip(AR_data,AR_entanglemen
     plt.xlabel('Friction coefficient, $\\mu$')
     plt.ylabel(r'Final entanglement, $\tilde{e}$')
     # break
-
-plt.legend(fontsize=8)
+ax.set_ylim([0,0.5])
+# plt.legend(fontsize=8)
 plt.savefig(f'{figure_output_folder}/Entanglement_all_AR_kick{kick_amplitude}.png',dpi=300,bbox_inches='tight')
 
 # %%
@@ -441,6 +465,64 @@ for local_dataset in _trimmed:
     ax.plot(time_line,mean_velocity,'o-',label=f'{local_dataset["data_obj"].friction_coefficient}')
 plt.xlabel('Time, $t$ (sec)')
 plt.ylabel('Mean relative velocity, $v$ (L/sec)')
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list,global_entanglement_over_time in zip(AR_data,AR_entanglement_data):
+    
+    fric_coeff = [local_dataset['data_obj'].friction_coefficient for local_dataset in global_data_list]
+    fric_coeff = np.array(fric_coeff)
+
+    final_entanglement = []
+
+    for local_dataset in global_data_list:
+        time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+        entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+        entanglement = np.array(entanglement)/(num_rods*(num_rods-1)/2)
+        ax.plot(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+        # break
+        # final_entanglement.append(entanglement[-1])
+        # ax.loglog(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+plt.legend()
+    # plt.plot(fric_coeff,final_entanglement,'o-',label=f'AR={local_dataset["AR"]}')
+    # plt.xlabel('Friction coefficient, $\\mu$')
+    # plt.ylabel(r'Final entanglement, $\tilde{e}$')
+
+# %%
+# entanglement over time for different AR
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list,global_entanglement_over_time in zip(AR_data,AR_entanglement_data):
+    for local_dataset in global_data_list:
+
+        time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+        entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+        entanglement = np.array(entanglement)/(num_rods*(num_rods-1)/2)
+        ax.plot(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Norm. entanglement, $E$')
+plt.legend(title='AR',loc='upper right')
+plt.savefig(f'{figure_output_folder}/EntanglementOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{figure_output_folder}/EntanglementOverTime_AR{AR}.svg',dpi=300,bbox_inches='tight')
+# %%
+
+
+# %%
+fig,ax=plt.subplots(figsize=(2.5,2))
+for global_data_list,global_entanglement_over_time in zip(AR_data,AR_entanglement_data):
+    for local_dataset in global_data_list:
+
+        time_line = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['time_line']
+        entanglement = global_entanglement_over_time[local_dataset['data_obj'].friction_coefficient]['entanglement']
+        entanglement = np.array(entanglement)/(num_rods*(num_rods-1)/2)
+        ax.loglog(time_line,entanglement,label=f'{local_dataset["data_obj"].friction_coefficient}')
+
+plt.xlabel('Time, $t$ (sec)')
+plt.ylabel('Norm. entanglement, $E$')
+plt.legend(title='AR',loc='upper right')
+plt.savefig(f'{figure_output_folder}/EntanglementOverTimeLogLog_AR{AR}.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{figure_output_folder}/EntanglementOverTimeLogLog_AR{AR}.svg',dpi=300,bbox_inches='tight')
+
 
 # %%
 dta = chosen_data[2]
