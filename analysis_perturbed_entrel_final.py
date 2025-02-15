@@ -13,7 +13,10 @@ import time
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/312_')
 
-meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_Thicker')
+# meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/3_1_2_K1.0')
+meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/456,514,148')
+
 # meta_folder = Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/29,19,70_')
 
 # meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_291,322,12,720")
@@ -130,7 +133,7 @@ for AR in [50,100,200,300,500]:
     chosen_data = []
     for dta in data_list:
         # if dta.AR == AR and (0.1 <= dta.friction_coefficient < 0.21) and dta.kick_amplitude == 0.01:
-        if dta.AR == AR and dta.kick_amplitude == 1. and dta.num_rods == 200:
+        if dta.AR == AR and dta.kick_amplitude == 1. and dta.num_rods == 500:
 
         # if dta.kick_amplitude == 0.01 and dta.num_rods == 200:
         # if dta.AR == AR and (dta.friction_coefficient > 0.2) and dta.kick_amplitude == 0.01 and dta.num_rods == 200:
@@ -227,8 +230,6 @@ for AR in [50,100,200,300,500]:
             moment_arm_for_omega = (x[:,3:]-x[:,:3])/2
             omega = np.cross(moment_arm_for_omega,v1r)
             angular_kinetic_energy = 0.5*np.sum(omega**2*rod_inertia)
-            
-            
             non_rigid_body_velocity = v.reshape(-1,6) - np.tile(centroid_velocity,(1,2))
             
             mean_velocity = np.mean(np.linalg.norm(non_rigid_body_velocity,axis=1))
@@ -262,7 +263,7 @@ ax.axhline(kinetic_energy[0],linestyle='--',color='k')
 
 plt.xlabel('Time, $t$ (sec)')
 plt.ylabel('Kinetic energy, $K$ (?)')
-# plt.legend()
+plt.legend()
 plt.savefig(f'/Users/yeonsu/Figures/Random{random_keys}/KineticEnergyOverTime_AR{AR}.png',dpi=300,bbox_inches='tight')
     
 # %%
@@ -442,7 +443,7 @@ plt.xlabel('Time, $t$ (sec)')
 plt.ylabel('Mean relative velocity, $v$ (L/sec)')
 
 # %%
-dta = chosen_data[1]
+dta = chosen_data[2]
 data = loadmat(dta.data_path,simplify_cells=True)
 time_line = data['time_line']
 node_list = data['node_list']
@@ -451,7 +452,7 @@ contacts_list = data['contact_list']
 friction_coefficient = dta.friction_coefficient
 num_rods = dta.num_rods
 density = 1000
-
+dta
 # %%
 file_id = f'N{num_rods}-AR{int(AR):04d}-Kick{kick_amplitude}-Friction{friction_coefficient}-Density{density}'
 output_path = f'/Users/yeonsu/Videos/{subfolder_name}/{file_id}'
