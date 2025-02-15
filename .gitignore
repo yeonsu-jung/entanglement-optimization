@@ -34,3 +34,7 @@ qs/*
 filament_fields_output/*
 *.mp4
 *.npy
+ACN_ai.pdf
+ACN_aj.pdf
+ACN_d_ij.pdf
+ACN_theta.pdf
