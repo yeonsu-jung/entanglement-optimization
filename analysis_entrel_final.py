@@ -213,8 +213,8 @@ for n in ns:
     # plt.plot(x_fit, func(x_fit, *popt), 'r-')
     popt_list.append(popt)
 
-plt.xlabel('$a_i$')
-plt.ylabel('Probability density, $P(a_i)$')
+plt.xlabel('$\Delta_i$')
+plt.ylabel('Probability density, $P(\Delta_i)$')
 # plt.legend(np.array(AR_list).astype(int))
 plt.savefig(f'{common_folder}/skewness_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 # %%
@@ -264,7 +264,7 @@ plt.legend(np.array(AR_list).astype(int))
 plt.figure(figsize=(2.5,2))
 plt.plot(AR_list,num_contacts_list/500,'o-')
 plt.xlabel('Aspect Ratio, $\\alpha$')
-plt.ylabel('Number of contacts')
+plt.ylabel('Avg. no. of contacts')
 plt.savefig(f'{common_folder}/num_contacts_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 
 # %%
