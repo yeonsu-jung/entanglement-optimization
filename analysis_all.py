@@ -394,12 +394,12 @@ def test():
         plt.plot(time_line,avg)
         plt.fill_between(time_line, avg-std, avg+std, alpha=0.3)
         
-    plt.show()
+    # plt.show()
             
 def analyze_over_friction_coefficient(df,analysis_id):
     
     # pickup AR = 100 and average
-    t_u = np.sqrt( np.sqrt(2) - 1) / 2
+    t_u = np.sqrt( np.sqrt(2) - 1) / 2 * 10
     all_mu = df['friction_coefficient']
     all_mu = np.unique(all_mu)
     num_mus = len(all_mu)
@@ -430,7 +430,7 @@ def analyze_over_friction_coefficient(df,analysis_id):
         plt.ylabel(r'Normalized entanglement, $\tilde{e}$')
         plt.legend(title='$\mu$',loc='center left', bbox_to_anchor=(1, 0.5))
         plt.savefig(f'junkyard/{analysis_id}_entanglement_AR{AR}.svg',bbox_inches='tight')
-        plt.show()
+        # plt.show()
         plt.close('all')
 
     for AR in all_AR:
@@ -453,12 +453,12 @@ def analyze_over_friction_coefficient(df,analysis_id):
         plt.ylabel(r'Fraction of the largest cluster, $f$')
         plt.legend(title='$\mu$',loc='center left', bbox_to_anchor=(1, 0.5))
         plt.savefig(f'junkyard/{analysis_id}_fraction_AR{AR}.svg',bbox_inches='tight')
-        plt.show()
+        # plt.show()
         plt.close('all')
 
 def analyze_over_AR(df,analysis_id):
 
-    t_u = np.sqrt( np.sqrt(2) - 1) / 2
+    t_u = np.sqrt( np.sqrt(2) - 1) / 2 * 10
     all_mu = df['friction_coefficient']
     all_mu = np.unique(all_mu)
     num_mus = len(all_mu)
@@ -538,11 +538,12 @@ if __name__ == '__main__':
     # pathlist.append(Path('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/919,461,568,72_Kick0.10'))
 
     analysis_id = 'N500_NewK1e5'
-    pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/919,461,568_N500_Final')
-    pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/6,7,8_N500_Final')
-    pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/37,178,56_N500_Final')    
-    
-    postprocessing_and_caching(pathlist,analysis_id)
+
+
+    # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/919,461,568_N500_Final')
+    # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/6,7,8_N500_Final')
+    # pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/37,178,56_N500_Final')        
+    # postprocessing_and_caching(pathlist,analysis_id)
 
     # pth = '/Users/yeonsu/GitHub/entanglement-optimization/dataframe_results/N200_NewK1e5.pkl'
     pth = '/Users/yeonsu/GitHub/entanglement-optimization/dataframe_results/N500_NewK1e5.pkl'
