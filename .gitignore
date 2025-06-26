@@ -38,3 +38,13 @@ ACN_ai.pdf
 ACN_aj.pdf
 ACN_d_ij.pdf
 ACN_theta.pdf
+
+ACN*.pdf
+*.svg
+
+*output*/*
+*.nb
+*.pdf
+logd
+logp
+*.csv
