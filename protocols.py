@@ -23,11 +23,11 @@ jax.config.update("jax_enable_x64", True)
 import potentials as pt
 import glob, os, shutil
 
-import numba
+# import numba
 from pathlib import Path
 import os
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def fixbound_nonjax(num):
     """ Ensure the number is within the bounds [0, 1]. """
     if num < 0:
@@ -36,7 +36,7 @@ def fixbound_nonjax(num):
         return 1
     return num
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):    
     """ Calculate the shortest distance between two line segments. """
     d1 = point1e - point1s
@@ -100,7 +100,7 @@ def create_random_rods(num_rods,random_keys):
     return q0
 
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000):
     print('create_nonintersecting_random_rods')    
     
@@ -146,7 +146,7 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
     
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000):
     print('create_nonintersecting_random_rods in a container')        
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -199,7 +199,7 @@ def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container
 
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods_contained_in_box(num_rods, rod_diameter, container_size, max_attempts=10000):
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
 
@@ -254,7 +254,7 @@ def create_nonintersecting_random_rods_contained_in_box(num_rods, rod_diameter, 
 
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000):
     assert(len(container_size) == 3)
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -312,7 +312,7 @@ def create_nonintersecting_random_rods_contained_in_noncube(num_rods, rod_diamet
 
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_intersecting_random_rods_contained_in_noncube(num_rods, rod_diameter, container_size, max_attempts=1000000):
     assert(len(container_size) == 3)
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -370,7 +370,7 @@ def create_intersecting_random_rods_contained_in_noncube(num_rods, rod_diameter,
 
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diameter,container_size,max_attempts=10000):
     print('create_nonintersecting_random_rods whose centroids in a container')        
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
@@ -425,7 +425,7 @@ def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diamete
 
     return q
 
-@numba.jit(nopython=True)
+# @jit(nopython=True)
 def create_nonintersecting_random_rods_contained_in_cylinder(num_rods, rod_diameter, container_radius, container_height, max_attempts=1000000):
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
     for i in range(num_rods):
@@ -671,16 +671,14 @@ def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize
         # if (error < atol_min):
         #     print(f"Error is smaller than atol_min: {error}")
         #     break
-
+        
         q_pairs = create_pairs(q.reshape(-1,5))
         distances = all_pairwise_distances(q_pairs)
         # dt = dt/1.1     # TO DO: factor out this numbers
-
         # if jnp.abs(jnp.min(distances) - col_rad_0) < col_rad_0*1e-6:
-        if (jnp.min(distances) - col_rad_0) > 0:
+        if (jnp.min(distances) - col_rad_0*2) > 0:
             print(f"Enough pushoff: {jnp.min(distances)}")
             break
-    
     
     return q
 
@@ -1792,7 +1790,7 @@ def sanity_check():
     density_factor = num_rods/container_size**3*rod_diameter*1**2
     print(f'Density factor: {density_factor}')
     
-    @numba.jit(nopython=True)    
+    # @jit(nopython=True)    
     def fast_dist_calc(x,num_rods):
         for i in range(num_rods):
             p_i = x[i,:3]
@@ -1888,7 +1886,7 @@ def Powerade():
     
     density_factor = 5
     container_size = onp.array([1.2,1.2,2])
-    for AR in [50,100,200,300,500]:
+    for AR in [1000,50,100,200,300,500]:
         for num_rods in [100,500]:
             rod_diameter = (1./AR)
             # num_rods = int(container_size**3*density_factor/rod_diameter)
@@ -2916,8 +2914,7 @@ def working():
     def _callback(q,params):
         print("Callback called")
     
-    for AR in [20]:
-    
+    for AR in [100]:
         dt_string = now.strftime("%Y-%m-%d_%H-%M-%S")
         packing_id = f'EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
         
@@ -2927,7 +2924,9 @@ def working():
         plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_initial_{dt_string}.png')
         
         params = {"col_rad": rod_diameter/2, "amp": 100., "sigma": 0.025}
-        q = relax_collision(q0,params,N_outer,Nmax,callback=_callback)
+        dt = 1e-2
+        q = relax_collision(q0,dt,params,N_outer,Nmax,callback=_callback)
+        # q,dt,params,N_outer,Nmax,callback=None
         plot_many_rods(q.reshape(-1,5))
         plt.savefig(f'/Users/yeonsu/Data/export/{packing_id}_relaxed_{dt_string}.png')
         
@@ -2970,12 +2969,13 @@ def standard_protocol():
     N_outer = 1
     Nmax = 100000
     scale_factor = 1
-    num_rods = 500
+    num_rods = 100
     dt = 1.e-2
     amp = 100
 
-    # random_keys = [65,72,99]
-    random_keys = [591,222,312]
+    random_keys = [6,7,8]
+    # random_keys = [37,178,56]
+    # random_keys = [919,461,568]
     results_per_random_keys = f'results/{random_keys[0]},{random_keys[1]},{random_keys[2]}'
 
     if not os.path.exists(results_per_random_keys):
@@ -2984,12 +2984,12 @@ def standard_protocol():
     now = datetime.datetime.now()
     
     # for AR in [10,20,50,75,100,200,300,500]:
-    for AR in [500]:
-    # for AR in [10,20,50]:
+    # for AR in [50,100,150,300,500]:
+    for AR in [10,20,75,200]:
         rod_diameter = 1/AR
         params = {"col_rad": rod_diameter/2, "amp": 1., "sigma": 0.025, AR: AR}
 
-        dt_string = now.strftime("%Y-%m-%d_%H")
+        dt_string = now.strftime("%Y-%m-%d_%H")  
         # dt_string = "2024-10-16_00"
         packing_id = f'{dt_string}_EntangledRelaxedPacking-N{num_rods:04d}-AR{AR:04d}-Scale{scale_factor}'
 
@@ -3033,6 +3033,10 @@ def standard_protocol():
         q_relaxed = relax_collision(q0,dt,params,N_outer,Nmax,callback=_callback)
         ################################################################################################
         np.savetxt(f'{results_per_random_keys}/{packing_id}/q_relaxed.txt',q_relaxed)
+
+        x_relaxed = q_to_x(q_relaxed)
+        np.savetxt(f'{results_per_random_keys}/{packing_id}/x_relaxed.txt',x_relaxed)
+
         plot_many_rods(q_relaxed.reshape(-1,5))
         plt.savefig(f'{results_per_random_keys}/{packing_id}/relaxed.png')
         plt.close()
@@ -3137,6 +3141,9 @@ def projection_every_step():
         ################################################################################################
         np.savetxt(f'{results_per_random_keys}/{packing_id}/q_relaxed.txt',q_relaxed)
 
+        x_relaxed = q_to_x(q_relaxed)
+        np.savetxt(f'{results_per_random_keys}/{packing_id}/x_relaxed.txt',x_relaxed)
+
         plot_many_rods(q_relaxed.reshape(-1,5))
         plt.savefig(f'{results_per_random_keys}/{packing_id}/relaxed.png')
         plt.close()
@@ -3177,6 +3184,26 @@ def projection_every_step():
     
 # %%
 if __name__ == "__main__":
-    standard_protocol()
-    # projection_every_step()
-# %%
+    # working()
+    # projection_every_step() # too slow...
+    # standard_protocol()
+    num_rods = 100
+    q0 = create_intersecting_rods(num_rods)
+    random_key = random.PRNGKey(0)
+    # (num_rods,3) random numbers
+    random_numbers = random.uniform(random_key, (num_rods,3), minval=0, maxval=0.05)
+    q0 = q0.reshape(-1,5)
+    q0 = q0.at[:,0:3].add(random_numbers)
+    # plot_many_rods(q0.reshape(-1,5))
+    # plt.show()
+    import numpy as np
+    np.savetxt('packings/q0.txt',q0)
+
+    print()
+
+    
+
+
+    # need to generate small N packing.
+
+    

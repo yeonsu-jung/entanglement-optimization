@@ -319,6 +319,38 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     #                            + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
     #                            + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
 
+def compute_linking_number_cartesian(p_i, p_ii, p_j, p_jj):
+    # p_i = jnp.array([x_i, y_i, z_i])
+    # p_j = jnp.array([x_j, y_j, z_j])
+    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    # p_ii = p_i + l*u_i
+    # p_jj = p_j + l*u_j
+
+    r_ij = p_i - p_j
+    r_ijj = p_i - p_jj
+    r_iij = p_ii - p_j
+    r_iijj = p_ii - p_jj
+
+    tol = 1e-6
+    n1 = jnp.cross(r_ij, r_ijj)
+    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n2 = jnp.cross(r_ijj, r_iijj)
+    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n3 = jnp.cross(r_iijj, r_iij)
+    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n4 = jnp.cross(r_iij, r_ij)
+    n4 = n4/(jnp.linalg.norm(n4)+tol)
+    
+    tol = 0.
+
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
+
+
 def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
     p_i = jnp.array([x_i, y_i, z_i])
     p_j = jnp.array([x_j, y_j, z_j])
@@ -729,6 +761,29 @@ def all_pairwise_distances_xyz(q_pairs):
 @jit
 def all_pairwise_skewness(q_pairs):
     return vmap(pairwise_skewness)(q_pairs)
+
+@jit
+def dist_lin_seg_over_ij(r1, r2, i_indices, j_indices):
+    # vmap over the index pairs to compute the distance for each unique pair
+    return vmap(lambda i, j: dist_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
+
+def angle_r1_r2(point1s,point1e,point2s,point2e):
+    u_i = point1e - point1s
+    u_j = point2e - point2s
+    return jnp.abs(jnp.arctan(jnp.linalg.norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
+
+@jit
+def angle_over_ij(r1,r2,i_indices,j_indices):
+    return vmap(lambda i, j: angle_r1_r2(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
+
+@jit
+def acn_over_ij(r1, r2, i_indices, j_indices):
+    return vmap(lambda i, j: compute_linking_number_cartesian(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
+
+@jit
+def skewness_over_ij(r1, r2, i_indices, j_indices):
+    # skewness_lin_seg
+    return vmap(lambda i, j: skewness_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
 
 def create_pair3(m,n):
     M, _ = m.shape

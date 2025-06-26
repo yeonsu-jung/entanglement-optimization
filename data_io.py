@@ -311,30 +311,161 @@ def foo():
     plot_many_curves(nodes_at_a_time,num_rods,ax)
     plt.show()
     
-def import_all_log(alllog_pth, start_row=0,max_rows = 10,skip_rows=1):
+def import_all_log(alllog_pth, start_row=0,max_rows = 100000000,skip_rows=1):
     with open(alllog_pth) as f:
         lines = f.readlines()
     lines = lines[start_row:max_rows:skip_rows]
         
     time_line = []
     node_list = []
+    velocity_list = []
+    force_list = []
     contact_list = []
+    box_contact_list = []
     for i,line in enumerate(lines):
-        if 'Time' in line:
+        if line.startswith('Time'):
             time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
             
-        if 'Node' in line:
+        if line.startswith('Node'):
             next_line = lines[i+1]                       
             node_list.append(np.array([float(x) for x in next_line.split(',')]))
+
+        if line.startswith('Velocity'):
+            next_line = lines[i+1]                       
+            velocity_list.append(np.array([float(x) for x in next_line.split(',')]))
             
-        if 'Force' in line:
+        if line.startswith('Force'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                force_list.append(np.array([]))
+            else:
+                force_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+        if line.startswith('Contact'):
             next_line = lines[i+1]
             if next_line == "\n":
                 contact_list.append(np.array([]))
             else:
-                contact_list.append(np.array([float(x) for x in next_line.split(',')]))
+                contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
                 
-    return time_line, node_list, contact_list
+        if line.startswith('Box'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                box_contact_list.append(np.array([]))
+            else:
+                box_contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+    return time_line, node_list, velocity_list, force_list, contact_list, box_contact_list
+
+def save_as_mat(alllog_pth, start_row=0,max_rows = 100000000,skip_rows=1):
+    with open(alllog_pth) as f:
+        lines = f.readlines()
+    lines = lines[start_row:max_rows:skip_rows]
+        
+    time_line = []
+    node_list = []
+    velocity_list = []
+    force_list = []
+    contact_list = []
+    box_contact_list = []
+    for i,line in enumerate(lines):
+        if line.startswith('Time'):
+            time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
+            
+        if line.startswith('Node'):
+            next_line = lines[i+1]                       
+            node_list.append(np.array([float(x) for x in next_line.split(',')]))
+
+        if line.startswith('Velocity'):
+            next_line = lines[i+1]                       
+            velocity_list.append(np.array([float(x) for x in next_line.split(',')]))
+            
+        if line.startswith('Force'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                force_list.append(np.array([]))
+            else:
+                force_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+        if line.startswith('Contact'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                contact_list.append(np.array([]))
+            else:
+                contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+        if line.startswith('Box'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                box_contact_list.append(np.array([]))
+            else:
+                box_contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+
+    time_line = np.array(time_line)
+    node_list = np.array(node_list)
+    velocity_list = np.array(velocity_list)
+
+    force_list = np.array(force_list, dtype=object)
+    contact_list = np.array(contact_list, dtype=object)
+    box_contact_list = np.array(box_contact_list, dtype=object)
+
+    from scipy.io import savemat
+    savemat(alllog_pth.replace('.csv','.mat'),{'time_line':time_line,
+                                               'node_list':node_list,
+                                               'velocity_list':velocity_list,
+                                               'force_list':force_list,
+                                               'contact_list':contact_list,
+                                               'box_contact_list':box_contact_list},
+                                               do_compression=True)
+
+def save_as_npy(alllog_pth, start_row=0,max_rows = 100000000,skip_rows=1):
+    with open(alllog_pth) as f:
+        lines = f.readlines()
+    lines = lines[start_row:max_rows:skip_rows]
+        
+    time_line = []
+    node_list = []
+    force_list = []
+    contact_list = []
+    box_contact_list = []
+    for i,line in enumerate(lines):
+        if line.startswith('Time'):
+            time_line.append(float(line.split('Time: ')[-1].rstrip('\n')))
+            
+        if line.startswith('Node'):
+            next_line = lines[i+1]                       
+            node_list.append(np.array([float(x) for x in next_line.split(',')]))
+            
+        if line.startswith('Force'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                force_list.append(np.array([]))
+            else:
+                force_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+        if line.startswith('Contact'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                contact_list.append(np.array([]))
+            else:
+                contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+                
+        if line.startswith('Box'):
+            next_line = lines[i+1]
+            if next_line == "\n":
+                box_contact_list.append(np.array([]))
+            else:
+                box_contact_list.append(np.array([float(x) for x in next_line.split(',') if x != '\n']))
+
+    time_line = np.array(time_line)
+    node_list = np.array(node_list)
+
+    force_list = np.array(force_list)    
+    contact_list = np.array(contact_list)
+    box_contact_list = np.array(box_contact_list)
+
+    np.save(alllog_pth.replace('.csv','.npy'),[time_line, node_list, force_list, contact_list, box_contact_list])
+
 # %%
 def pullout_video_frames_single_file(alllog_pth):
     log_string = ''

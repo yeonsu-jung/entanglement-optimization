@@ -12,7 +12,11 @@ from data_io import import_all_log, parse_path_string
 from scipy.optimize import curve_fit
 def power_law(x,a,b):
     return a*x**b
-
+# %%
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "Helvetica"
+})
 
 # %%
 single_column_size = (2.5,1.75)
@@ -48,7 +52,8 @@ class data_container:
         self.AR = out[3]
         self.datetime_string = out[4]
         
-        self.time_line, self.node_list, self.contact_list = import_all_log(self.path,max_rows=max_rows)
+        # self.time_line, self.node_list, self.contact_list = import_all_log(self.path,max_rows=max_rows)
+        self.time_line, self.node_list, _, self.contact_list, _, _ = import_all_log(self.path,max_rows=max_rows)
         
 max_rows = 1000000
 data_container_list = []
@@ -74,6 +79,23 @@ if not os.path.exists(output_dir):
     os.makedirs(output_dir)
     
 # %%
+entanglement_pathlist = []
+
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0125-AR025-Scale1_20240609-010903')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0250-AR050-Scale1_20240609-010903')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0375-AR075-Scale1_20240609-010902')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0500-AR100-Scale1_20240609-010902')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0525-AR105-Scale1_20240609-010902')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0550-AR110-Scale1_20240609-010902')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0575-AR115-Scale1_20240609-010902')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0600-AR120-Scale1_20240609-010858')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0625-AR125-Scale1_20240609-010858')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0750-AR150-Scale1_20240609-010858')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N0875-AR175-Scale1_20240609-010858')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N1000-AR200-Scale1_20240609-010856')
+# entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N1250-AR250-Scale1_20240609-010856')
+entanglement_pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/analysis-data/CheckEntangleModelo1/NonIntersectingBox-N1500-AR300-Scale1_20240609-010856')
+
 class entanglement_data_container:
     def __init__(self,dataphat):
         self.path = Path(dataphat)
@@ -83,7 +105,7 @@ class entanglement_data_container:
         
 entanglement_data_container_list = []
 
-for pth in pathlist:
+for pth in entanglement_pathlist:
     for datafile in Path(pth).rglob('**/*.npz'):
         print(datafile)
     entanglement_data_container_list.append(entanglement_data_container(datafile))
@@ -103,20 +125,21 @@ plt.ylabel('Normalized total entanglement')
 plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tight')
 
 # %%
-fig,ax=plt.subplots(1,1,figsize=single_column_size)
+fig,ax=plt.subplots(1,1,figsize=(2.5*0.7,1.75*0.7))
 for i_,dc in enumerate(data_container_list):
     N = Ns[i_]
     contact_list = dc.contact_list
     contact_list = contact_list[:667]
-    tt = dc.time_line[:667]    
+    tt = dc.time_line[:667]
     num_contacts = [x for x in map(lambda x: len(x)//18,contact_list)]
     num_contacts = np.array(num_contacts)
-    plt.plot(tt[::1],num_contacts[::1]/N*2,label=f'AR={ARs[i_]}',linewidth=0.5)
+    plt.plot(tt[::1],num_contacts[::1]/N*2,label=f'$\\alpha={ARs[i_]}$',linewidth=0.5)
 plt.legend(loc='lower right',fontsize=6)
 plt.xlabel('$t$ (sec)')
-plt.ylabel(r'$C/N$')
+plt.ylabel(r'$Z$')
 plt.xlim([0,10])
-plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.svg',dpi=300,bbox_inches='tight')
+
 # %%
 coef_vars = []
 for i_,dc in enumerate(entanglement_data_container_list):
@@ -147,11 +170,14 @@ axs[1].set_xlabel('$t$ (sec)')
 axs[1].set_ylabel(r'$\sigma/\mu$')
 axs[1].set_ylim([0,2])
 plt.legend(loc='lower right',fontsize=6)
-
-plt.savefig(f'{output_dir}/coef-var-over-time.png',dpi=300,bbox_inches='tight')
-
+plt.savefig(f'{output_dir}/coef-var-over-time.svg',dpi=300,bbox_inches='tight')
 # %%
-
+fig,ax=plt.subplots(1,1,figsize=(2.1*0.7,1.75*0.7))
+for i_,cv in enumerate(coef_vars):
+    ax.plot(tt,cv['e'],label=f'AR={ARs[i_]}',linewidth=0.5)
+ax.set_xlabel('$t$ (sec)')
+ax.set_ylabel(r'$\sigma/\mu$')
+plt.savefig(f'{output_dir}/coef-var-over-time.svg',dpi=300,bbox_inches='tight')
 
 # %%
 avg_entanglement = []
@@ -258,7 +284,8 @@ plt.rcParams.update({
 })
 
 markers = ['o','s','^','v','<','>','D']
-fig,ax=plt.subplots(1,1,figsize=(8,6))
+# fig,ax=plt.subplots(1,1,figsize=(8,6))
+fig,ax=plt.subplots(1,1,figsize=(2.1*0.7,1.75*0.7))
 # fontsize
 plt.rcParams.update({'font.size': 8})
 for i_,hist_result in enumerate(histogram_results):
@@ -270,38 +297,7 @@ for i_,hist_result in enumerate(histogram_results):
     yy = yy[yy>0]
 
     
-    ax.loglog(xx,yy,markers[i_],markersize=3)
-    clr = ax.get_lines()[-1].get_color()
-    # popt,pcov=curve_fit(power_law,xx,yy)
-    # ax.loglog(xx,power_law(xx,*popt))
-    # print(popt)
-    
-    logx = np.log(xx)
-    logy = np.log(yy)
-    p = np.polyfit(logx,logy,1)
-    
-    lgd = r'$\alpha = %d$, $y = %.2f x^{%.2f}$' % (ARs[i_],np.exp(p[1]),p[0])
-    ax.loglog(xx,np.exp(p[1])*xx**p[0],color=clr,label=lgd)
-
-ax.set_xlabel(r'$e(\mathbf{x})$')
-ax.set_ylabel('PDF')
-plt.legend()
-plt.savefig(f'{output_dir}/entanglement-power-law-distribution.png',dpi=300,bbox_inches='tight')
-
-# %%
-fig,ax=plt.subplots(1,1,figsize=(8,6))
-# fontsize
-plt.rcParams.update({'font.size': 8})
-for i_,hist_result in enumerate(histogram_results):
-    n,x = hist_result['c_field']
-    
-    xx = x[:-1]
-    yy = n
-    xx = xx[yy>0]
-    yy = yy[yy>0]
-
-    
-    ax.loglog(xx,yy,'o-',markersize=3,label=f'AR={ARs[i_]}')
+    ax.loglog(xx,yy,markers[i_],markersize=1)
     clr = ax.get_lines()[-1].get_color()
     # popt,pcov=curve_fit(power_law,xx,yy)
     # ax.loglog(xx,power_law(xx,*popt))
@@ -314,10 +310,46 @@ for i_,hist_result in enumerate(histogram_results):
     lgd = r'$\alpha = %d$, $y = %.2f x^{%.2f}$' % (ARs[i_],np.exp(p[1]),p[0])
     # ax.loglog(xx,np.exp(p[1])*xx**p[0],color=clr,label=lgd)
 
-ax.set_xlabel(r'$c(\mathbf{x})$')
-ax.set_ylabel('PDF')
-plt.legend()
-plt.savefig(f'{output_dir}/contact-power-law-distribution.png',dpi=300,bbox_inches='tight')
+xfit = np.logspace(-3,4,100)
+yfit = 0.01*xfit**(-3/4)
+ax.loglog(xfit,yfit,'k--',linewidth=0.5)
+
+ax.set_xlabel(r'$e$')
+ax.set_ylabel('$p(e)$')
+# plt.legend()
+plt.savefig(f'{output_dir}/entanglement-power-law-distribution.svg',dpi=300,bbox_inches='tight')
+
+# %%
+# fig,ax=plt.subplots(1,1,figsize=(8,6))
+fig,ax=plt.subplots(1,1,figsize=(2.1*0.7,1.75*0.7))
+# fontsize
+plt.rcParams.update({'font.size': 8})
+for i_,hist_result in enumerate(histogram_results):
+    n,x = hist_result['c_field']
+    
+    xx = x[:-1]
+    yy = n
+    xx = xx[yy>0]
+    yy = yy[yy>0]
+
+    
+    ax.loglog(xx,yy,'o-',markersize=1,label=f'\alpha={ARs[i_]}')
+    clr = ax.get_lines()[-1].get_color()
+    # popt,pcov=curve_fit(power_law,xx,yy)
+    # ax.loglog(xx,power_law(xx,*popt))
+    # print(popt)
+    
+    logx = np.log(xx)
+    logy = np.log(yy)
+    p = np.polyfit(logx,logy,1)
+    
+    lgd = r'$\alpha = %d$, $y = %.2f x^{%.2f}$' % (ARs[i_],np.exp(p[1]),p[0])
+    # ax.loglog(xx,np.exp(p[1])*xx**p[0],color=clr,label=lgd)
+
+ax.set_xlabel(r'$c$')
+ax.set_ylabel('$p(c)$')
+# plt.legend()
+plt.savefig(f'{output_dir}/contact-power-law-distribution.svg',dpi=300,bbox_inches='tight')
     
 # %%    
 

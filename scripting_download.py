@@ -1,28 +1,26 @@
 import os
 
 pathlist = []
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha38_epsilon10')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha38_epsilon05')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha200_epsilon10')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha200_epsilon15')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha200_epsilon05')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha38_epsilon00')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha200_epsilon00')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha38_epsilon15')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha100_epsilon15')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha100_epsilon10')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha100_epsilon05')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha100_epsilon00')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha66_epsilon10')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha66_epsilon15')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha66_epsilon05')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha66_epsilon00')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon15')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon10')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon05')
-pathlist.append('/n/home01/yjung/good-bye-matlab/steel-rods-xray-data/alpha76_epsilon00')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.18_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1506_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.20_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.16_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.14_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.12_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_3,1,2,720_Kick1.00_Friction0.10_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.20_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.18_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.16_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.14_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.12_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1505_RUN_RandomKeys_456,514,148,720_Kick1.00_Friction0.10_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.20_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.18_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.16_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.14_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.12_N500_AR0500')
+pathlist.append('/n/home01/yjung/Github/dismech-rods-main/runs/20241208-1504_RUN_RandomKeys_95,78,32,720_Kick1.00_Friction0.10_N500_AR0500')
 
-# /n/home01/yjung/Github/entanglement-optimization/analysis-data
+# pathlist.append('/n/home01/yjung/Github/entanglement-optimization/analysis-data')
 
 with open('downloaded_list.txt','a') as f:
     for pth in pathlist:

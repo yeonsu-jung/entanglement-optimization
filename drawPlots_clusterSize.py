@@ -216,7 +216,7 @@ def _draw_f_plot(output_dict_list_repeated,ax,**kwargs):
     clr = ax.get_lines()[-1].get_color()
     ax.errorbar(ARs_over,avg_dta_over,std_dta_over,color=clr,**kwargs)
     
-single_column_size = (2.5*0.8,1.75*0.8)
+single_column_size = (2.5*1,1.75*1)
 omega = np.array([100,1])
 A = 0.001
 Fr = 4*np.pi**2*omega**2*A/0.5
@@ -244,7 +244,7 @@ ax.axvline(100,linestyle='--',color='k',linewidth=0.5)
 ax.set_xscale('log')
 ax.set_yscale('log')
 ax.set_xlabel(r'$\alpha$',labelpad=0.5)
-ax.set_ylabel(r'$f$',labelpad=0.5)
+ax.set_ylabel(r'$\zeta$',labelpad=0.5)
 plt.yticks(rotation=90)
 
 # plt.legend()
@@ -253,7 +253,7 @@ handles, labels = ax.get_legend_handles_labels()
 ax.legend([handles[i] for i in [0,2,4]], [labels[i] for i in [0,2,4]],loc='lower right',fontsize=6)
 
 
-plt.savefig(f'{figure_output_root}/f_plot.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{figure_output_root}/f_plot.svg',bbox_inches='tight')
 
 # %%
 fig,ax=plt.subplots(1,1,figsize=single_column_size)
@@ -267,7 +267,7 @@ ax.axvline(100,linestyle='--',color='k',linewidth=0.5)
 ax.set_xscale('log')
 ax.set_yscale('log')
 ax.set_xlabel(r'$\alpha$',labelpad=0.5)
-ax.set_ylabel(r'$f$',labelpad=0.5)
+ax.set_ylabel(r'$\zeta$',labelpad=0.5)
 plt.yticks(rotation=90)
 
 handles, labels = ax.get_legend_handles_labels()

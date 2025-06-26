@@ -6,16 +6,21 @@ from data_io import import_all_log, import_from_dismech
 
 
 # %%
-
-pth="/Users/yeonsu/GitHub/dismech-rods-main/runs/20250207-2122_COMPILE_/log_files/node_20250207-212330.csv"
-time_line, node_list, velocity_list,force_list, contact_list, box_contact_list = import_all_log(pth,max_rows=10000000)
+pth="/Users/yeonsu/GitHub/dismech-rods-main/runs/20250124-0117_COMPILE_/log_files/capsules-mu0.20-amp0.10_allLog_20250124-011711.csv"
+time_line, node_list, velocity_list, force_list, contact_list, box_contact_list = import_all_log(pth,max_rows=10000000)
 
 import re
-search_result = re.search('N(\d+)-AR(\d+)',Path(pth).stem)
-num_rods = int(search_result.group(1))
-AR = int(search_result.group(2))
-rod_diameter = 1/AR*1.5
-node_list[0].shape[0]/3
+# search_result = re.search('N(\d+)-AR(\d+)',Path(pth).stem)
+# num_rods = int(search_result.group(1))
+# AR = int(search_result.group(2))
+# rod_diameter = 1/AR*1.5
+# node_list[0].shape[0]/3
+
+num_center_points = 2
+num_rods = 12
+rod_diameter = 0.01
+
+
 
 # %%
 xyz = node_list[0].reshape(num_rods,-1,3)
@@ -65,7 +70,9 @@ ps_top_plane.update_vertex_positions(np.array([[-plane_size/2,-plane_size/2,upda
 ps_top_plane.set_enabled(False)
 ps_bottom_plane.set_enabled(False)
 
-ps.set_up_dir("z_up")
+ps.set_up_dir("x_up")
+ps.look_at([0,-10,3.5],[0,10,3.5])
+
 ps.screenshot('temp.png')
 # ps.show()
 # exit()
@@ -76,6 +83,8 @@ print(f'Number of frames: {len(node_list)}')
 # %%
 skip_factor = 10
 for i,a_list_of_curves in enumerate(node_list[num_files_already::skip_factor]):
+    ps.look_at([0,-10,3.5],[0,10,3.5])
+
     a_list_of_curves = a_list_of_curves.reshape(num_rods,-1,3)
     # num_rods = len(a_list_of_curves)
     nodes = np.vstack(a_list_of_curves)

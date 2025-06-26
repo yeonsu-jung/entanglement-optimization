@@ -771,11 +771,15 @@ if __name__ == '__main__':
     
     # 
     
-    rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
-    segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'pruned_segments.pkl'
+    # rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
+    # segments_file_path = rod_data_root_dir / 'alpha200_epsilon00' / 'pruned_segments.pkl'
+    
+    segments_file_path = Path("/Users/yeonsu/GitHub/entanglement-source-codes/rod-packing-cp/PackingData/RealRodPacking_N500_AR66/pruned_segments.mat")
+    rod_data_root_dir = segments_file_path.parent
 
-    with open(segments_file_path, 'rb') as f:
-        pruned_segments = pickle.load(f)
+    from scipy.io import loadmat
+    loaded_obj = loadmat(segments_file_path,simplify_cells=True)
+    pruned_segments = loaded_obj['pruned_segments']
 
     # # %%
     # segments = pruned_segments
@@ -797,7 +801,8 @@ if __name__ == '__main__':
     # plt.close('all')
     # segm.plot_length_histogram()
     # %%
-    save_folder = 'test_segmenting6'
+    # Literal here:
+    save_folder = 'RodPacking66'
     os.makedirs(save_folder,exist_ok=True)
     tracker = 0
     for _i in range(5):
@@ -815,7 +820,6 @@ if __name__ == '__main__':
     # %% 
     dist_threshold = 30
     # %%
-    import pickle
     dist_threshold_inc = 2
     for _i in range(50):
         dist_threshold += dist_threshold_inc
@@ -937,27 +941,10 @@ if __name__ == '__main__':
     # ps.look_at((-1000.0,-1000.0,1000.0),(500,500,500))
     # ps.show()
     ps.screenshot('temp.png',transparent_bg=False)
-
-
     
     # imshow temp.png
     img = plt.imread('temp.png')
     plt.imshow(img)
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
         
     # %%
     rod_data_root_dir = Path('/Users/yeonsu/Data/steel-rods-xray-data')
@@ -977,13 +964,9 @@ if __name__ == '__main__':
     from scipy.io import savemat
     savemat(file_path,{'segments_rectangle':nan_padded})
     # %%
-    
     with open(f'{save_folder}/clustered_segments.pkl','wb') as f:
         pickle.dump(next_round,f)
         
-        
-        
-    # %%
     # %%
     error_list = []
     length_list = []
@@ -997,7 +980,6 @@ if __name__ == '__main__':
     ax.hist(error_list,bins=100)
     # %%
     np.count_nonzero(np.array(error_list) > 1.5)
-    
     
     # %%
     np.count_nonzero(np.array(length_list) < 450)

@@ -126,27 +126,61 @@ def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices
     # plt.title(f'ACN Comparison vs {variable_label}')
     
     # Show legend for each method
-    # plt.legend()
+    # plt.legend(fontsize=6)
     
     # Display the plot
     plt.tight_layout()
-    # plt.savefig(f'ACN_{variable_label}.png', dpi=300, bbox_inches='tight')
-    # plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
+    plt.savefig(f'ACN_{variable_label}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
     plt.show()
 
 # %%
 # Example plotting comparisons
 # For 'd_ij', we fix theta, ai, and aj (axes 1, 2, 3)
-plot_acn_comparison(d_ij_vals, 'd_ij', (theta_vals, ai_vals, aj_vals), (1, 2, 3))
-
+plot_acn_comparison(d_ij_vals, '$d_{ij}$', (theta_vals, ai_vals, aj_vals), (1, 2, 3))
+# %% 
 # For 'theta', we fix d_ij, ai, and aj (axes 0, 2, 3)
-plot_acn_comparison(theta_vals, 'theta', (d_ij_vals, ai_vals, aj_vals), (0, 2, 3))
+plot_acn_comparison(theta_vals, r'$\theta$', (d_ij_vals, ai_vals, aj_vals), (0, 2, 3))
 
 # For 'ai', we fix d_ij, theta, and aj (axes 0, 1, 3)
-plot_acn_comparison(ai_vals, 'ai', (d_ij_vals, theta_vals, aj_vals), (0, 1, 3))
+plot_acn_comparison(ai_vals, '$a_i$', (d_ij_vals, theta_vals, aj_vals), (0, 1, 3))
 
 # For 'aj', we fix d_ij, theta, and ai (axes 0, 1, 2)
-plot_acn_comparison(aj_vals, 'aj', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
+plot_acn_comparison(aj_vals, '$a_j$', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
+# %%
+# d_ij_vals, 'd_ij', (theta_vals, ai_vals, aj_vals), (1, 2, 3)
+
+variable_vals = d_ij_vals
+fixed_indices = (1, 2, 3)
+
+plt.figure(figsize=(2.5, 2))
+    
+# Plot for each ACN method on the same plot
+k = 0
+offset = 0
+for acn, label in zip(
+    [acn1, acn2, acn3],
+    ['Area formula', 'Analytic integration', 'Numerical integration']  # Labels for each method
+):
+    # Take the mean over the fixed indices to compare across the given variable
+    acn_mean = np.mean(acn, axis=fixed_indices)*(1 + offset*k)  # Add a small offset for better visualization
+    plt.semilogx(variable_vals, acn_mean, label=label, marker=markers[k],linewidth=1,alpha=1,markersize=(5-k),linestyle=linestyles[k])
+    k += 1
+
+# Labels and title
+plt.xlabel('d_ij')
+plt.ylabel('ACN')
+# plt.title(f'ACN Comparison vs {variable_label}')
+
+# Show legend for each method
+# plt.legend()
+
+# Display the plot
+plt.tight_layout()
+# plt.savefig(f'ACN_{variable_label}.png', dpi=300, bbox_inches='tight')
+# plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
+plt.show()
+
 # %%
 # convexity?
 # Check convexity of the ACN values

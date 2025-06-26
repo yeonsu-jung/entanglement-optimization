@@ -368,7 +368,7 @@ for method in ['IQR','Z','MAD']:
 
         num_nodes_each_rod = 2
         connectivities = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
-        ps_rods = ps.register_curve_network("my rods", nodes, `connectivities`,transparency=0.5)
+        ps_rods = ps.register_curve_network("my rods", nodes, connectivities,transparency=0.5)
         # gold
         ps_rods.set_color((1.0, 0.71, 0.29))
         ps_rods.set_radius(rod_radius, relative=False)
@@ -395,7 +395,8 @@ for method in ['IQR','Z','MAD']:
 
 # %%
 
-for method in ['IQR','Z','MAD']:
+# for method in ['IQR','Z','MAD']:
+for method in ['IQR']:
     tmp = np.array([zeta_results[alpha][method] for alpha in alpha_list])
 
     single_column_size = (2.3,1.5)
@@ -412,7 +413,7 @@ for method in ['IQR','Z','MAD']:
 
     plt.legend(fontsize=6)
     # plt.tight_layout()
-    plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_{method}.png',dpi=300,bbox_inches='tight')
+    plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_{method}.svg',dpi=300,bbox_inches='tight')
 
 # zeta_results[alpha][method] = (xyz_size/system_size)
 
@@ -443,7 +444,7 @@ for ax in axs:
 box = axs[2].get_position()
 ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 axs[2].legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_wrt_method.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_wrt_method.png',dpi=300,bbox_inches='tight')
 
 
 # %%
@@ -557,7 +558,7 @@ for ax in axs:
 box = axs[2].get_position()
 ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 axs[2].legend(loc='center left', bbox_to_anchor=(1, 0.5))
-plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_M.png',dpi=300,bbox_inches='tight')
+# plt.savefig(f'{root_dir}/percolation/percolation_vs_alpha_M.png',dpi=300,bbox_inches='tight')
     
 # %%
 

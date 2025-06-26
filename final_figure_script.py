@@ -89,6 +89,215 @@ output_dir = '/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim
 
 # # ps.show()
 
+# %% FIGURE 3
+
+zeta_results = {}
+
+alpha_list = data_dict.keys()
+cluster_size_list = []
+for method in ['IQR','Z','MAD']:
+    for alpha in alpha_list:
+        if alpha == 38:
+            rod_radius = 650/alpha/2
+        else:
+            rod_radius = 650/alpha
+        
+        n_field = data_dict[alpha][0].all_fields.n
+        convex_hull = convex_hull_image(n_field > 0)
+        convex_hull_points = np.argwhere(convex_hull)
+        
+            
+        system_x = data_dict[alpha][0].all_fields.cx[convex_hull_points[:,0]]
+        system_y = data_dict[alpha][0].all_fields.cx[convex_hull_points[:,1]]
+        system_z = data_dict[alpha][0].all_fields.cx[convex_hull_points[:,2]]
+        
+        stat = get_principal_axis_length(np.vstack([system_x,system_y,system_z]).T)
+        # system_size = stat['EffectiveSystemSize']
+        # system_size = stat['PrincipalAxisLength']
+        system_size = [np.max(system_x) - np.min(system_x),
+        np.max(system_y) - np.min(system_y),
+        np.max(system_z) - np.min(system_z)]
+        
+        e_field = data_dict[alpha][0].all_fields.e
+        e_field_inside = e_field[convex_hull]
+        R = data_dict[alpha][0].all_fields.R
+        
+        if method == 'IQR':
+            Q1 = np.percentile(e_field_inside, 25)
+            Q3 = np.percentile(e_field_inside, 75)
+            IQR = Q3 - Q1
+            outlier_step = 1.5 * IQR
+            upper_bound = Q3 + outlier_step
+        
+        # upper bound by Z score (3Z)
+        elif method == 'Z':
+            Z = 3
+            upper_bound = np.mean(e_field_inside) + Z * np.std(e_field_inside)
+        
+        elif method == 'MAD':
+            # upper bound by MAD (Median Absolute Deviation)
+            MAD = np.median(np.abs(e_field_inside - np.median(e_field_inside)))
+            upper_bound = np.median(e_field_inside) + 3.5 * MAD / 0.6745
+        
+        mask = e_field > upper_bound
+        # connected components for mask?
+
+        # Perform connected component analysis
+        labels, num_labels = ndimage.label(mask)
+        mask_points = np.argwhere(mask)
+        
+        label_sizes = np.zeros(num_labels-1)
+        label_centers = np.zeros((num_labels-1,3))
+        label_xyz_size = np.zeros((num_labels-1,3))
+        for i in range(num_labels-1):
+            label_sizes[i] = np.sum(labels == i+1)
+            label_image = labels == i+1
+            
+            # label_image_points = np.argwhere(label_image)
+            # stat = get_principal_axis_length(label_image_points)
+            # label_xyz_size[i] = stat['EffectiveSystemSize']
+            # label_center[i] = stat['Centroid']            
+            # label_centers[i] = np.argwhere(labels == i+1).mean(axis=0)
+            
+            _pts = np.argwhere(labels == i+1)
+            
+            cx = []
+            cy = []
+            cz = []
+            
+            for pt in _pts:
+                cx.append(data_dict[alpha][0].all_fields.cx[pt[0]])
+                cy.append(data_dict[alpha][0].all_fields.cy[pt[1]])
+                cz.append(data_dict[alpha][0].all_fields.cy[pt[2]])
+                
+            pts = np.vstack([cx,cy,cz]).T                
+            # zeta_x = np.max(cx) - np.min(cx)
+            # zeta_y = np.max(cy) - np.min(cy)
+            # zeta_z = np.max(cz) - np.min(cz)
+            # label_xyz_size[i] = np.array([zeta_x,zeta_y,zeta_z])
+            stat = get_principal_axis_length(pts)
+            # label_xyz_size[i] = stat['EffectiveSystemSize']
+            # label_xyz_size[i] = stat['PrincipalAxisLength']
+            label_xyz_size[i] = [np.max(cx) - np.min(cx),
+            np.max(cy) - np.min(cy),
+            np.max(cz) - np.min(cz)]
+            
+            label_centers[i] = stat['Centroid']
+        
+        i_max = np.argmax(label_sizes)
+        xyz_size = label_xyz_size[i_max]
+            
+        centerlines = data_dict[alpha][0].centerlines
+        whole_centerline = np.vstack(centerlines)
+        # system_size = np.array([np.max(whole_centerline[:,i]) - np.min(whole_centerline[:,i]) for i in range(3)])
+        
+        if alpha not in zeta_results:
+            zeta_results[alpha] = {}        
+        zeta_results[alpha][method] = (xyz_size/system_size)
+        
+        cluster_size_list.append(np.max(label_sizes))
+            
+        _cx = data_dict[alpha][0].all_fields.cx[mask_points[:,0]]
+        _cy = data_dict[alpha][0].all_fields.cy[mask_points[:,1]]
+        _cz = data_dict[alpha][0].all_fields.cz[mask_points[:,2]]
+        query_points = np.vstack([_cx,_cy,_cz]).T        
+        
+        unpacked,centerline_labels = unpack_centerlines(centerlines)
+        sampled_labels = []
+        for label_center in label_centers:
+            tmp = centerline_labels[np.linalg.norm(unpacked - label_center,axis=1) < R/2]
+            sampled_labels.append(tmp)
+                
+        undersampled = [centerline[::10] for centerline in centerlines]
+        # unpacked,labels = unpack_centerlines(undersampled)
+        # sampled_labels = get_local_labels(unpacked,labels,label_centers,R)
+        # print(sampled_labels)
+
+        unique_labels = np.unique(np.concatenate(sampled_labels))
+
+        edges = []
+        for i in unique_labels:
+            r1 = undersampled[i][0]
+            r2 = undersampled[i][-1]
+            
+            edges.append(np.concatenate([r1,r2]))
+        edges = np.array(edges)
+        nodes = edges.reshape(-1,3)
+        bounding_box = np.array([[np.min(nodes[:,i]),np.max(nodes[:,i])] for i in range(3)])
+        # Define the box vertices from the bounding box
+        box_vertices = np.array([
+            [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 0]],
+            [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 0]],
+            [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 0]],
+            [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 0]],
+            [bounding_box[0, 0], bounding_box[1, 0], bounding_box[2, 1]],
+            [bounding_box[0, 1], bounding_box[1, 0], bounding_box[2, 1]],
+            [bounding_box[0, 1], bounding_box[1, 1], bounding_box[2, 1]],
+            [bounding_box[0, 0], bounding_box[1, 1], bounding_box[2, 1]]
+        ])
+
+        # Define the box edges
+        box_edges = np.array([
+            [0, 1],
+            [1, 2],
+            [2, 3],
+            [3, 0],
+            [4, 5],
+            [5, 6],
+            [6, 7],
+            [7, 4],
+            [0, 4],
+            [1, 5],
+            [2, 6],
+            [3, 7]
+        ])
+
+
+        ps.init()
+        ps.set_ground_plane_mode("none")
+        ps.set_ground_plane_mode("shadow_only")  # set +Z as up direction
+
+        # register a point cloud
+        N = mask_points.shape[0]
+        points = mask_points
+
+        ps_cloud = ps.register_point_cloud("my points", query_points)
+
+        clr = np.array([76, 153, 204])/255
+        ps_cloud.set_color(clr)
+        ps_cloud.set_radius(R/2,relative=False)
+
+        ps.set_up_dir("z_up")
+
+        num_nodes_each_rod = 2
+        connectivities = np.array([[i, i + 1] for i in range(len(nodes) - 1) if i % num_nodes_each_rod != num_nodes_each_rod - 1])
+        ps_rods = ps.register_curve_network("my rods", nodes, `connectivities`,transparency=0.5)
+        # gold
+        ps_rods.set_color((1.0, 0.71, 0.29))
+        ps_rods.set_radius(rod_radius, relative=False)
+
+        # Register the box as a curve network
+        ps_box = ps.register_curve_network("box", box_vertices, box_edges,enabled=True)
+        ps_box.set_radius(3, relative=False)  # Set the radius of the box edges
+        ps_box.set_color((0.8, 0.8, 0.8))  # Set the color of the box edges
+
+        ps.look_at((4000,4000,2000),(-2000,-2000,200))
+
+        # view the point cloud with all of these quantities
+        # ps.show() 
+
+        root_dir = f'/Users/yeonsu/Dropbox (Harvard University)/Data/PrunedData/rod-sim-pnas-revision/visuals'
+        output_dir = f'{root_dir}/percolation/{method}'
+        import os
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+            
+        ps.set_screenshot_extension(".png");
+        screenshot_path = f'{output_dir}/percolation_{alpha}.png'
+        ps.screenshot(screenshot_path,transparent_bg=False)
+
+
+
 
 
 # %%
@@ -365,10 +574,10 @@ ax.set_yscale('log')
 plt.yticks([0.1,1],rotation=90)
 
 plt.xlabel(r'$a/g$',labelpad=-3)
-plt.ylabel(r'$\zeta$',labelpad=2)
+plt.ylabel(r'$f$',labelpad=2)
 # plt.tight_layout()
 # plt.savefig(f'{output_dir}/f_vs_a-g.png',dpi=300,bbox_inches='tight')
-# plt.legend()
+plt.legend()
 plt.savefig(f'{output_dir}/f_vs_a-g.svg',bbox_inches='tight')
 
 
@@ -402,7 +611,7 @@ plt.rcParams.update({'font.size': 8})
 ax.scatter(dynamic,1/mu_over_sigma,s=marker_size,linewidth=0.5,facecolors='none',edgecolors='b',label='Entangled stiff rods (sim)')
 
 ax.set_xlabel('$a/g$')
-ax.set_ylabel(r'$\sigma_e/\mu_e$')
+ax.set_ylabel(r'$\sigma/\mu$')
 ax.set_xscale('log')
 # ax.set_yscale('log')
 
@@ -447,7 +656,7 @@ ax.set_yscale('log')
 plt.legend(loc='lower right',bbox_to_anchor=(1,1))
 
 # plt.savefig(f'{output_dir}/2dPhaseDiagram.pdf',dpi=300,bbox_inches='tight')
-plt.savefig(f'{output_dir}/2dPhaseDiagram_2.svg',dpi=300,bbox_inches='tight')
+plt.savefig(f'{output_dir}/2dPhaseDiagram.svg',dpi=300,bbox_inches='tight')
 # %%
 4*np.pi**2*(5)**2*0.025/9.8
 
@@ -890,4 +1099,82 @@ ps_zx.set_enabled(False)
 
 
 ps.show()
-# %%
+# %% FIGURE 4C
+fig,ax=plt.subplots(1,1,figsize=single_column_size)
+for i_,dc in enumerate(data_container_list):
+    N = Ns[i_]
+    contact_list = dc.contact_list
+    contact_list = contact_list[:667]
+    tt = dc.time_line[:667]    
+    num_contacts = [x for x in map(lambda x: len(x)//18,contact_list)]
+    num_contacts = np.array(num_contacts)
+    plt.plot(tt[::1],num_contacts[::1]/N*2,label=f'AR={ARs[i_]}',linewidth=0.5)
+plt.legend(loc='lower right',fontsize=6)
+plt.xlabel('$t$ (sec)')
+plt.ylabel(r'$C/N$')
+plt.xlim([0,10])
+plt.savefig(f'{output_dir}/avg-number-of-contacts-per-rod.svg',dpi=300,bbox_inches='tight')
+
+
+
+# %% FIGURE 4G
+for i_,dc in enumerate(entanglement_data_container_list):
+    txt = dc.path.parent.parent.stem
+    search_result = re.search(r'N(\d+)[-_]AR(\d+)',txt)
+    N = int(search_result.group(1))
+    AR = int(search_result.group(2))
+    
+    if AR == 300:
+                
+        phi_fields = dc.dataobj['phi_fields_over_time']
+        # phi_fields = phi_fields[:667]
+        e_fields = dc.dataobj['e_fields_over_time']
+        # e_fields = e_fields[:667]
+        c_fields = dc.dataobj['c_fields_over_time']
+        # c_fields = c_fields[:667]
+        
+        phi_field_last_frame = phi_fields[-1]
+        e_field_last_frame = e_fields[-1]
+        c_field_last_frame = c_fields[-1]
+        # dta = e_field_last_frame[~np.isnan(e_field_last_frame)]
+        
+
+        image_size = np.round((e_field_last_frame.shape[0])**(1/3)).astype(int)
+        phi_volume = phi_field_last_frame.reshape(image_size,image_size,image_size)
+        e_volume = e_field_last_frame.reshape(image_size,image_size,image_size)
+        c_volume = c_field_last_frame.reshape(image_size,image_size,image_size)
+        
+        avg_e = np.nanmean(e_volume)
+        avg_c = np.nanmean(c_volume)
+
+        c_volume[np.isnan(e_volume)] = np.nan
+
+        phi_image = np.mean(phi_volume,axis=0)
+        phi_image = np.flipud(phi_image.T)
+        e_image = np.mean(e_volume,axis=0)
+        e_image = np.flipud(e_image.T)/avg_e
+        c_image = np.mean(c_volume,axis=0)
+        c_image = np.flipud(c_image.T)/avg_c
+
+
+        double_column_size = (5,3.5)
+
+        fig,axs=plt.subplots(1,3,figsize=double_column_size)
+        axs = axs.flatten()
+        # colorbar below
+        fig.colorbar(axs[0].imshow(phi_image,cmap='coolwarm'),
+                    ax=axs[0],orientation='horizontal')
+
+        fig.colorbar(axs[2].imshow(e_image,cmap='coolwarm'),
+                        ax=axs[2],orientation='horizontal')
+
+        fig.colorbar(axs[1].imshow(c_image,cmap='coolwarm'),
+                        ax=axs[1],orientation='horizontal')
+
+        for ax in axs:
+            ax.axis('off')
+
+        # plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.png',dpi=300,bbox_inches='tight')
+        plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.svg',dpi=300,bbox_inches='tight')
+
+

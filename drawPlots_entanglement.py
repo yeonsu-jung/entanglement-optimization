@@ -28,7 +28,8 @@ class data_container:
         self.num_rods = out[2]
         self.AR = out[3]
         self.datetime_string = out[4]
-        self.time_line, self.node_list, self.contact_list = import_all_log(self.path,start_row=start_row,max_rows=max_rows,skip_rows=skip_rows)
+        # self.time_line, self.node_list, self.contact_list = import_all_log(self.path,start_row=start_row,max_rows=max_rows,skip_rows=skip_rows)
+        self.time_line, self.node_list, _, self.contact_list, _, _ = import_all_log(self.path,start_row=start_row,max_rows=max_rows,skip_rows=skip_rows)
         
 
 # %%
@@ -210,6 +211,7 @@ plt.legend(fontsize=6)
 plt.xlabel('Time (sec)')
 plt.ylabel('Normalized total entanglement')
 # plt.savefig(f'{output_dir}/entanglement-over-time.png',dpi=300,bbox_inches='tight')
+plt.savefig(f'{output_dir}/entanglement-over-time.svg',dpi=300,bbox_inches='tight')
 
 # %%
     
@@ -227,9 +229,7 @@ for i_,dc in enumerate(data_container_list):
     num_contacts = [x for x in map(lambda x: len(x)//18,contact_list)]
     num_contacts = np.array(num_contacts)
     plt.plot(tt[::1],num_contacts[::1]/N*2,label=fr'$\alpha={ARs[i_]}$',linewidth=0.5)
-    
     last_part_averaged.append(np.mean(num_contacts[-50:])/N*2)
-
 
 plt.xlabel(r'$t$ (sec)')
 plt.ylabel(r'$Z$')
@@ -665,8 +665,6 @@ for dc in data_container_list_hang:
     # largest clusters
     largest_cluster = max(clusters,key=len)
     frac_over_time_hang.append(len(largest_cluster)/N)
-    
-# %%
 
 # %%
 ARs = []
@@ -760,14 +758,14 @@ with open(pklpath,'rb') as f:
 
 
 # %%
+
 for i_,dc in enumerate(entanglement_data_container_list):
-    
     txt = dc.path.parent.parent.stem
     search_result = re.search(r'N(\d+)[-_]AR(\d+)',txt)
     N = int(search_result.group(1))
     AR = int(search_result.group(2))
     
-    if AR == 25:
+    if AR == 300:
                 
         phi_fields = dc.dataobj['phi_fields_over_time']
         # phi_fields = phi_fields[:667]
@@ -817,7 +815,8 @@ for i_,dc in enumerate(entanglement_data_container_list):
         for ax in axs:
             ax.axis('off')
 
-        plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.png',dpi=300,bbox_inches='tight')
+        # plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.png',dpi=300,bbox_inches='tight')
+        # plt.savefig(f'{output_dir}/phi-e-c-image_AR{AR}.svg',dpi=300,bbox_inches='tight')
 
 
 # %%

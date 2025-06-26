@@ -94,12 +94,7 @@ def compute_nematic_order(q):
     S = S - np.eye(3)/3
     Q = 1.5*S
     return Q
-
     # outer product
-    
-    
-
-
 
 import re
 AR_list = []
@@ -111,11 +106,9 @@ total_entanglement_list = []
 total_nematic_order_list = []
 for pth in pathlist:
     dt_string, AR, num_rods, random_keys = parse_pathname(pth)
-
     AR = float(re.search('AR(\d+)',pth).group(1))
     AR_list.append(AR)
     diameter = 1/AR
-
     # qq = np.load(pth)
     # qq_reshaped = qq.reshape(-1,num_rods,5)
     # q = qq_reshaped[-1]
@@ -152,8 +145,9 @@ for i,S in enumerate(total_nematic_order_list):
     plt.scatter(AR_list[i],w[2])
 
 plt.ylim([0,1])
-    
-
+plt.xlabel('Aspect Ratio, $\\alpha$')
+plt.ylabel('Nematic order, $S$')
+# plt.savefig(f'{common_folder}/nematic_order_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 
 # %%
 plt.figure(figsize=(2.5,2))
@@ -166,8 +160,8 @@ for skewness in skewness_list:
 
     # plt.hist(skewness[0], bins=np.linspace(0.5-2,0.5+2,100), density=True)
     # plt.hist(skewness[1], bins=np.linspace(0.5-2,0.5+2,100), density=True)
-# for skewness in skewness_list[0]:
-#     plt.hist(skewness, bins=np.linspace(0.5-2,0.5+2,200), density=True)
+    # for skewness in skewness_list[0]:
+    #     plt.hist(skewness, bins=np.linspace(0.5-2,0.5+2,200), density=True)
 
 # plt.xlim([0.5-2,0.5+2])
 plt.xlabel('$a_i$')
@@ -198,8 +192,18 @@ plt.savefig(f'{common_folder}/skewness_histogram_{dt_string}_N{num_rods}.png',dp
 # b to sigma
 bs = np.array(popt_list)[:,1]
 sigmas = 1/np.sqrt(2*bs)
+
+def power_law(x,a):
+    return a*x**(-3/4)
+
+from scipy.optimize import curve_fit
+popt,pcov = curve_fit(power_law,AR_list,sigmas)
+x_fit = np.linspace(0,500,100)
+y_fit = power_law(x_fit,*popt)
+
 plt.figure(figsize=(2.5,2))
-plt.plot(AR_list,sigmas,'o-')
+plt.loglog(AR_list,sigmas,'o-')
+plt.loglog(x_fit,y_fit)
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel('Skewness width, $\\sigma_a$')
 plt.savefig(f'{common_folder}/skewness_width_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
@@ -237,17 +241,30 @@ plt.ylabel('Number of contacts')
 plt.savefig(f'{common_folder}/num_contacts_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 
 # %%
+normalized = -total_entanglement_list/(num_rods*(num_rods-1)/2)
 plt.figure(figsize=(2.5,2))
-plt.plot(AR_list,-total_entanglement_list/(num_rods*(num_rods-1)/2),'o-')
+plt.plot(AR_list,normalized,'o-')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel(r'$e/n_p$')
 plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+
+def exp_hill(x,a,b):
+    return a*(1 - np.exp(-x/b))
+
+popt,pcov=curve_fit(exp_hill,AR_list,normalized)
+y_fit = exp_hill(x_fit,*popt)
+plt.plot(x_fit,y_fit,label=f'$y={popt[0]:.2f}\exp(-x/{popt[1]:.2f})$')
+plt.legend()
+plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}_fit.png',dpi=300, bbox_inches='tight')
+
+
 # %%
+
+
 
 # %%
 pth = pathlist[0]
 q = np.loadtxt(pth)
-
 _,AR,_,_ = parse_pathname(pth)
 
 import polyscope as ps
@@ -257,7 +274,6 @@ rod_diameter = 1/AR
 ps.init()
 ps.set_autoscale_structures(False)
 ps.set_automatically_compute_scene_extents(False)
-
 ps.set_ground_plane_mode("none")
 # Create a camera view from parameters
 # intrinsics = ps.CameraIntrinsics(fov_vertical_deg=60, aspect=2)
@@ -270,17 +286,15 @@ a_list_of_curves = q_to_x(q).reshape(num_rods,-1,3)
 # a_list_of_curves = node_list[_t].reshape(num_rods,-1,3)
 nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves,num_rods)
 min_z = np.min(nodes[:,2])
-               
 ps_curves = ps.register_curve_network("filaments",nodes,edges)
 ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges',enabled=True)
 ps_curves.set_radius(rod_diameter/2,relative=False)
 
 ps.set_length_scale(2.)
 sz = 2.
-low = np.array((-sz, -sz, -sz)) 
+low = np.array((-sz, -sz, -sz))
 high = np.array((sz, sz, sz))
 ps.set_bounding_box(low, high)
-
 ps.set_up_dir("z_up")
 ps.screenshot(f'EntRel_{AR}.png',transparent_bg=False)
 
