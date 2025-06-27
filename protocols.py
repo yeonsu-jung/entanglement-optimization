@@ -111,9 +111,9 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
         attempts = 0
         
         while not created and attempts < max_attempts:
-            x = onp.random.uniform(-1, 1)
-            y = onp.random.uniform(-1, 1)
-            z = onp.random.uniform(-1, 1)
+            x = onp.random.uniform(-0.5, 0.5)
+            y = onp.random.uniform(-0.5, 0.5)
+            z = onp.random.uniform(-0.5, 0.5)
             phi = onp.random.uniform(0, onp.pi)
             theta = onp.random.uniform(0, 2 * onp.pi)
             
@@ -145,6 +145,8 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
             print(f"Rod {i} placed successfully")
     
     return q
+
+
 
 # @jit(nopython=True)
 def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000):
@@ -338,6 +340,63 @@ def create_intersecting_random_rods_contained_in_noncube(num_rods, rod_diameter,
             if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
                 onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
                 intersect = True
+            
+            for j in range(i):
+                x2, y2, z2, phi2, theta2 = q[j]
+                p_j = onp.array([x2, y2, z2])
+                p_jj = p_j + onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
+                
+                # distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
+                # if distance < rod_diameter:
+                #     intersect = True
+                #     break
+                
+                # # Check if the rod's endpoints are within the box boundaries
+                # if (onp.any(p_j < -container_size/2) or onp.any(p_j > container_size/2) or
+                #     onp.any(p_jj < -container_size/2) or onp.any(p_jj > container_size/2)):
+                #     intersect = True
+                #     break
+            
+            if not intersect:
+                q[i] = onp.array([x, y, z, phi, theta])
+                created = True
+                
+            attempts += 1
+
+        if attempts == max_attempts:
+            print("Failed to place all rods without intersection")
+            return q[:i]  # Return only the rods that were placed successfully
+        
+        if i % 100 == 0:
+            print(f"Rod {i} placed successfully")
+
+    return q
+
+def create_intersecting_random_rods_uncontained(num_rods, max_attempts=1000000):
+    # assert(len(container_size) == 3)
+    q = onp.zeros((num_rods, 5), dtype=onp.float64)
+
+    for i in range(num_rods):
+        created = False
+        attempts = 0
+        
+        while not created and attempts < max_attempts:
+            x = onp.random.uniform(-1/2, 1/2)
+            y = onp.random.uniform(-1/2, 1/2)
+            z = onp.random.uniform(-1/2, 1/2)
+            
+            tmp = onp.random.uniform(-1,1)
+            phi = onp.arccos(tmp)
+            theta = onp.random.uniform(0, 2 * onp.pi)
+            
+            intersect = False
+            p_i = onp.array([x, y, z])
+            p_ii = p_i + onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
+            
+            # Check if the rod's endpoints are within the box boundaries
+            # if (onp.any(p_i < -container_size/2) or onp.any(p_i > container_size/2) or
+            #     onp.any(p_ii < -container_size/2) or onp.any(p_ii > container_size/2)):
+            #     intersect = True
             
             for j in range(i):
                 x2, y2, z2, phi2, theta2 = q[j]
