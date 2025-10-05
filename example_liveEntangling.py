@@ -2,9 +2,9 @@
 import numpy as np
 from pathlib import Path
 import polyscope as ps
-
 # %%
-pth = Path('qs')
+
+pth = Path('qs2')
 # %%
 # check number of files in pth
 num_snapshots = len(list(pth.glob('*.npy')))
@@ -12,6 +12,7 @@ num_snapshots = len(list(pth.glob('*.npy')))
 # %%
 # load the first snapshot
 q0 = np.load(pth / 'q_0.npy')
+# q0 = np.load(pth / 'q_120.npy')
 q0.shape
 # %%
 from transforms import q_to_x
@@ -64,19 +65,21 @@ for i in range(num_rods):
     vals_edge[i*num_nodes_each_rod:(i+1)*num_nodes_each_rod] = colors[i%10]/255
 
 ps_all_nodes.add_color_quantity(f"rod_colors", vals_edge, defined_on='edges', enabled=True)
-
+ps_all_nodes.set_radius(1/100,relative=False)
 # ps.show()
 ps.screenshot('temp.png',transparent_bg=False)
 
 # %%
-num_snapshots = 1000
+# num_snapshots = 1000
 iterations = 0
 for i in range(0, num_snapshots, 10):
     q = np.load(pth / f'q_{i}.npy')
     x = q_to_x(q)
     ps_all_nodes.update_node_positions(x.reshape(-1,3))
-    ps.screenshot(f'qs/images/q_{iterations:04d}.png',transparent_bg=False)
+    ps.screenshot(f'qs2/images/q_{iterations:04d}.png',transparent_bg=False)
     iterations += 1
+
+
 # %%
 
 

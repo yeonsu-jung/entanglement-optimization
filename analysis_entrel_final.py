@@ -23,20 +23,42 @@ pathlist = []
 # pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/5,7,9/2024-10-20_23_EntangledRelaxedPacking-N0500-AR0020-Scale1/q_relaxed.txt")
 # pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/5,7,9/2024-10-20_23_EntangledRelaxedPacking-N0500-AR0010-Scale1/q_relaxed.txt")
 
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0010-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0020-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0050-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0075-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0100-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0200-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0300-Scale1/q_relaxed.txt")
-pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0500-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0010-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0020-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0050-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0075-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0100-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0200-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0300-Scale1/q_relaxed.txt")
+# pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0500-Scale1/q_relaxed.txt")
+
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR500_N200_randomkeys29,19,70/q_relaxed.txt')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR300_N200_randomkeys29,19,70/q_relaxed.txt')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR200_N200_randomkeys29,19,70/q_relaxed.txt')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR150_N200_randomkeys29,19,70/q_relaxed.txt')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR100_N200_randomkeys29,19,70/q_relaxed.txt')
+# pathlist.append('/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/20241210-1240_RUN_protocol_AR50_N200_randomkeys29,19,70/q_relaxed.txt')
+
+
+
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0100-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0050-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0010-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0500-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0300-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0200-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0075-Scale1/q_relaxed.txt')
+pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99/2024-10-21_02_EntangledRelaxedPacking-N0500-AR0020-Scale1/q_relaxed.txt')
+
+
+
 
 
 # pathlist.append('/Users/yeonsu/GitHub/entanglement-optimization/results/85,32,12/2024-10-24_14_EntangledRelaxedPacking-N0050-AR0500-Scale1/q_relaxed.txt')
 # %%
 # sort by AR
 pathlist = sorted(pathlist,key=lambda x: float(x.split('-AR')[1].split('-')[0]))
+# pathlist = sorted(pathlist,key=lambda x: float(x.split('AR')[1].split('_')[0]))
 
 # copy to local
 
@@ -54,6 +76,7 @@ pathlist = sorted(pathlist,key=lambda x: float(x.split('-AR')[1].split('-')[0]))
 import re
 def parse_pathname(pathname):
     dt_string = re.search(r'(\d{4}-\d{2}-\d{2}_\d{2})',pathname).group(1)
+    # dt_string = re.search(r'(\d{8}-\d{4})',pathname).group(1)
     AR = float(re.search('AR(\d+)',pathname).group(1))
     num_rods = int(re.search('N(\d+)',pathname).group(1))
     random_keys = re.search('(\d+),(\d+),(\d+)',pathname).group(0)
@@ -67,11 +90,14 @@ common_folder = f"/Users/yeonsu/Dropbox (Harvard University)/Data/maximum-entang
 if not os.path.exists(common_folder):
     os.makedirs(common_folder)
 
+from pathlib import Path
 for pth in pathlist:
     dt_string, AR, num_rods,random_keys = parse_pathname(pth)
     print(dt_string, AR, num_rods,random_keys)
 
-    qf = np.loadtxt(pth)
+    # glob q_relaxed.txt
+    file_pth = list(Path(pth).parent.rglob('q_relaxed.txt'))[0]
+    qf = np.loadtxt(file_pth)
     x = q_to_x(qf)
     filename = f"MaxEnt_{random_keys}_N{num_rods}-AR{int(AR):04d}-Scale1.txt"
     np.savetxt(f"{common_folder}/{filename}",x)
@@ -112,7 +138,10 @@ for pth in pathlist:
     # qq = np.load(pth)
     # qq_reshaped = qq.reshape(-1,num_rods,5)
     # q = qq_reshaped[-1]
-    q = np.loadtxt(pth)
+
+    file_pth = list(Path(pth).parent.rglob('q_relaxed.txt'))[0]
+
+    q = np.loadtxt(file_pth)
     x = q_to_x(q)
     q_pairs = create_pairs(q.reshape(-1,5))
     distances = all_pairwise_distances(q_pairs)
@@ -120,7 +149,7 @@ for pth in pathlist:
     angles = all_pairwise_angles(q_pairs)
     angle_list.append(angles)
     
-    num_contacts = np.count_nonzero(distances < diameter*1.05)
+    num_contacts = np.count_nonzero(distances < diameter*1.1)
     num_contacts_list.append(num_contacts)
     distances_list.append(distances)
 
@@ -184,8 +213,8 @@ for n in ns:
     # plt.plot(x_fit, func(x_fit, *popt), 'r-')
     popt_list.append(popt)
 
-plt.xlabel('$a_i$')
-plt.ylabel('Probability density, $P(a_i)$')
+plt.xlabel('$\Delta_i$')
+plt.ylabel('Probability density, $P(\Delta_i)$')
 # plt.legend(np.array(AR_list).astype(int))
 plt.savefig(f'{common_folder}/skewness_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 # %%
@@ -202,14 +231,12 @@ x_fit = np.linspace(0,500,100)
 y_fit = power_law(x_fit,*popt)
 
 plt.figure(figsize=(2.5,2))
-plt.loglog(AR_list,sigmas,'o-')
-plt.loglog(x_fit,y_fit)
+plt.loglog(AR_list,sigmas,'o-',label='Data')
+plt.loglog(x_fit,y_fit,label=f'$y={popt[0]:.2f}x^{{-3/4}}$')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel('Skewness width, $\\sigma_a$')
+plt.legend(fontsize=8)
 plt.savefig(f'{common_folder}/skewness_width_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
-
-# %%
-
 
 # %%
 plt.figure(figsize=(2.5,2))
@@ -230,14 +257,14 @@ plt.ylabel('Probability density, $P(d)$')
 ax.set_yscale('log')
 ax.set_xscale('log')
 plt.legend(np.array(AR_list).astype(int))
-plt.savefig(f'{common_folder}/distance_histogram_{dt_string}_N{num_rods}.pdf',bbox_inches='tight')
+# plt.savefig(f'{common_folder}/distance_histogram_{dt_string}_N{num_rods}.pdf',bbox_inches='tight')
 # plt.savefig(f'{common_folder}/distance_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
     
 # %%
 plt.figure(figsize=(2.5,2))
 plt.plot(AR_list,num_contacts_list/500,'o-')
 plt.xlabel('Aspect Ratio, $\\alpha$')
-plt.ylabel('Number of contacts')
+plt.ylabel('Avg. no. of contacts')
 plt.savefig(f'{common_folder}/num_contacts_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
 
 # %%
@@ -251,12 +278,12 @@ plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}.png',dp
 def exp_hill(x,a,b):
     return a*(1 - np.exp(-x/b))
 
-popt,pcov=curve_fit(exp_hill,AR_list,normalized)
+popt,pcov=curve_fit(exp_hill,AR_list,normalized,p0=[1,100])
 y_fit = exp_hill(x_fit,*popt)
 plt.plot(x_fit,y_fit,label=f'$y={popt[0]:.2f}\exp(-x/{popt[1]:.2f})$')
 plt.legend()
 plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}_fit.png',dpi=300, bbox_inches='tight')
-
+# %%
 
 # %%
 
@@ -297,5 +324,18 @@ high = np.array((sz, sz, sz))
 ps.set_bounding_box(low, high)
 ps.set_up_dir("z_up")
 ps.screenshot(f'EntRel_{AR}.png',transparent_bg=False)
+
+# %%
+def foo(x,n):
+    return x**n/(1+x**n)
+
+popt,pcov=curve_fit(foo,AR_list,normalized,p0=[5])
+
+x_fit = np.linspace(0,500,100)
+y_fit = foo(x_fit,*popt)
+plt.plot(x_fit,y_fit)
+plt.plot(AR_list,normalized,'o-')
+
+
 
 # %%

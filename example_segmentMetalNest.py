@@ -480,7 +480,7 @@ for cc in seg.end_to_end_cluster:
             if i_ % 2 == 0:
                 straightened.append(segments[i_//2])
             elif i_ % 2 == 1:
-                straightened.append(segments[i_//2][::-1])                
+                straightened.append(segments[i_//2][::-1])
             
             
         straightened = np.vstack(straightened)

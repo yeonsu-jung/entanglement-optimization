@@ -6,7 +6,9 @@ from data_io import import_all_log, save_as_mat
 from scipy.io import loadmat
 from matplotlib import pyplot as plt
 
-meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
+# meta_folder = Path("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick_3,1,2,720")
+meta_folder = Path("")
+
 
 def plot_rods(xyz,ax=None):
     if ax is None:

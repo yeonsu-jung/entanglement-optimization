@@ -30,6 +30,28 @@ jax.config.update("jax_enable_x64", True)
 
 from numba import jit as njit
 
+from transforms import cart2sph
+
+def orientational_statistics(_x):
+    _u = _x[:,:3] - _x[:,3:]
+    r,theta,phi = cart2sph(_u)
+    return r,theta,phi
+
+def compute_nematic_order(_x):
+    # Calculate the direction vectors between two sets of points
+    _u = _x[:, :3] - _x[:, 3:]
+    norms = np.linalg.norm(_u, axis=1, keepdims=True)
+    _u = np.divide(_u, norms, where=(norms != 0))  # Avoid division by zero
+    outer_products = np.einsum('ni,nj->nij', _u, _u)  # Shape (N, 3, 3)
+    S = np.mean(outer_products, axis=0)  # Shape (3, 3)
+    Q = (3 * S - np.eye(3)) / 2
+    eigvals = np.linalg.eigvals(Q)
+    return eigvals
+
+
+
+
+
 
 def guess_contact_point(fi1,fi2):
     fi1x = fi1[0]
@@ -1535,3 +1557,5 @@ if __name__ == '__main__':
         
     
     
+
+# %%

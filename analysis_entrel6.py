@@ -1,6 +1,10 @@
 # %%
 import numpy as np
 from matplotlib import pyplot as plt
+from analysis_functions import find_csv_file, parse_pathname
+from potentials import all_pairwise_angles,all_pairwise_distances,all_pairwise_skewness,total_effective_potential
+from transforms import x_to_q,q_to_x
+from potentials import create_pairs
 import re
 
 # %%
@@ -16,14 +20,10 @@ pathlist.append("/Users/yeonsu/GitHub/entanglement-optimization/results/65,72,99
 
 # %%
 
-
-
-
-
 # %%
-# x = np.loadtxt(pathlist[2])
+x = np.loadtxt(pathlist[2])
 
-# from transforms import cart2sph
+from transforms import cart2sph
 
 def orientational_statistics(_x):
     _u = _x[:,:3] - _x[:,3:]
@@ -41,64 +41,8 @@ def compute_nematic_order(_x):
     eigvals = np.linalg.eigvals(Q)
     return eigvals
 
-
-# Q_evals = compute_nematic_order(x.reshape(-1,5))
-# r,theta,phi=orientational_statistics(x)
 # %%
-AR_list = []
-nematic_order_list = []
-for pth in pathlist:
-    x = np.loadtxt(pth)
 
-    AR = float(re.search('AR(\d+)',pth).group(1))
-    AR_list.append(AR)
-
-    Q_evals = compute_nematic_order(x)
-    r,theta,phi = orientational_statistics(x)
-    print(Q_evals)
-
-    nematic_order_list.append(Q_evals[0])
-    
-# %%
-plt.figure(figsize=(2.5,2))
-plt.plot(AR_list,nematic_order_list,'o-')
-plt.xlabel(r'Aspect Ratio, $\alpha$')
-plt.ylabel(r'Nematic Order Parameter, $S$')
-plt.savefig('figures/nematic_order.png',dpi=300, bbox_inches='tight')
-
-# %%
-for pth in pathlist:
-    x = np.loadtxt(pth)
-    print(x.shape)
-# %%
-for pth in pathlist:
-    x = np.loadtxt(pth)
-    r,theta,phi=orientational_statistics(x)
-    theta = theta % np.pi/2
-    plt.hist(theta, bins=100, density=True)
-
-# %%
-fig,ax=plt.subplots(1,1,subplot_kw={'projection':'3d'})
-_u = x[:,:3] - x[:,3:]
-norms = np.linalg.norm(_u, axis=1, keepdims=True)
-_u = np.divide(_u, norms, where=(norms != 0))  # Avoid division by zero
-
-ax.scatter(_u[:,0],_u[:,1],_u[:,2],s=1)
-plt.show()
-# %%
-from potentials import create_pairs
-from transforms import x_to_q
-
-q = x_to_q(x)
-q_pairs = create_pairs(q)
-
-# %%
-from potentials import all_pairwise_angles,all_pairwise_distances,all_pairwise_skewness,total_effective_potential
-
-
-
-# %%
-import re
 AR_list = []
 angle_list = []
 num_contacts_list = []
@@ -106,13 +50,18 @@ distances_list = []
 skewness_list = []
 total_entanglement_list = []
 for pth in pathlist:
+    dt_string, AR, num_rods, random_keys = parse_pathname(pth)
+
     AR = float(re.search('AR(\d+)',pth).group(1))
     AR_list.append(AR)
     diameter = 1/AR
 
-    x = np.loadtxt(pth)
-    q = x_to_q(x)
-    q_pairs = create_pairs(q)
+    # qq = np.load(pth)
+    # qq_reshaped = qq.reshape(-1,num_rods,5)
+    # q = qq_reshaped[-1]
+    q = np.loadtxt(pth)
+    x = q_to_x(q)
+    q_pairs = create_pairs(q.reshape(-1,5))
     distances = all_pairwise_distances(q_pairs)
 
     angles = all_pairwise_angles(q_pairs)
@@ -127,20 +76,21 @@ for pth in pathlist:
 
     final_e = total_effective_potential(q)
     total_entanglement_list.append(final_e)
-    
-
 
 AR_list = np.array(AR_list)
 num_contacts_list = np.array(num_contacts_list)*2
 total_entanglement_list = np.array(total_entanglement_list)
+
 # %%
+
 plt.figure(figsize=(2.5,2))
 for angles in angle_list:
     plt.hist(angles, bins=100, density=True)
 plt.xlabel('Pairwise angle, $\\theta$')
 plt.ylabel('Probability Density, $P(\\theta)$')
 # plt.legend(np.array(AR_list).astype(int))
-plt.savefig('figures/angle_histogram.png',dpi=300, bbox_inches='tight')
+
+# plt.savefig('figures/angle_histogram.png',dpi=300, bbox_inches='tight')
 # %%
 plt.figure(figsize=(2.5,2))
 for distances in distances_list:
@@ -184,30 +134,6 @@ pathlist.append("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/Ra
 pathlist.append("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick/20241013-0202_RUN_RandomInitialKick0001_N0500-AR0300")
 pathlist.append("/Users/yeonsu/Dropbox (Harvard University)/Data/from-cluster/RandomInitialKick/20241013-0202_RUN_RandomInitialKick0001_N0500-AR0500")
 # %%
-def find_csv_file(folder_path):
-    possible_paths = []
-    for pth in folder_path.glob('**/*.csv'):
-        if 'lastFrame' in str(pth):
-            continue
-        else:
-            possible_paths.append(pth)    
-    if len(possible_paths) == 0:
-        print('No csv files found in the folder')
-        exit()
-    elif len(possible_paths) > 1:
-        print('Multiple csv files found in the folder')
-        # find heaviest file
-        max_size = 0
-        for pth in possible_paths:
-            size = os.path.getsize(pth)
-            if size > max_size:
-                max_size = size
-                heaviest_file = pth
-        possible_paths = [heaviest_file]
-        
-    pth = str(possible_paths[0])
-    return pth
-
 from pathlib import Path
 for pth in pathlist:
     folder_path = Path(pth)

@@ -101,6 +101,7 @@ for i, d_ij in enumerate(d_ij_vals):
                 acn1[i, j, k, l] = acn_from_area_formula(d_ij, theta, ai, aj)
                 acn2[i, j, k, l] = acn_from_antiderivative(d_ij, theta, ai, aj)
                 acn3[i, j, k, l] = acn_from_numerical_integration(d_ij, theta, ai, aj)
+                
 # %%
 markers = ['s', 'v', '^']
 linestyles = ['-', '--', ':']
@@ -117,6 +118,8 @@ def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices
     ):
         # Take the mean over the fixed indices to compare across the given variable
         acn_mean = np.mean(acn, axis=fixed_indices)*(1 + offset*k)  # Add a small offset for better visualization
+        if variable_label == 'ai':
+            variable_vals = variable_vals - 0.5
         plt.plot(variable_vals, acn_mean, label=label, marker=markers[k],linewidth=1,alpha=1,markersize=(5-k),linestyle=linestyles[k])
         k += 1
     
@@ -132,20 +135,21 @@ def plot_acn_comparison(variable_vals, variable_label, fixed_vals, fixed_indices
     plt.tight_layout()
     # plt.savefig(f'ACN_{variable_label}.png', dpi=300, bbox_inches='tight')
     # plt.savefig(f'ACN_{variable_label}.pdf',bbox_inches='tight')
+    plt.savefig(f'ACN_{variable_label}.svg',bbox_inches='tight')
     plt.show()
 
 # Example plotting comparisons
 # For 'd_ij', we fix theta, ai, and aj (axes 1, 2, 3)
-plot_acn_comparison(d_ij_vals, 'd_ij', (theta_vals, ai_vals, aj_vals), (1, 2, 3))
+# plot_acn_comparison(d_ij_vals, 'd_ij', (theta_vals, ai_vals, aj_vals), (1, 2, 3))
 
 # For 'theta', we fix d_ij, ai, and aj (axes 0, 2, 3)
-plot_acn_comparison(theta_vals, 'theta', (d_ij_vals, ai_vals, aj_vals), (0, 2, 3))
+# plot_acn_comparison(theta_vals, 'theta', (d_ij_vals, ai_vals, aj_vals), (0, 2, 3))
 
 # For 'ai', we fix d_ij, theta, and aj (axes 0, 1, 3)
 plot_acn_comparison(ai_vals, 'ai', (d_ij_vals, theta_vals, aj_vals), (0, 1, 3))
 
 # For 'aj', we fix d_ij, theta, and ai (axes 0, 1, 2)
-plot_acn_comparison(aj_vals, 'aj', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
+# plot_acn_comparison(aj_vals, 'aj', (d_ij_vals, theta_vals, ai_vals), (0, 1, 2))
 # %%
 # convexity?
 # Check convexity of the ACN values

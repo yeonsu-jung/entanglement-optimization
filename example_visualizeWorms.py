@@ -20,7 +20,7 @@ colors = np.array([
 
 # %%
 # pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240708-1807_COMPILE_test/log_files/active_entanglement/node_20240708-180744.csv'
-pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20240820-1617_COMPILE_Viscosity0.01_Endtime30_LinearTruncated/log_files/active_entanglement/node_20240820-161729.csv'
+pth = '/Users/yeonsu/GitHub/dismech-rods-main/runs/20241002-0209_COMPILE_dt1e-4_radius0.005_k1e3/log_files/active_entanglement/node_20241002-021002.csv'
 
 from pathlib import Path
 
@@ -35,11 +35,12 @@ dta = np.loadtxt(pth,delimiter=',')
 # print(num_rods)
 # %%
 
-rod_diameter = 0.002
-num_rods = 1
+rod_diameter = 0.01
+num_rods = 9
 spatial_data,timepoints = import_from_dismech(pth,num_rods)
+# spatial_data.shape[1]//3/
 # spatial_data.shape
-num_nodes_each_rod = spatial_data.shape[1]//3
+num_nodes_each_rod = spatial_data.shape[1]//3//num_rods
 # %%
 num_time_points = spatial_data.shape[0]
 x0 = spatial_data[0]
