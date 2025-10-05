@@ -5,7 +5,41 @@ import numpy as onp
 from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
 from matplotlib import pyplot as plt
 from potentials import create_pairs, all_pairwise_distances
+
+
+
+
+
+import polyscope as ps
+from transforms import q_to_x
+from visualizations import prep_for_polyscope
+
+
+# %%
+# ==============================================================================
+# IMPORTS
+# ==============================================================================
+import os
+import sys
+import glob
 from pathlib import Path
+from datetime import datetime
+from typing import Callable, Tuple, Optional, List, Dict, Any
+
+# Third-party libraries
+import jax
+import jax.numpy as jnp
+import numpy as np
+from jax import grad, random, jit
+from matplotlib import pyplot as plt
+
+# Local application/library specific imports
+# Note: Ensure these modules are in your Python path
+from optimization import optimize_fire_nonjax_individual
+from potentials import (total_effective_potential, create_pairs,
+                        total_harmonic_line, all_pairwise_distances)
+from transforms import q_to_x
+from visualizations import set_3d_plot, plot_many_rods
 
 # ==============================================================================
 # CONFIGURATION
@@ -13,9 +47,6 @@ from pathlib import Path
 # Enable 64-bit precision for JAX, crucial for scientific computing
 jax.config.update("jax_enable_x64", True)
 
-# Define common data paths
-# Using Path for better cross-platform compatibility
-# current file name
 CURRENT_FILE = Path(__file__).resolve()
 CURRENT_FILE_NAME = CURRENT_FILE.stem
 
@@ -39,7 +70,6 @@ for directory in [DATA_DIR, FIGURES_DIR, EXPORT_DIR, MOVIE_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 print(f'Data directory: {DATA_DIR}')
-
 
 def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
     # q0: initial degrees of freedom
@@ -1096,11 +1126,11 @@ def entangle_and_release():
     project_step = lambda q: onestep_fire(q,dg,atol=1e-4,dt=1.e-2)
     project_step = jit(project_step)
 
-    for i in range(10000):
+    for i in range(1000):
         # q, df, atol=1e-4, dt=0.002
         q = entangle_step(q)
 
-    for i in range(30000):
+    for i in range(3000):
         q = project_step(q)
         if i % 500 == 0:
             q_pairs = create_pairs(q.reshape(-1,5))
@@ -1113,36 +1143,9 @@ def entangle_and_release():
     plot_many_rods(q0.reshape(-1,5),ax=ax,opt_dict={'color':'k'})
     plot_many_rods(q.reshape(-1,5),ax=ax,opt_dict={'color':'r'})
     plt.show()    
+    plt.savefig(FIGURES_DIR / "entangled_and_released.png", dpi=300)
 
     return
-
-
-# def visualize_rods_with_polyscope(q, num_rods, rod_diameter):
-#     import polyscope as ps
-#     from transforms import q_to_x
-#     from visualizations import prep_for_polyscope
-
-#     ps.init()
-#     ps.set_autoscale_structures(False)
-#     ps.set_automatically_compute_scene_extents(False)
-#     ps.set_ground_plane_mode("none")
-
-#     a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)
-#     nodes, edges, edge_colors = prep_for_polyscope(a_list_of_curves, num_rods)
-#     min_z = np.min(nodes[:, 2])
-#     ps_curves = ps.register_curve_network("filaments", nodes, edges)
-#     ps_curves.add_color_quantity("edge_colors", edge_colors, defined_on='edges', enabled=True)
-#     ps_curves.set_radius(rod_diameter / 2, relative=False)
-
-#     ps.set_length_scale(2.)
-#     sz = 2.
-#     low = np.array((-sz, -sz, -sz))
-#     high = np.array((sz, sz, sz))
-#     ps.set_bounding_box(low, high)
-#     ps.set_up_dir("z_up")
-    
-    # ps.show()
-
 
 def optimize_two_rods():
     from potentials import total_harmonic_line, total_effective_potential
@@ -1156,15 +1159,6 @@ def optimize_two_rods():
     # q: x,y,z,phi,theta
 
     epsilon = 0.001
-
-    # xm_i = jnp.array([0,0,0])
-    # xm_j = jnp.array([0,0,rod_diameter + 2*epsilon])
-
-    # x_i = xm_i - jnp.array([rod_length/2,0,0])
-    # x_j = xm_j - jnp.array([0,rod_length/2,0])
-
-    # qi = jnp.array([x_i[0],x_i[1],x_i[2],jnp.pi/2,0])
-    # qj = jnp.array([x_j[0],x_j[1],x_j[2],jnp.pi/2,jnp.pi/2])
 
     xm_i = jnp.array([0.2,0.4,0])
     xm_j = jnp.array([0.4,0.1,rod_diameter + 2*epsilon])
@@ -1194,9 +1188,6 @@ def optimize_two_rods():
     g = lambda q: total_harmonic_line(q,params)
     dg = jit(grad(g))
 
-    # q = q0.copy()
-    # q = jnp.array(q.flatten(),dtype=jnp.float64)
-
     time_step = 1.e-1
     entangle_step = lambda q: onestep_fire(q,df,atol=1e-4,dt=time_step)
     entangle_step = jit(entangle_step)
@@ -1205,30 +1196,35 @@ def optimize_two_rods():
     project_step = jit(project_step)
 
 
-    import polyscope as ps
-    from transforms import q_to_x
-    from visualizations import prep_for_polyscope
+    def init_polyscope(a_list_of_curves, num_rods, rod_diameter):
+        import polyscope as ps
+        from transforms import q_to_x
+        from visualizations import prep_for_polyscope
 
-    ps.init()
-    ps.set_autoscale_structures(False)
-    ps.set_automatically_compute_scene_extents(False)
-    ps.set_ground_plane_mode("none")
+        ps.init()
+        ps.set_autoscale_structures(False)
+        ps.set_automatically_compute_scene_extents(False)
+        ps.set_ground_plane_mode("none")
 
-    a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)
-    nodes, edges, edge_colors = prep_for_polyscope(a_list_of_curves, num_rods)
-    min_z = np.min(nodes[:, 2])
-    ps_curves = ps.register_curve_network( "filaments", nodes, edges )
-    ps_curves.add_color_quantity( "edge_colors", edge_colors, defined_on='edges', enabled=True )
-    ps_curves.set_radius( rod_diameter / 2, relative=False )
+        a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)
+        nodes, edges, edge_colors = prep_for_polyscope(a_list_of_curves, num_rods)
+        min_z = np.min(nodes[:, 2])
+        ps_curves = ps.register_curve_network( "filaments", nodes, edges )
+        ps_curves.add_color_quantity( "edge_colors", edge_colors, defined_on='edges', enabled=True )
+        ps_curves.set_radius( rod_diameter / 2, relative=False )
 
-    ps.set_length_scale(2.)
-    sz = 2.
-    low = np.array((-sz, -sz, -sz))
-    high = np.array((sz, sz, sz))
-    ps.set_bounding_box(low, high)
-    ps.set_up_dir("z_up")
+        ps.set_length_scale(2.)
+        sz = 2.
+        low = np.array((-sz, -sz, -sz))
+        high = np.array((sz, sz, sz))
+        ps.set_bounding_box(low, high)
+        ps.set_up_dir("z_up")
 
-    nodes, edges, edge_colors = prep_for_polyscope(a_list_of_curves, num_rods)
+        nodes, edges, edge_colors = prep_for_polyscope(a_list_of_curves, num_rods)
+
+        return ps_curves, nodes, edges, edge_colors
+    
+    ps_curves, nodes, edges, edge_colors = init_polyscope(q, num_rods, rod_diameter)
 
     # distance function: 
 
@@ -1239,7 +1235,7 @@ def optimize_two_rods():
         return jnp.min(distances)
     
     # grad_dist = jit(grad(get_dist))
-    grad_dist_fn = jit( grad(get_dist) )
+    grad_dist_fn = jit(grad(get_dist))
 
     # test
     distances = get_dist(q)
@@ -1251,7 +1247,6 @@ def optimize_two_rods():
     for i in range(30000):
         q = entangle_step(q)
         # q = project_step(q)
-
         # project by "implicit whatever"
 
         # # compute distances
@@ -1289,73 +1284,6 @@ def optimize_two_rods():
             k+=1
 
 
-    # for i in range(3000):
-    #     q = project_step(q)
-
-    #     # compute distances
-
-    #     if i % 300 == 0:
-            
-    #         q_pairs = create_pairs(q.reshape(-1,5))
-    #         distances = all_pairwise_distances(q_pairs)
-            
-    #         print(f"Min. distance after projection: {jnp.min(distances)}")
-
-    #         a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)
-    #         ps_curves.update_node_positions(a_list_of_curves.reshape(-1,3))
-    #         # ps_curves.get_color_quantity("edge_colors").update_values(edge_colors)
-    #         pth = MOVIE_DIR / f"frame_{k:05d}.png"
-    #         ps.screenshot(str(pth))
-    #         k+=1
-
-        
-    
-
-    # print("After entangling")
-
-    # for i in range(30000):
-    #     q = project_step(q)
-
-    #     if i % 300 == 0:
-    #         a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)            
-    #         ps_curves.update_node_positions(a_list_of_curves.reshape(-1,3))
-    #         # ps_curves.get_color_quantity("edge_colors").update_values(edge_colors)
-    #         pth = MOVIE_DIR / f"frame_{k:05d}.png"
-    #         ps.screenshot(str(pth))
-    #         k+=1
-    
-
-    # print("After projection")
-        
-
-    # project
-
-
-    
-    
-
-
-    # for i in range(10000):
-        # q, df, atol=1e-4, dt=0.002
-        # q = entangle_step(q)
-
-    # for i in range(30000):
-    #     q = project_step(q)
-    #     if i % 500 == 0:
-    #         q_pairs = create_pairs(q.reshape(-1,5))
-    #         distances = all_pairwise_distances(q_pairs)
-    #         print(f"Iteration: {i}, min. distance: {jnp.min(distances)}")
-    
-    # from matplotlib import pyplot as plt
-    # from visualizations import plot_many_rods
-    # fig,ax=plt.subplots(subplot_kw={'projection':'3d'})
-    # # plot_many_rods(q0.reshape(-1,5),ax=ax,opt_dict={'color':'k'})
-    # plot_many_rods(q.reshape(-1,5),ax=ax,opt_dict={'color':'r'})
-    # plt.show()
-
-    
-
-
 
 if __name__ == "__main__":
     # main()
@@ -1363,3 +1291,4 @@ if __name__ == "__main__":
     # entangle_and_release()
 
     optimize_two_rods()
+

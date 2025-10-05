@@ -143,6 +143,122 @@ def dist_lin_seg(point1s, point1e, point2s, point2e):
     
     return dist
 
+
+
+
+def dist_lin_seg_vector(point1s, point1e, point2s, point2e):
+    """Calculate the shortest distance between two line segments using JAX with cond."""
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    def case1():
+        (t,u) = lax.cond( D1 != 0. , 
+                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: lax.cond(D2 != 0.,
+                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,0.),
+                             None),
+                    None)        
+        return (t,u)
+    
+    def case2_1():
+        t = 0.
+        u = -S2/D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)
+    
+    def case2_2():
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = (t * R - S2) / D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)        
+    
+    def case2():
+        (t,u) = lax.cond( den == 0. , 
+                    lambda _: case2_1(),                    
+                    lambda _: case2_2(),
+                    None)        
+        return (t,u)
+    
+    (t,u) = lax.cond( (D1 == 0.) & (D2 == 0.),
+                        lambda _: case1(),
+                        lambda _: case2(),
+                        None)
+    
+    # dist = jnp.linalg.norm(d1 * t - d2 * u - d12)    
+    r1 = d1 * t + point1s
+    r2 = d2 * u + point2s
+    return t,u,r1,r2, r1-r2, jnp.linalg.norm(r1 - r2)
+
+
+@jit
+def minimum_image(delta, box):
+    """
+    Map componentwise displacement 'delta' into [-box/2, box/2].
+    'box' can be scalar () or a length-3 array.
+    """
+    return delta - box * jnp.round(delta / box)
+
+
+# ---------------------------
+# Periodic version (minimum-image on a torus)
+# ---------------------------
+@jit
+def dist_lin_seg_pbc(point1s, point1e, point2s, point2e, box):
+    """
+    Shortest distance between two line segments under periodic boundary conditions.
+
+    Arguments
+    ---------
+    point1s, point1e, point2s, point2e : (3,)
+        Segment endpoints.
+    box : () or (3,)
+        Periodic box length(s). Example: 1.5 or jnp.array([1.5, 1.5, 1.5]).
+
+    Notes
+    -----
+    We translate the *entire* second segment by a single lattice vector so that
+    the segment midpoints are in minimum-image displacement. This yields the
+    correct minimum provided the segments are not so long that they span more
+    than half the box in any direction (the standard MD assumption: segment
+    extents << box/2).
+    """
+    m1 = 0.5 * (point1s + point1e)
+    m2 = 0.5 * (point2s + point2e)
+
+    # Minimum-image displacement between segment centers
+    d_mi = minimum_image(m2 - m1, box)        # in [-box/2, box/2]
+    shift = d_mi - (m2 - m1)                   # lattice vector to bring m2 near m1
+
+    # Shift both endpoints of segment 2 by the same lattice vector
+    p2s_shift = point2s + shift
+    p2e_shift = point2e + shift
+
+    # Now it's just Euclidean distance between the chosen images
+    return dist_lin_seg(point1s, point1e, p2s_shift, p2e_shift)
+
+
 def dist_point_seg(point0, point1s, point1e):
     """Calculate the shortest distance between two line segments using JAX with cond."""
     pma = point0 - point1s
@@ -755,8 +871,22 @@ def pairwise_distance_xyz(q_pair):
     return dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
 @jit
+def pairwise_distance_xyz_pbc(q_pair, box):
+    p_i = jnp.array([q_pair[0], q_pair[1], q_pair[2]])
+    p_j = jnp.array([q_pair[6], q_pair[7], q_pair[8]])
+    p_ii = jnp.array([q_pair[3], q_pair[4], q_pair[5]])
+    p_jj = jnp.array([q_pair[9], q_pair[10], q_pair[11]])
+    return dist_lin_seg_pbc(p_i, p_ii, p_j, p_jj, box)
+
+@jit
+def all_pairwise_distances_xyz_pbc(q_pairs,box):
+    return vmap(lambda x: pairwise_distance_xyz_pbc(x,box))(q_pairs)
+
+@jit
 def all_pairwise_distances_xyz(q_pairs):
     return vmap(pairwise_distance_xyz)(q_pairs)
+
+
 
 @jit
 def all_pairwise_skewness(q_pairs):
@@ -766,6 +896,11 @@ def all_pairwise_skewness(q_pairs):
 def dist_lin_seg_over_ij(r1, r2, i_indices, j_indices):
     # vmap over the index pairs to compute the distance for each unique pair
     return vmap(lambda i, j: dist_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
+
+@jit
+def dist_lin_seg_pbc_over_ij(r1, r2, box, i_indices, j_indices):
+    # vmap over the index pairs to compute the distance for each unique pair
+    return vmap(lambda i, j: dist_lin_seg_pbc(r1[i], r2[i], r1[j], r2[j], box))(i_indices, j_indices)
 
 def angle_r1_r2(point1s,point1e,point2s,point2e):
     u_i = point1e - point1s
@@ -927,7 +1062,7 @@ def collision_penalized_entanglement_potential(q):
     # min_dist = 0.02
     # boundary_regularization = 1e12 * (1.0/(dist - min_dist)) ** 2
        
-    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + 1.*(dist-0.001)**2
     return eff_pot
 
 def seg_seg_distance(q):
@@ -1548,6 +1683,31 @@ def test_contact_point():
     contact_point = pairwise_contact_point(q_pair)
     print(contact_point)
 
+def test_dist_lin_seg_periodic():
+
+    # use case
+    d12 = 0.2
+    L = 0.01
+    box = 1.5  # same as your earlier example; can also pass jnp.array([1.5,1.5,1.5])
+
+    offset = jnp.array([10.,0.,0.])
+    r1 = jnp.array([0., 0., -d12/2]) + offset
+    r2 = jnp.array([0., 0.,  d12/2])
+
+    p1s = r1 - jnp.array([L/2, 0., 0.])
+    p1e = r1 + jnp.array([L/2, 0., 0.])
+    p2s = r2 - jnp.array([0., L/2, 0.])
+    p2e = r2 + jnp.array([0., L/2, 0.])
+
+    d_no_pbc  = dist_lin_seg(p1s, p1e, p2s, p2e)
+    d_with_pbc = dist_lin_seg_pbc(p1s, p1e, p2s, p2e, box)
+
+    print("Euclidean distance:", d_no_pbc)
+    print("PBC distance     :", d_with_pbc)
+
 if __name__ == "__main__":
     # test_skewness()
-    test_contact_point()
+    # test_contact_point()
+
+
+    test_dist_lin_seg_periodic()
