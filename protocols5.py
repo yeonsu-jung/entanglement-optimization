@@ -28,6 +28,25 @@ import glob, os, shutil
 from pathlib import Path
 import os
 
+
+import os
+# current filename
+current_file = os.path.basename(__file__)
+filename = os.path.splitext(current_file)[0]
+output_folder = f'{filename}'
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
+    print(f'Output folder: {output_folder}')
+
+from pathlib import Path
+
+output_folder = Path(output_folder)
+MOVIE_DIR = f"{output_folder}/movie"
+if not os.path.exists(MOVIE_DIR):
+    os.makedirs(MOVIE_DIR)
+    print(f'Movie folder: {MOVIE_DIR}')
+
+
 # @jit(nopython=True)
 def fixbound_nonjax(num):
     """ Ensure the number is within the bounds [0, 1]. """
@@ -725,16 +744,28 @@ def create_entangled_rods(num_rods,f,random_keys,rod_diameter=0.1,Nmax=1e4,N_out
         q0 = create_intersecting_rods(num_rods)
     elif initial_q == "aligned":
         q0 = create_aligned_rods(num_rods)
+    elif initial_q == "gathered":
+        # from protocols import create_nonintersecting_random_rods_contained
+        container_size = 1.2
+        q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
+
     
     df = grad(f)    
     df0 = df(q0)
     print(f"Initial error: {jnp.max(jnp.abs(df0))}")
     atol = atol*jnp.max(jnp.abs(df0))
+
+
+
+    # "a slight projection"
+    
         
     q = q0
     for k in range(N_outer):
         q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt,callback=_callback)
         atol = atol/2
+
+
         # print(f"iteration: {k}")
         # print(f"f_val: {f_val:.2f}")
         # print(f"num_iterations: {num_iterations}")
@@ -846,6 +877,11 @@ def maximally_entangled_rods(num_rods):
     
 
 def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize=False,callback=None):    
+
+    num_rods = q.shape[0]//5
+    i_indices, j_indices = jnp.triu_indices(num_rods, k=1)
+    from potentials import dist_lin_seg_over_ij
+    from transforms import q_to_x
     
     for k in range(N_outer):
         col_rad_0 = params["col_rad"]
@@ -864,8 +900,16 @@ def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize
         distances = all_pairwise_distances(q_pairs)
         # dt = dt/1.1     # TO DO: factor out this numbers
         # if jnp.abs(jnp.min(distances) - col_rad_0) < col_rad_0*1e-6:
+
+        # if k % 100 == 0:
+        #     x = q_to_x(q)
+        #     r1 = x[:,0:3]
+        #     r2 = x[:,3:6]
+        #     dist_mat = dist_lin_seg_over_ij(r1, r2, i_indices, j_indices)
+        #     print(f"Min distance between rods: {jnp.min(dist_mat)}")
+
         if (jnp.min(distances) - col_rad_0*2) > 0:
-            print(f"Enough pushoff: {jnp.min(distances)}")
+            print(f"Enough pushoff: {jnp.min(distances)}")           
             break
     
     return q
@@ -3164,7 +3208,16 @@ def standard_protocol():
     random_keys = [6,7,8]
     # random_keys = [37,178,56]
     # random_keys = [919,461,568]
-    results_per_random_keys = f'results/{random_keys[0]},{random_keys[1]},{random_keys[2]}'
+
+
+    folders = []
+    folders.append(f'{output_folder}/results/')
+    for folder in folders:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+
+    results_per_random_keys = f'{output_folder}/results/{random_keys[0]},{random_keys[1]},{random_keys[2]}'
 
     if not os.path.exists(results_per_random_keys):
         os.makedirs(results_per_random_keys)
@@ -3172,8 +3225,14 @@ def standard_protocol():
     now = datetime.datetime.now()
     
     # for AR in [10,20,50,75,100,200,300,500]:
+    for AR in [10,20,50]:
     # for AR in [50,100,150,300,500]:
-    for AR in [10,20,75,200]:
+    # for AR in [10,20,75,200]:
+
+        save_dir_name = f'{results_per_random_keys}/N{num_rods}'
+        if not os.path.exists(save_dir_name):
+            os.makedirs(save_dir_name,exist_ok=True)
+
         rod_diameter = 1/AR
         params = {"col_rad": rod_diameter/2, "amp": 1., "sigma": 0.025, AR: AR}
 
@@ -3203,12 +3262,22 @@ def standard_protocol():
 
             return break_or_continue
 
-        if os.path.exists(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy'):
-            q_entangled = np.load(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy')
+        # if os.path.exists(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy'):
+        #     q_entangled = np.load(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy')
+        #     print("Loaded existing entangled configuration")
+
+        if 0:
+            print("Loading existing entangled configuration")
+
         else:
+
             os.makedirs(f'{results_per_random_keys}/N{num_rods}',exist_ok=True)
             q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="non-intersecting",callback=_callback)
+
+            # initial_q == "gathered"
+            # q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="gathered",callback=_callback)
             np.save(f'{results_per_random_keys}/N{num_rods}/q_entangled.npy',q_entangled)
+
         params = {"col_rad": rod_diameter/2, "amp": amp, "sigma": 0.025}
 
         if len(qq) == 0:
@@ -3218,7 +3287,7 @@ def standard_protocol():
         q0 = q0[-1]
         q0 = q0.flatten()
         ################################################################################################
-        q_relaxed = relax_collision(q0,dt,params,N_outer,Nmax,callback=_callback)
+        q_relaxed = relax_collision(q0,dt*0.01,params,N_outer,Nmax,callback=_callback)
         ################################################################################################
         np.savetxt(f'{results_per_random_keys}/{packing_id}/q_relaxed.txt',q_relaxed)
 
@@ -3245,6 +3314,18 @@ def standard_protocol():
         print(f"rod radius: {params['col_rad']}")
         print(f"Number of rod pairs in contact: {jnp.count_nonzero(d<2*params['col_rad'])}")
         print(f"Total number of rod pairs: {q_pairs.shape[0]}")
+
+
+        from potentials import dist_lin_seg_over_ij
+        x = q_to_x(q_relaxed)
+        r1 = x[:,0:3]
+        r2 = x[:,3:6]
+        i_indices, j_indices = jnp.triu_indices(num_rods, k=1)
+        dist_mat = dist_lin_seg_over_ij(r1, r2, i_indices, j_indices)
+        print(f"Min distance between rods: {jnp.min(dist_mat)}")
+
+        delta = jnp.linalg.norm(d - dist_mat)
+        print(f"Difference between two distance calculations: {delta}")
         
         log_output = ""
         log_output = f"Initial entanglement: {total_effective_potential(q_entangled)}\n"
@@ -3279,8 +3360,8 @@ def projection_every_step():
     now = datetime.datetime.now()
     
     # for AR in [10,20,50,75,100,200,300,500]:
-    for AR in [499]: # [500,300,200,100,75,50,20,10]:
-    # for AR in [10,20,50]:
+    # for AR in [499]: # [500,300,200,100,75,50,20,10]:
+    for AR in [10,20,50]:
         rod_diameter = 1/AR
         params = {"col_rad": rod_diameter/2, "amp": 1., "sigma": 0.025, AR: AR}
 
@@ -3366,47 +3447,19 @@ def projection_every_step():
         log_output += f"Total number of rod pairs: {q_pairs.shape[0]}\n"
         
         # onp.savetxt(f'{results_per_random_keys}/{packing_id}_log.txt',log_output)
-        with open(f'{results_per_random_keys}/{packing_id}/log.txt','w') as f:
+        fld = f"{output_folder}/{results_per_random_keys}"
+        if not os.path.exists(fld):
+            os.makedirs(fld)
+
+        with open(f'{output_folder}/{results_per_random_keys}/{packing_id}/log.txt','w') as f:
             f.write(log_output)            
 
-    
+   
+
 # %%
 if __name__ == "__main__":
-    # working()
-    # projection_every_step() # too slow...
-    num_rods = 200
-    alpha = 500
-    rod_diameter = 1/alpha
-    
-    # save folder: /Users/yeonsu/GitHub/entanglement-optimization/non-intersectiong
-    save_folder = f'non-intersectiong/'
-    q0 = create_nonintersecting_random_rods(num_rods,rod_diameter)
-    
-    x = q_to_x(q0)
-    onp.savetxt(f'{save_folder}/Rods-N{num_rods}-AR{alpha}-Scale1.txt',x)
-
-    plot_many_rods(q0.reshape(-1,5))
-    plt.savefig(f'{save_folder}/Rods-N{num_rods}-AR{alpha}-Scale1.png',dpi=300)
-
-    # standard_protocol()
-
-    # num_rods = 100
-    # q0 = create_intersecting_rods(num_rods)
-    # random_key = random.PRNGKey(0)
-    # # (num_rods,3) random numbers
-    # random_numbers = random.uniform(random_key, (num_rods,3), minval=0, maxval=0.05)
-    # q0 = q0.reshape(-1,5)
-    # q0 = q0.at[:,0:3].add(random_numbers)
-    # # plot_many_rods(q0.reshape(-1,5))
-    # # plt.show()
-    # import numpy as np
-    # np.savetxt('packings/q0.txt',q0)
-
-    # print()
-
     
 
-
-    # need to generate small N packing.
+    standard_protocol()
 
     
