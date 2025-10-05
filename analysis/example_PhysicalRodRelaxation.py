@@ -1,0 +1,1134 @@
+# %%
+from distances import fast_lumelsky_dist_mat
+import filamentprocessing
+from data_io import load_xray_data
+from visualizations import plot_single_rod
+from fitting import fit_rod
+import numpy as np
+from utils import parse_filename
+import glob
+from pathlib import Path
+from scipy.io import loadmat
+import os
+from matplotlib import pyplot as plt
+from visualizations import set_3d_plot
+from mpl_toolkits.mplot3d import Axes3D
+from numba import jit
+import time
+import networkx as nx
+import pickle
+from fitting import fit_rod_error, fit_rod
+from scipy.spatial import distance
+from scipy.cluster import hierarchy
+    
+def rowwise_norm(x):
+    return np.sqrt(np.sum(x**2, axis=1))
+    
+def create_mask(ind,sz):
+    mask = np.zeros(sz,dtype=bool)
+    mask[ind] = True
+    return mask
+    
+def sort_curve(rr):
+    centroid = np.mean(rr, axis=0)
+    rr_centered = rr - centroid
+    _, _, V = np.linalg.svd(rr_centered, full_matrices=False)
+    v1 = V[0, :]
+    orientation = v1 * np.sign(np.sum(v1 * (rr_centered[-1, :] - rr_centered[0, :])))
+    slist = np.dot((rr - centroid), orientation)
+    sorted_indices = np.argsort(slist)
+    return centroid + rr_centered[sorted_indices]
+
+class logger:
+    def __init__(self):
+        self.log = []
+    def add(self,txt):
+        self.log.append(txt)
+    def print(self):
+        for txt in self.log:
+            print(txt)
+            
+def get_centerlines(pth,logger):
+    
+    dta = loadmat(pth)
+    cl = dta["centerlines"]        
+    N = cl.shape[0]
+    centerlines = []
+    for i in range(N):
+        centerlines.append(cl[i][0])
+        
+    return centerlines
+
+def main():
+    root_pth = Path('./xray_raw_data')
+    for pth in (Path.glob(root_pth, '**/centerlines.mat')):
+        dta = loadmat(pth)
+        # get folder from pth
+        prnt_fldr = str(pth.parent)
+        exp_id = prnt_fldr.split('/')[-1]
+        prnt_fldr = Path(prnt_fldr)
+        
+        cl = dta["centerlines"]
+        N = cl.shape[0]
+        centerlines = []
+        for i in range(N):
+            centerlines.append(cl[i][0])
+
+        data_rearranged = []
+        for rr in centerlines:
+            # rr = centerlines[i]
+            # interpolate to have 10 points.
+            rr = np.array(rr)
+            N = rr.shape[0]
+            t = np.linspace(0,1,N)
+            t_new = np.linspace(0,1,10)
+            rr_new = np.zeros((10,3))
+            rr_new = np.array([np.interp(t_new,t,rr[:,0]),
+                            np.interp(t_new,t,rr[:,1]),
+                            np.interp(t_new,t,rr[:,2])]).T
+            
+            data_rearranged.append(rr_new)
+        
+        visualize = False
+        if visualize:
+            from visualizations import set_3d_plot
+            fig,ax = set_3d_plot()
+            for d in data_rearranged:
+                ax.plot(d[:,0]/650,d[:,1]/650,d[:,2]/650)
+            plt.savefig(prnt_fldr / 'rendering.png', dpi=300)
+            
+        # pixel_size_in_um = 78.22*1e-6;
+        pixel_size_in_um = 1
+        num_rods = len(data_rearranged)
+        data_rearranged = np.array(data_rearranged)
+        data_rearranged = np.array(data_rearranged)*pixel_size_in_um
+        data_rearranged = data_rearranged.reshape(num_rods,-1)
+        
+        N = data_rearranged.shape[0]
+        tokens = exp_id.split('_')
+        for token in tokens:
+            if token.startswith('alpha'):
+                alpha = int(token[5:])
+            if token.startswith('epsilon'):
+                epsilon = int(token[7:])
+        
+        radius = 1/alpha/2
+        print(f'alpha: {alpha}, epsilon: {epsilon}, radius: {radius}')
+        
+        for txt_file in Path.glob(prnt_fldr, '*.txt'):
+            os.remove(txt_file)
+            
+        data_rearranged = data_rearranged[-1000:,:]
+        np.savetxt(prnt_fldr / f'centerlines-N{N}-AR{alpha}-Scale100.txt',data_rearranged)
+    
+    return 0
+
+
+
+@jit(nopython=True)
+def fast_prep_svd_cylinder_engine(centered_centerlines):
+    num_rods = centered_centerlines.shape[0]
+    
+    ulist = np.zeros((num_rods,9))
+    vlist = np.zeros((num_rods,9))
+    slist = np.zeros((num_rods,3))
+    
+    for i in range(num_rods):
+        centered = centered_centerlines[i,:]
+        # delete nan rows
+        centered = centered[~np.isnan(centered)]
+        centered = centered.reshape(-1,3)
+        mu000 = np.sum(centered ** 0)
+        mu200 = np.sum(centered[:, 0] ** 2) / mu000 + 1/12
+        mu020 = np.sum(centered[:, 1] ** 2) / mu000 + 1/12
+        mu002 = np.sum(centered[:, 2] ** 2) / mu000 + 1/12
+        mu110 = np.sum(centered[:, 0] * centered[:, 1]) / mu000
+        mu011 = np.sum(centered[:, 1] * centered[:, 2]) / mu000
+        mu101 = np.sum(centered[:, 2] * centered[:, 0]) / mu000
+        
+        num_points = centered.shape[0]
+        cov_mat = np.array([
+            [mu200, mu110, mu101],
+            [mu110, mu020, mu011],
+            [mu101, mu011, mu002]
+        ]) / num_points
+        
+        u,s,v = np.linalg.svd(centered)
+        
+        U, S, V = np.linalg.svd(cov_mat)
+        ind = np.argsort(-S)
+        S = S[ind]
+        U = U[:, ind]
+        if U[0, 0] < 0:
+            U[:, 0] *= -1
+            U[:, 2] *= -1
+            
+        [D,V] = np.linalg.eig(cov_mat)
+        ind = np.argsort(-D)
+        D = D[ind]
+        V = V[:, ind]
+        
+        slist[i,:] = S
+        vlist[i,:] = V.flatten()
+        ulist[i,:] = U.flatten()
+        
+    
+    return ulist,vlist,slist
+
+
+
+
+
+
+def plot_centerline_with_container(centerlines,svd_cylinders,i,ax):
+    cl = centerlines[i]
+    cyl = svd_cylinders[i,:]
+
+    cyl_diam = cyl[6]
+    cyl_e1 = cyl[0:3]
+    cyl_e2 = cyl[3:6]
+    cyl_cen = (cyl_e1+cyl_e2)/2
+    cyl_len = np.linalg.norm(cyl_e1-cyl_e2)
+    cyl_axis = (cyl_e2-cyl_e1)/cyl_len
+
+    Xc, Yc, Zc = data_for_cylinder_along_z(0, 0, cyl_diam, cyl_len/2)
+    # Compute the rotation matrix
+    rotation_matrix = rotation_matrix_from_vectors(np.array([0, 0, 1]), cyl_axis) 
+    # Rotate the cylinder
+    Xc_rot, Yc_rot, Zc_rot = rotate_grid(Xc, Yc, Zc, rotation_matrix)
+    Xc_rot = Xc_rot + cyl_cen[0]
+    Yc_rot = Yc_rot + cyl_cen[1]
+    Zc_rot = Zc_rot + cyl_cen[2]
+    
+    bounding_box = np.array([np.min(cl, axis=0), np.max(cl, axis=0)])
+    ax.plot_surface(Xc_rot, Yc_rot, Zc_rot, alpha=0.5)
+    ax.plot(cl[:,0], cl[:,1], cl[:,2], color='r')
+    # ax.scatter(cyl_e1[0], cyl_e1[1], cyl_e1[2], color='g')
+    # zoom in
+    # ax.set_xlim(bounding_box[:,0])
+    # ax.set_ylim(bounding_box[:,1])
+    # ax.set_zlim(bounding_box[:,2])
+
+
+def pad_arrays(arrays):
+    # Find the maximum length of the arrays
+    max_length = max(arr.size for arr in arrays)
+    
+    # Initialize a new array filled with NaNs
+    result = np.full((len(arrays), max_length), np.nan)
+    
+    # Copy each array into the appropriate row
+    for i, arr in enumerate(arrays):
+        result[i, :arr.size] = arr.flatten()
+    
+    return result
+
+# @jit(nopython=True)
+def foo(centerline_array,pairs,dist_limit=1e-6):
+    colliding_cylinder_pairs = np.full((10000,2),np.nan)
+    for i in range(len(pairs[0])):
+        i_rod = pairs[0][i]
+        j_rod = pairs[1][i]
+                    
+        rr_i = centerline_array[i_rod,:]
+        rr_i = rr_i[~np.isnan(rr_i)].reshape(-1,3)
+        
+        rr_j = centerline_array[j_rod,:]
+        rr_j = rr_j[~np.isnan(rr_j)].reshape(-1,3)
+        
+        min_dist = 1e10
+                
+        dist_mat = fast_lumelsky_dist_mat(rr_i,rr_j)
+        dist = np.min(dist_mat)
+        
+        if dist < dist_limit:
+            colliding_cylinder_pairs[i,:] = np.array([i_rod,j_rod])                
+        
+        if np.mod(i,10) == 0:
+            print(i)
+
+        """ 
+        if debugflag:
+            fig,ax = set_3d_plot()
+            plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+            plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+            plt.show()
+        """
+        
+        """ 
+        if dist < dist_limit:
+            colliding_cylinder_pairs.append((i_rod,j_rod))
+            colliding_cylinder_indices.add(i_rod)
+            colliding_cylinder_indices.add(j_rod)                    
+            if 0:
+                print(f'Collision between rods {i_rod} and {j_rod}')
+                
+                fig,ax = set_3d_plot()            
+                plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+                plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+                plt.savefig(f'colliding_cylinders/collision_{i_rod}_{j_rod}.png', dpi=300)
+                plt.close()
+        """
+            
+    return colliding_cylinder_pairs
+
+def check_collsion(centerlines, dist_limit=1e-6, visualize=False):
+    svd_cylinders,_,_ = prep_svd_cylinder(centerlines)    
+    dist_matrix = compute_cylinder_distance_matrix(svd_cylinders)
+    dist_matrix[np.diag_indices_from(dist_matrix)] = np.inf
+    dist_matrix = dist_matrix + dist_matrix.T
+    
+    collision_limit_matrix = svd_cylinders[:,6,None] + svd_cylinders[:,6]
+    collision_limit_matrix *= 5
+    
+    pairs = np.where(dist_matrix < collision_limit_matrix)    
+    colliding_cylinder_pairs = []
+    colliding_cylinder_indices = set()
+    
+    N_pairs = len(pairs[0])
+    import time
+    start = time.time()
+    for i in range(N_pairs):
+        i_rod = pairs[0][i]
+        j_rod = pairs[1][i]
+        container_dist = dist_matrix[i_rod,j_rod]
+        # p1 = svd_cylinders[i_rod, 0:3]
+        # q1 = svd_cylinders[i_rod, 3:6]
+        # p2 = svd_cylinders[j_rod, 0:3]
+        # q2 = svd_cylinders[j_rod, 3:6]
+        
+        rr_i = centerlines[i_rod]
+        rr_j = centerlines[j_rod]
+        
+        min_dist = 1e10
+                
+        dist_mat = fast_lumelsky_dist_mat(rr_i,rr_j)
+        dist = np.min(dist_mat)
+        
+        if np.mod(i,10) == 0:
+            print(f"Elapsed time: {time.time()-start}, i/N: {i:6d}/{N_pairs}, dist: {dist}")
+        
+        if dist < dist_limit:
+            colliding_cylinder_pairs.append((i_rod,j_rod))
+            colliding_cylinder_indices.add(i_rod)
+            colliding_cylinder_indices.add(j_rod)                    
+            if 0:
+                print(f'Collision between rods {i_rod} and {j_rod}')
+                
+                fig,ax = set_3d_plot()            
+                plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+                plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+                plt.savefig(f'colliding_cylinders/collision_{i_rod}_{j_rod}.png', dpi=300)
+                plt.close()
+                    
+    return colliding_cylinder_pairs,colliding_cylinder_indices
+
+def check_collsion_supposed_to_be_fast(centerlines, dist_limit=1e-6, visualize=False,debugflag=False):
+    svd_cylinders,_,_ = prep_svd_cylinder(centerlines)
+    dist_matrix = compute_cylinder_distance_matrix(svd_cylinders)
+    dist_matrix[np.diag_indices_from(dist_matrix)] = np.inf
+    dist_matrix = dist_matrix + dist_matrix.T
+    
+    collision_limit_matrix = svd_cylinders[:,6,None] + svd_cylinders[:,6]
+    collision_limit_matrix *= 5
+    
+    pairs = np.where(dist_matrix < collision_limit_matrix)
+    colliding_cylinder_pairs = []
+    colliding_cylinder_indices = set()
+    
+    centerline_array = pad_arrays(centerlines) 
+    
+    import time
+    start = time.time()
+    cpairs = foo(centerline_array,pairs,dist_limit=1e-6)
+    print("Elapsed time: ",time.time()-start)
+    print(cpairs)    
+            
+    """ if visualize:
+        fig,ax = set_3d_plot()
+        i = 1000
+        i_rod = pairs[0][i]
+        j_rod = pairs[1][i]
+        plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+        plot_centerline_with_container(centerlines,svd_cylinders,j_rod,ax)
+        plt.show()
+    
+    if visualize:
+        fig,ax = set_3d_plot()
+        for i_rod in colliding_cylinder_pairs:
+            plot_centerline_with_container(centerlines,svd_cylinders,i_rod,ax)
+        plt.show() """
+                
+    print(len(colliding_cylinder_indices))
+    return colliding_cylinder_pairs,colliding_cylinder_indices
+    
+
+import numpy as np
+
+# Function to check if a point is inside a cylinder
+def is_inside_cylinder(point, cylinder_start, cylinder_end, radius):
+    v = cylinder_end - cylinder_start
+    w = point - cylinder_start
+    c1 = np.dot(w, v)
+    c2 = np.dot(v, v)
+    b = c1 / c2
+    pb = cylinder_start + b * v
+    distance = np.linalg.norm(pb - point)
+    return distance <= radius and 0 <= b <= 1
+
+# Function to estimate the volume overlap
+def estimate_overlap(cylinder1_start, cylinder1_end, radius1, cylinder2_start, cylinder2_end, radius2, num_samples=100000):
+    min_x = min(cylinder1_start[0], cylinder1_end[0], cylinder2_start[0], cylinder2_end[0]) - max(radius1, radius2)
+    max_x = max(cylinder1_start[0], cylinder1_end[0], cylinder2_start[0], cylinder2_end[0]) + max(radius1, radius2)
+    min_y = min(cylinder1_start[1], cylinder1_end[1], cylinder2_start[1], cylinder2_end[1]) - max(radius1, radius2)
+    max_y = max(cylinder1_start[1], cylinder1_end[1], cylinder2_start[1], cylinder2_end[1]) + max(radius1, radius2)
+    min_z = min(cylinder1_start[2], cylinder1_end[2], cylinder2_start[2], cylinder2_end[2]) - max(radius1, radius2)
+    max_z = max(cylinder1_start[2], cylinder1_end[2], cylinder2_start[2], cylinder2_end[2]) + max(radius1, radius2)
+    
+    count_inside_both = 0
+    
+    for _ in range(num_samples):
+        point = np.array([
+            np.random.uniform(min_x, max_x),
+            np.random.uniform(min_y, max_y),
+            np.random.uniform(min_z, max_z)
+        ])
+        
+        if is_inside_cylinder(point, cylinder1_start, cylinder1_end, radius1) and is_inside_cylinder(point, cylinder2_start, cylinder2_end, radius2):
+            count_inside_both += 1
+    
+    volume_box = (max_x - min_x) * (max_y - min_y) * (max_z - min_z)
+    volume_overlap = (count_inside_both / num_samples) * volume_box
+    
+    return volume_overlap
+# %%    
+
+@jit(nopython=True)
+def fast_lumelsky_dist(rr_i,rr_j):
+    min_dist = 1e10
+    for i in range(len(rr_i)-1):
+        p1 = rr_i[i]
+        q1 = rr_i[i+1]
+        for j in range(len(rr_j)-1):
+            p2 = rr_j[j]
+            q2 = rr_j[j+1]
+            curr_dist = lumelsky_dist(p1,q1,p2,q2)
+            if curr_dist < min_dist:
+                min_dist = curr_dist
+            
+    return min_dist
+
+
+    
+def export_centerlines(centerlines,filename):
+    data_rearranged = []
+    for rr in centerlines:
+        rr = np.array(rr)
+        N = rr.shape[0]
+        t = np.linspace(0,1,N)
+        t_new = np.linspace(0,1,10)
+        rr_new = np.zeros((10,3))
+        rr_new = np.array([np.interp(t_new,t,rr[:,0]),
+                        np.interp(t_new,t,rr[:,1]),
+                        np.interp(t_new,t,rr[:,2])]).T
+        
+        data_rearranged.append(rr_new.flatten())
+    
+    np.savetxt(filename,data_rearranged)
+    return data_rearranged
+    
+def trim_centerlines():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
+        
+    G = nx.Graph()
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    reborn_centerlines = []
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+        
+    # remove the colliding cylinders
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    export_centerlines(centerlines,outpth)
+    
+    # add the reborn centerlines
+    centerlines.extend(reborn_centerlines)
+    
+    # check sanity   
+    check_collsion(centerlines)
+    
+    # outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    # export_centerlines(centerlines,outpth)
+    
+    # def centerline_statistics(cl):
+    #     lengths = []
+    #     for c in cl:
+    #         lengths.append(np.linalg.norm(c[-1]-c[0]))
+    #     return lengths    
+    # lengths = centerline_statistics(centerlines)    
+    # plt.hist(lengths,bins=100)
+    # plt.show()
+    scaled_centerlines = []
+    for c in centerlines:
+        scaled_centerlines.append(c/300)
+    
+    scaled_centerlines = sanitize_centerlines(scaled_centerlines)
+    
+    # export
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale1.txt')
+    export_centerlines(scaled_centerlines,outpth)
+    
+def sanitize_centerlines(centerlines): 
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
+    G = nx.Graph()
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    
+    reborn_centerlines = []    
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+    
+    # add the reborn centerlines
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    centerlines.extend(reborn_centerlines)
+    
+    return centerlines
+    
+def test_two_rods():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale1.txt')
+    dta = np.loadtxt(pth)
+    rod1 = dta[733,:].reshape(-1,3)
+    rod2 = dta[826,:].reshape(-1,3)
+    
+    def get_svd_cylinder(rod):
+        center = rod.mean(axis=0)
+        u,s,v = np.linalg.svd(rod-center)
+        orientation = v[0,:]
+        
+        e1 = center - s[0]*(v[0,:])/np.sqrt(2)/2
+        e2 = center + s[0]*(v[0,:])/np.sqrt(2)/2
+        r1 = s[1]/np.sqrt(2)
+        
+        return np.hstack((e1,e2,r1))
+    
+    # fig,ax = set_3d_plot()
+    # ax.plot(rod1[:,0],rod1[:,1],rod1[:,2])
+    # ax.plot(rod2[:,0],rod2[:,1],rod2[:,2])
+    # plt.show()
+    
+    rods = [rod1,rod2]
+    svd_cylinders,_,_ = prep_svd_cylinder(rods)
+    
+    check_collsion(rods)
+    
+    fig,ax = set_3d_plot()
+    plot_centerline_with_container(rods,svd_cylinders,0,ax)
+    plot_centerline_with_container(rods,svd_cylinders,1,ax)
+    plt.show()
+    return
+
+def trim_centerlines_for_path(pth):
+    centerlines,_ = load_xray_data(pth)    
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines, dist_limit=1e-6, visualize=True)
+        
+    G = nx.Graph()
+    G.add_edges_from(colliding_cylinder_pairs)
+    connected_components = list(nx.connected_components(G))    
+    reborn_centerlines = []
+    for components in connected_components:
+        combined_centerline = []
+        for i in components:
+            combined_centerline.append(centerlines[i])
+        combined_centerline = np.vstack(combined_centerline)
+        reborn_centerlines.append(combined_centerline)
+        
+    # remove the colliding cylinders
+    centerlines = [centerlines[i] for i in range(len(centerlines)) if i not in colliding_cylinder_indices]
+    outpth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha38_epsilon00/centerlines-N8152-AR38-Scale300.txt')
+    export_centerlines(centerlines,outpth)
+    
+    # add the reborn centerlines
+    centerlines.extend(reborn_centerlines)
+    
+    return centerlines
+    
+def nudge_centerlines():
+    return 
+
+def nudge_by_random_kick():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    
+    centerlines = sanitize_centerlines(centerlines)
+    
+    # centerlines: list of N x 3 numpy arrays
+    unpacked = np.vstack(centerlines)
+    unpacked.shape
+    
+    u, indices = np.unique(unpacked,axis=0,return_index=True)
+    
+    duplicates_idx = np.setdiff1d(np.arange(unpacked.shape[0]),indices)
+    # nudge duplicate points
+    nudging_amplitude = np.random.randn(duplicates_idx.shape[0],3)*1e-6
+    unpacked[duplicates_idx, :] += nudging_amplitude
+
+    
+    # how to get this unraveled one to the original list?
+    
+    
+    # Reconstruct the original list of arrays
+    new_centerlines = []
+    start_idx = 0
+    for array in centerlines:
+        end_idx = start_idx + array.shape[0]
+        new_centerlines.append(unpacked[start_idx:end_idx,:])
+        start_idx = end_idx
+        
+    def centerline_statistics(cl):
+        lengths = []
+        for c in cl:
+            lengths.append(np.linalg.norm(c[-1]-c[0]))
+        return np.array(lengths)
+    lengths = centerline_statistics(new_centerlines)
+    plt.hist(lengths,bins=100)
+    plt.show()
+    
+    idx = np.where(lengths < 400)[0]
+    new_centerlines = [new_centerlines[i]/650 for i in range(len(new_centerlines)) if i not in idx]
+    
+    num_rods = len(new_centerlines)
+    outpth = Path(f'/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines2-N{num_rods}-AR200-Scale1.txt')
+    export_centerlines(new_centerlines,outpth)
+    
+    fig,ax = set_3d_plot()
+    for d in new_centerlines:
+        ax.plot(d[:,0],d[:,1],d[:,2])
+    ax.axis('equal')
+    plt.show()
+    
+    # nudge_centerlines()
+    # trim_centerlines()
+    # root_pth = Path('./xray_raw_data')
+    # for pth in (Path.glob(root_pth, '**/centerlines.mat')):
+    #     dta = loadmat(pth)
+    #     # get folder from pth
+    #     prnt_fldr = str(pth.parent)
+    #     exp_id = prnt_fldr.split('/')[-1]
+    #     prnt_fldr = Path(prnt_fldr)
+    #     centerlines = trim_centerlines_for_path(pth)            
+
+@jit(nopython=True)
+def distance_lowerbound(point1s, point1e, point2s, point2e):    
+    """ Calculate the shortest distance between two line segments. """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = np.dot(d1, d1)
+    D2 = np.dot(d2, d2)
+    S1 = np.dot(d1, d12)
+    S2 = np.dot(d2, d12)
+    R = np.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    t = fixbound((S1 * D2 - S2 * R) / den)
+    u = fixbound((t * R - S2) / D2)
+    return np.linalg.norm(d1 * t - d2 * u - d12)
+
+@jit(nopython=True)
+def calculate_alignment_matrix(svd_cylinders):
+    N = svd_cylinders.shape[0]
+    alignment_matrix = np.zeros((N,N))
+    for i in range(N):
+        for j in range(i+1,N):
+            alignment_matrix[i,j] = np.dot(orientations[i],orientations[j])
+    
+    return alignment_matrix
+
+def centerline_statistics(cl):
+    lengths = []
+    for c in cl:
+        lengths.append(np.linalg.norm(c[-1]-c[0]))
+    return np.array(lengths)
+    
+def remove_short_centerlines(cl,cutoff):
+    lengths = centerline_statistics(centerlines)    
+    # plt.hist(lengths,bins=100)
+    # plt.show()    
+    idx = np.where(lengths < 250)[0]
+    return 
+
+@jit(nopython=True)
+def fast_distance_lowerbound(svd_cylinders):
+    n = svd_cylinders.shape[0]
+    distance_matrix = np.zeros((n,n))
+    for i in range(n):
+        p1 = svd_cylinders[i, 0:3]
+        q1 = svd_cylinders[i, 3:6]
+        for j in range(i+1,n):
+            p2 = svd_cylinders[j, 0:3]
+            q2 = svd_cylinders[j, 3:6]  
+            distance_matrix[i,j] = distance_lowerbound(p1,q1,p2,q2)
+    return distance_matrix
+
+@jit(nopython=True)
+def fast_svd_distance_matrix(svd_cylinders):
+    n = svd_cylinders.shape[0]
+    distance_matrix = np.zeros((n,n))
+    for i in range(n):
+        p1 = svd_cylinders[i, 0:3]
+        q1 = svd_cylinders[i, 3:6]
+        for j in range(i+1,n):
+            p2 = svd_cylinders[j, 0:3]
+            q2 = svd_cylinders[j, 3:6]  
+            distance_matrix[i,j] = lumelsky_dist(p1,q1,p2,q2)
+    return distance_matrix
+
+def clustering():
+    # TO DO remove overlap
+    # then get overlap first
+    
+    from fitting import fit_rod, fit_rod_error
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    centerlines = centerlines[-200:]
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(centerlines)
+    
+    # alignment_matrix = calculate_alignment_matrix(svd_cylinders)
+
+    N = len(centerlines)
+    fitting_error_matrix = np.zeros((N,N))
+    for i in range(N):
+        rr_i = centerlines[i]
+        for j in range(i+1,N):
+            rr_j = centerlines[j]
+            joined = np.vstack((rr_i,rr_j))
+            joined = joined - joined.mean(axis=0)
+            
+            fitting_error_matrix[i,j] = fit_rod_error(joined)
+            
+        # print(result)
+    
+    start = time.time()
+    svd_distlb_mat = fast_svd_distance_matrix(svd_cylinders)
+    print("Elapsed time: ",time.time()-start)
+    
+    indices = np.triu_indices_from(svd_distlb_mat,1)
+    dist_values = svd_distlb_mat[indices]
+    
+    ind_contact = np.where(dist_values < 10)
+    rod_indices = list(zip(indices[0][ind_contact],indices[1][ind_contact]))
+    
+    import networkx as nx
+    G = nx.Graph()
+    
+    G.add_edges_from(rod_indices)
+    connected_components = list(nx.connected_components(G))
+    print(len(connected_components))
+    
+    neighbors = []
+    for i in range(len(centerlines)):
+        if G.has_node(i):
+            neighbors.append(list(G[i]))
+            
+    fig,ax = set_3d_plot()
+    for i in neighbors[0]:
+        plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
+    plot_centerline_with_container(centerlines,svd_cylinders,0,ax)
+    
+    svd_distlb_mat[0,95]
+    
+    d = fast_lumelsky_dist_mat(centerlines[0],centerlines[95])
+    np.min(d)
+        
+    fig,ax = set_3d_plot()
+    for i in [0,95]:
+        # plot_single_rod(centerlines[i],ax=ax)
+        plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
+        plt.show()    
+    
+    print(svd_distlb_mat.shape)
+    
+    
+    
+    return
+    
+def pruning():
+    # TO DO remove overlap
+    # then get overlap first
+    
+    from fitting import fit_rod, fit_rod_error
+    import networkx as nx
+    
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    centerlines = centerlines[-200:]
+    svd_cylinders,centroids,orientations = prep_svd_cylinder(centerlines)
+    
+    # visualize = True
+    # if visualize:
+    #     fig,ax = set_3d_plot()
+    #     for i in np.random.choice(len(centerlines),5):
+    #         plot_centerline_with_container(centerlines,svd_cylinders,i,ax)
+    
+    
+    colliding_cylinder_pairs,colliding_cylinder_indices = check_collsion(centerlines,dist_limit=1e-6) 
+    print(colliding_cylinder_indices)
+    
+    
+    
+    
+    
+    svd_distlb_mat = fast_svd_distance_matrix(svd_cylinders)
+    indices = np.triu_indices_from(svd_distlb_mat,1)
+    dist_values = svd_distlb_mat[indices]
+    ind_contact = np.where(dist_values < 5)
+    rod_indices = list(zip(indices[0][ind_contact],indices[1][ind_contact]))
+    G = nx.Graph()
+    G.add_edges_from(rod_indices)
+    
+    max_num_vertices = 0
+    num_vertices_list = []
+    for cl in centerlines:
+        num_vertices_list.append(cl.shape[0])
+        if cl.shape[0] > max_num_vertices:
+            max_num_vertices = cl.shape[0]
+            max_vertex = cl
+    
+    num_rods = len(centerlines)
+    all_vertices = np.ones((num_rods,max_num_vertices*3))*np.nan
+    centroids = np.zeros((num_rods,3))
+    for i in range(num_rods):
+        all_vertices[i,:centerlines[i].shape[0]*3] = (centerlines[i] - centerlines[i].mean(axis=0)).flatten()
+        centroids[i,:] = centerlines[i].mean(axis=0)
+    all_vertices[0,:]
+    centered_centerlines = all_vertices
+    
+    
+
+    
+    # 3x performance
+    
+    
+    
+    centered_centerlines = all_vertices
+    
+    
+    
+    max_degree = 0
+    for vert in G:
+        if G.degree(vert) > max_degree:
+            max_degree = G.degree(vert)
+            max_degree_idx = vert
+        
+    fig,ax = set_3d_plot()
+    for j in G[247]:
+        plot_centerline_with_container(centerlines,svd_cylinders,j,ax)
+    plot_centerline_with_container(centerlines,svd_cylinders,247,ax)
+    
+    # @jit(nopython=True)
+    import time
+    
+    def get_dist_mat(centerlines,G):
+        N = len(centerlines)
+        ultimate_dist_mat = np.ones((N,N))*np.inf
+        for i in range(N):
+            if not G.has_node(i):
+                continue
+            
+            rr_i = centerlines[i]
+            for j in G[i]:
+                rr_j = centerlines[j]
+                ultimate_dist_mat[i,j] = fast_lumelsky_dist(rr_i,rr_j)
+        return ultimate_dist_mat
+
+    start = time.time()
+    get_dist_mat(centerlines,G)
+    print("Elapsed time: ",time.time()-start)
+    # N = len(centerlines)
+    # big_storage = np.zeros(N,max_degree)
+    # for i in range(N):
+    #     for j in G[i]:
+    #         big_storage[i,j] = 1
+    
+    return
+    
+def overlapping_labels():
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')
+    centerlines,_ = load_xray_data(pth)
+    
+    for i,cl in enumerate(centerlines):
+        centerlines[i] = np.unique(cl,axis=0)
+    
+    unpacked = np.vstack(centerlines)
+    labels = np.zeros(unpacked.shape[0],dtype=np.int64)
+    start_idx = 0
+    for i,cl in enumerate(centerlines):
+        end_idx = start_idx + cl.shape[0]
+        labels[start_idx:end_idx] = i
+        start_idx = end_idx
+    
+    """ labels2 = labels[indices]
+    dup_labels = np.unique(labels2[np.where(counts > 1)])
+    inverse_label = labels2[inverses]
+    
+    outdir = f'/Users/yeonsu/Figures/duplicates/'
+    if not os.path.exists(outdir):
+        os.makedirs(outdir,exist_ok=True)
+    query_idx = 0 """
+    unq,unique_indices,inverses,counts = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    dup = unq[counts > 1]
+    N_dup = dup.shape[0]
+    dup_labels = np.unique(labels[(counts > 1)[inverses]])
+
+    # expansion_map = np.where((count>1)[inverses])
+    # expanded_duplicate_label = labels[tmp[inverses]]
+    
+    """ fig,ax = set_3d_plot()    
+    for lb in dup_labels[np.random.choice(len(dup_labels),10)]:
+        idx = np.where(labels == lb)
+        plot_single_rod(unpacked[idx],color=np.random.rand(3),ax=ax)
+        """    
+    
+    duplicates_list_on_the_image = np.where(counts > 1)[0]
+    # duplicates_list_on_the_global = np.where((counts > 1)[inverses])[0]
+            
+    def create_mask(ind,sz):
+        mask = np.zeros(sz,dtype=bool)
+        mask[ind] = True
+        return mask
+    
+    duplicate_groups = []
+    group_labels = []
+    
+    while duplicates_list_on_the_image.size > 0:
+        idx = duplicates_list_on_the_image[0]
+        neighbor_labels = labels[inverses == idx]
+        
+        all_neighbor_points = unpacked[np.isin(labels,neighbor_labels)]
+        all_neighbor_indices = np.where(np.isin(labels,neighbor_labels))[0] # this is simply a map
+        
+        for ii in np.where(inverses == idx)[0]:
+            assert(neighbor_labels.size == counts[ inverses[ii] ])
+        assert(np.isin(neighbor_labels,dup_labels).all())
+        
+        utmp,idtmp,ivtmp,ctmp = np.unique(all_neighbor_points,axis=0,return_counts=True,return_index=True,return_inverse=True)
+        mask = create_mask(all_neighbor_indices[(ctmp > 1)[ivtmp]],labels.size)
+        idx_to_remove = np.where(mask[unique_indices])[0] # these are what I want to remove, fudging complicated!
+        duplicates_list_on_the_image = np.setdiff1d(duplicates_list_on_the_image,idx_to_remove)
+        duplicate_groups.append(idx_to_remove)
+        group_labels.append(np.unique(labels[np.isin(inverses, idx_to_remove)]))
+        
+        print(f"Size of remaining duplicates: {duplicates_list_on_the_image.size} / {N_dup}")
+        print
+        # labels[np.isin(inverses, idx_to_remove)] # labels
+            
+            
+        """ fig,ax = set_3d_plot()
+        for lllb in np.unique(labels[np.isin(inverses, idx_to_remove)]):
+            rr = centerlines[lllb]
+            plot_single_rod(rr,'-',ax=ax)
+        plt.show() """
+    
+    with open('duplicate_groups.pkl','wb') as f:
+        pickle.dump(duplicate_groups,f)
+    
+    with open('group_labels.pkl','wb') as f:
+        pickle.dump(group_labels,f)
+        
+def find_overlapping_segments(unpacked):
+    unq,unique_indices,inverses,counts = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    dup = unq[counts > 1]
+    # N_dup = dup.shape[0]
+    dup_labels = np.unique(labels[(counts > 1)[inverses]])    
+    duplicates_list_on_the_image = np.where(counts > 1)[0]    
+    duplicate_groups = []
+    group_labels = []    
+    while duplicates_list_on_the_image.size > 0:
+        idx = duplicates_list_on_the_image[0]
+        neighbor_labels = labels[inverses == idx]        
+        all_neighbor_points = unpacked[np.isin(labels,neighbor_labels)]
+        all_neighbor_indices = np.where(np.isin(labels,neighbor_labels))[0] # this is simply a map        
+        for ii in np.where(inverses == idx)[0]:
+            assert(neighbor_labels.size == counts[ inverses[ii] ])
+        assert(np.isin(neighbor_labels,dup_labels).all())
+        
+        utmp,idtmp,ivtmp,ctmp = np.unique(all_neighbor_points,axis=0,return_counts=True,return_index=True,return_inverse=True)
+        mask = create_mask(all_neighbor_indices[(ctmp > 1)[ivtmp]],labels.size)
+        idx_to_remove = np.where(mask[unique_indices])[0] # these are what I want to remove, fudging complicated!
+        duplicates_list_on_the_image = np.setdiff1d(duplicates_list_on_the_image,idx_to_remove)
+        duplicate_groups.append(idx_to_remove)
+        group_labels.append(np.unique(labels[np.isin(inverses, idx_to_remove)]))
+        
+    return group_labels
+
+def unpack_centerlines(centerlines):
+    unpacked = np.vstack(centerlines)
+    labels = np.zeros(unpacked.shape[0],dtype=np.int64)
+    start_idx = 0
+    for i,cl in enumerate(centerlines):
+        end_idx = start_idx + cl.shape[0]
+        labels[start_idx:end_idx] = i
+        start_idx = end_idx
+    return unpacked,labels
+        
+def prune_segments(dirty_segments):    
+    group_labels = find_overlapping_segments(dirty_segments)
+    new_centerlines = []
+    not_good = []
+    for i in range(len(group_labels)):
+        glb = group_labels[i]        
+        group_segments = [centerlines[lb] for lb in glb]
+        for gs in group_segments:
+            fit_result = fit_rod(gs,1e-10,1e10)
+            new_centerlines.append(fit_result['rec'])
+    
+    fp = filamentprocessing.FilamentProcessing(new_centerlines,30,1,0.99)
+    fp.get_svd_ij()
+    ij = np.array(fp.get_svd_ij())
+    scores = np.array(fp.get_svd_scores())
+    dist_score = scores[:,0]
+    
+    mask = dist_score < 3
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(new_centerlines)))
+    graph.add_edges_from(zip(ij[mask,0],ij[mask,1]))
+    
+    cc = list(nx.connected_components(graph))
+    
+    length_list = [seg_len(nc) for nc in new_centerlines]
+    nonoverlap_centerlines = [centerlines[lb] for lb in nonoverlap_labels] # how effective is this?
+    total_combined = nonoverlap_centerlines + new_centerlines    
+    total_length_list = [seg_len(nc) for nc in total_combined]
+    total_length_list = np.array(total_length_list)
+    true_centerlines = [nc/650 for nc in total_combined if seg_len(nc) > 550 and seg_len(nc) < 750]
+
+    total_combined = [nc/650 for nc in total_combined]
+    data_return = export_centerlines(total_combined,'test.txt')
+    
+    fig,ax= set_3d_plot()
+    for dr in data_return:
+        rr = dr.reshape(-1,3)
+        plot_single_rod(rr,'-',ax=ax)
+        
+    data_return_in_seg = []
+    for dr in data_return:
+        rr = dr.reshape(-1,3)
+        data_return_in_seg.append(rr)
+    
+    fp = filamentprocessing.FilamentProcessing(data_return_in_seg,0.01,1,0.95)
+    fp.calculate_filament_distance_matrix(10,1)    
+    ij = np.array(fp.get_ij())
+    scores = np.array(fp.get_scores())    
+    dist_score = scores[:,0]    
+    print(np.min(dist_score))
+    
+    np.min(dist_score)
+    nonoverlapped = np.where(dist_score >= 0.01)[0]
+    overlapped = np.where(dist_score < 0.01)[0]
+    print(f'Number of overlapped: {len(overlapped)}')
+    
+    start = time.time()
+    overlap_score = []
+    for i in overlapped:        
+        idx = ij[i,0]
+        jdx = ij[i,1]
+        seg_i = data_return_in_seg[idx]
+        seg_j = data_return_in_seg[jdx]
+        dist_mat = fast_lumelsky_dist_mat(seg_i,seg_j)        
+        dist_mat[np.diag_indices(dist_mat.shape[0])] = np.inf
+        min_dists = np.min(dist_mat,axis=0)        
+        overlap_score.append(np.min(min_dists))        
+    print("Elapsed time: ",time.time()-start)
+    
+    cutoff = 0.002
+    np.where(np.array(overlap_score) < cutoff)[0]
+    np.where(np.array(overlap_score) < cutoff)[0].shape   
+    
+    overlap_score = np.array(overlap_score)
+    
+    fig,ax=plt.subplots(1,1)
+    ax.hist(overlap_score[overlap_score<cutoff],bins=100)
+    overlap_score = np.array(overlap_score)
+    
+    np.count_nonzero(overlap_score < cutoff)
+    
+    plt.close()    
+    fig,ax= set_3d_plot()
+    
+    take_out = []
+    for i in overlapped[overlap_score<cutoff]:
+        idx = ij[i,0]
+        jdx = ij[i,1]
+        seg_i = data_return_in_seg[idx]
+        seg_j = data_return_in_seg[jdx] + np.array([0.001,0.001,0.001])
+        
+        take_out.append(idx)
+        
+        clr = np.random.rand(3)
+        plot_single_rod(seg_i,'-',ax=ax,color=clr)
+        plot_single_rod(seg_j,'-',ax=ax,color=clr)
+        
+    np.unique(take_out).shape
+    
+    to_export = [data_return_in_seg[i].reshape(-1,3) for i in range(len(data_return_in_seg)) if i not in take_out]
+    len(to_export)
+    
+    true_centerlines2 = [nc for nc in to_export if seg_len(nc) > 550/650 and seg_len(nc) < 750/650]
+    
+    for i,tc in enumerate(true_centerlines2):
+        # shorten
+        cen = tc.mean(axis=0)
+        tc2 = tc - cen
+        tc2 = tc2*0.95
+        true_centerlines2[i] = tc2 + cen
+        
+    
+    fp = filamentprocessing.FilamentProcessing(true_centerlines2,0.01,1,0.99)
+    fp.calculate_filament_distance_matrix(10,1)
+    ij = np.array(fp.get_ij())
+    scores = np.array(fp.get_scores())
+    dist_score = scores[:,0]
+    print(f'Minimum distance score: {np.min(dist_score)}')
+    
+    fig,ax= set_3d_plot()
+    for tc in true_centerlines2:
+        plot_single_rod(tc,'-',ax=ax)
+    tst = export_centerlines(true_centerlines2,'test2.txt')
+    
+    return clean_segments
+
+def seg_len(seg):
+    return np.sum(np.sqrt(np.sum(np.diff(seg,axis=0)**2,axis=1)))
+
+def do_pruning(pth):
+    centerlines,_ = load_xray_data(pth)
+    for i,cl in enumerate(centerlines):
+        centerlines[i] = np.unique(cl,axis=0)
+    unpacked,labels = unpack_centerlines(centerlines)        
+    unq,ind,inv,cnt = np.unique(unpacked,axis=0,return_counts=True,return_inverse=True,return_index=True)
+    nonoverlap_labels = np.unique(labels[(cnt == 1)[inv]])        
+    pruned = prune_segments(centerlines)    
+    # check visually
+    # fig,ax= set_3d_plot()
+    # for tc in tst:
+    #     rr = tc.reshape(-1,3)
+    #     plot_single_rod(rr,'-',ax=ax)
+    
+if __name__ == '__main__':
+    pth = Path('/Users/yeonsu/Documents/GitHub/entanglement-optimization/xray_raw_data/alpha200_epsilon00/centerlines.mat')   
+
+
