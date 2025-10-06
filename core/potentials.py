@@ -90,57 +90,6 @@ def dist_lin_seg(point1s, point1e, point2s, point2e):
     
     dist = jnp.linalg.norm(d1 * t - d2 * u - d12)
     
-    # def case1(D1,D2,S1,S2,R):
-    #     u = 0.
-    #     t = fixbound(S1 / D1)
-    #     return compute_distance(d1, d2, d12, t, u)
-    
-    # def case2(D1,D2,S1,S2,R):
-    #     t = 0
-    #     u = fixbound(-S2 / D2)
-    #     return compute_distance(d1, d2, d12, t, u)
-    
-    # def case3(D1,D2,S1,S2,R):
-    #     t = 0.
-    #     u = 0.
-    #     return compute_distance(d1, d2, d12, t, u)
-    
-    # def case4(D1,D2,S1,S2,R):
-    #     t = 0.
-    #     u = -S2 / D2
-    #     uf = fixbound(u)
-    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
-    #     return compute_distance(d1, d2, d12, t, u)
-    
-    # def case5(D1,D2,S1,S2,R):
-    #     t = fixbound((S1 * D2 - S2 * R) / den)
-    #     u = (t * R - S2) / D2
-    #     uf = fixbound(u)        
-    #     t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
-    #     return compute_distance(d1, d2, d12, t, u)
-    
-    # # lax.cond((D1 == 0) & (D2 == 0) , lambda _: 0., lambda _: 0., None)
-
-    # dist = lax.cond((D1 != 0.) & (D2 == 0.),
-    #                     lambda _: case1(D1,D2,S1,S2,R),
-    #                     lambda _: 0.,
-    #                     None)
-    
-    # dist = lax.cond((D1 == 0.) & (D2 != 0.),
-    #                     lambda _: case2(D1,D2,S1,S2,R),
-    #                     lambda _: 0.,
-    #                     None)
-    
-    # dist = lax.cond((D1 == 0.) & (D2 == 0.),
-    #                     lambda _: case3(D1,D2,S1,S2,R),
-    #                     lambda _: 0.,
-    #                     None)
-    
-    # dist = lax.cond((D1 != 0.) & (D2 != 0.) & (den == 0.), # parallel
-    #                     lambda _: case4(D1,D2,S1,S2,R),
-    #                     lambda _: case5(D1,D2,S1,S2,R),
-    #                     None)
-    
     return dist
 
 
