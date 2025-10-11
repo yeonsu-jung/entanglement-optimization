@@ -236,11 +236,19 @@ def main():
     # --- Simulation Loop ---
     print("🚀 Starting simulation...")
     q = q0
+
+    from npy_append_array import NpyAppendArray
     # Pre-allocate array for history instead of appending to a list
     q_history = np.zeros((TOTAL_STEPS // SAVE_EVERY_N_STEPS, *q0.shape))
 
     for step_idx in range(TOTAL_STEPS):
         q, num_proj_steps = step_fn(q, STEP_SIZE)
+
+        # append
+        if step_idx % (SAVE_EVERY_N_STEPS*1) == 0:
+            npy_path = output_dir / "q_history_temp.npy"
+            np.save(npy_path, q_history[:step_idx // SAVE_EVERY_N_STEPS + 1])
+            
         
         # --- Visualization and Logging ---
         if step_idx % SAVE_EVERY_N_STEPS == 0:
