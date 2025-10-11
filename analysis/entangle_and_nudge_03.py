@@ -167,7 +167,7 @@ def main():
     # RANDOM_SEED = 11
     
     # Gradient Descent Parameters
-    TOTAL_STEPS = 1000
+    TOTAL_STEPS = 10000
     STEP_SIZE = 1e-3
     MAX_PROJECTION_STEPS = 1000
     
@@ -231,7 +231,7 @@ def main():
         initial_curves = q_to_x(q0).reshape(NUM_RODS, -1, 3)
         nodes, edges, _ = prep_for_polyscope(initial_curves, NUM_RODS)
         ps_curves = ps.register_curve_network("filaments", nodes, edges)
-        ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)    
+        ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)
 
     # --- Simulation Loop ---
     print("🚀 Starting simulation...")
