@@ -265,4 +265,9 @@ def main():
     print(f"✅ Simulation finished. Saved history to {final_q_path}")
 
 if __name__ == "__main__":
-    main()
+    # get arguments from command line
+    num_rods = int(sys.argv[1])
+    aspect_ratio = int(sys.argv[2])
+    random_seed = int(sys.argv[3])
+    # return
+    # main()
