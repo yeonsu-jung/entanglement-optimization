@@ -167,7 +167,7 @@ def main():
     # RANDOM_SEED = 11
     
     # Gradient Descent Parameters
-    TOTAL_STEPS = 200
+    TOTAL_STEPS = 10000
     STEP_SIZE = 1e-3
     MAX_PROJECTION_STEPS = 1000
     
