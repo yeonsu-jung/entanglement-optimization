@@ -15,6 +15,7 @@ from jax.lax import cond
 # Make sure the 'core' directory is in the Python path
 sys.path.append('../core') 
 from protocols import create_nonintersecting_random_rods_contained_pbc
+from protocols import create_nonintersecting_random_rods_contained_centroids
 from transforms import q_to_x
 # from visualizations import prep_for_polyscope
 from potentials import total_effective_potential, total_harmonic_line
@@ -158,10 +159,12 @@ def setup_directories(script_path):
 def main():
     # --- Configuration ---
     # Simulation Parameters
-    NUM_RODS = 200
-    ROD_DIAMETER = 1 / 500
-    CONTAINER_SIZE = 1.0
-    RANDOM_SEED = 11
+    # NUM_RODS = 200
+    ROD_DIAMETER = 1 / ASPECT_RATIO
+
+
+    CONTAINER_SIZE = 0.52
+    # RANDOM_SEED = 11
     
     # Gradient Descent Parameters
     TOTAL_STEPS = 200
@@ -179,7 +182,8 @@ def main():
     output_dir, movie_dir = setup_directories(__file__)
     key = jax.random.PRNGKey(RANDOM_SEED)
 
-    q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
+    # q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
+    q0 = create_nonintersecting_random_rods_contained_centroids(NUM_RODS,ROD_DIAMETER,CONTAINER_SIZE,random_seed=RANDOM_SEED,max_attempts=10000)
     
     # Define potential functions and their JIT-compiled gradients
     grad_potential_fn = jit(jax.grad(total_effective_potential))
@@ -265,9 +269,12 @@ def main():
     print(f"✅ Simulation finished. Saved history to {final_q_path}")
 
 if __name__ == "__main__":
-    # get arguments from command line
-    num_rods = int(sys.argv[1])
-    aspect_ratio = int(sys.argv[2])
-    random_seed = int(sys.argv[3])
-    # return
-    # main()
+    import sys
+    assert(len(sys.argv) == 4)
+    NUM_RODS = int(sys.argv[1])
+    ASPECT_RATIO = int(sys.argv[2])
+    RANDOM_SEED = int(sys.argv[3])
+
+    print(f"NUM_RODS: {NUM_RODS}, ASPECT_RATIO: {ASPECT_RATIO}, RANDOM_SEED: {RANDOM_SEED}")
+
+    main()
