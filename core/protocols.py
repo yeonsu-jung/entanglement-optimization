@@ -231,10 +231,10 @@ def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container
 
 
 
-def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter,container_size,max_attempts=10000):
+def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter,container_size,random_seed=42,max_attempts=10000):
     # print('create_nonintersecting_random_rods in a container')        
 
-    
+    onp.random.seed(random_seed)
     q = onp.zeros((num_rods, 5), dtype=onp.float64)
 
     for i in range(num_rods):
@@ -687,31 +687,38 @@ def create_nonintersecting_random_rods_contained_in_cylinder(num_rods, rod_diame
 
     return q
 
-def create_intersecting_rods(num_rods):
-    key = random.key(0)
-    # p1s = random.uniform(key, (num_rods,3), minval=-0.5, maxval=0.5)
-    key = random.key(1)
-    phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
-    key = random.key(2)
-    theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
-    
-    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+def create_intersecting_rods(num_rods: int, rod_length: float = 1.0, seed: int = 0):
+    """
+    Create num_rods line segments of length `rod_length` whose midpoints are all at the origin.
+    Directions are sampled uniformly at random on S2.
 
-    
-    p1s = -jnp.concatenate([jnp.sin(phi1)*jnp.cos(theta1), jnp.sin(phi1)*jnp.sin(theta1), jnp.cos(phi1)],axis=1)*0.5
-    
-    theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
-    q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)
-    
-    x0 = q_to_x(q0)
-    center = jnp.mean(x0[:,:3],axis=0)
-    # q0[:,:3] = q0[:,:3] - center    
-    q0 = q0.at[:,:3].set(q0[:,:3] - center)
-    
-    q0 = q0.flatten()
-    q0 = jnp.array(q0,dtype=jnp.float64)
-    return q0
+    q0 layout per-rod (matches your q_to_x): [p1_x, p1_y, p1_z, phi, theta]
+    where p1 = -0.5 * rod_length * u_hat, and p2 will be inferred by q_to_x.
+    """
+    key = random.PRNGKey(seed)
+    key_phi, key_theta = random.split(key)
+
+    # Uniform on S2: sample cos(phi) ~ U[-1,1], theta ~ U[0, 2π)
+    u = random.uniform(key_phi, (num_rods, 1), minval=-1.0, maxval=1.0)  # = cos(phi)
+    theta = random.uniform(key_theta, (num_rods, 1), minval=0.0, maxval=2 * jnp.pi)
+    phi = jnp.arccos(u)
+
+    # Unit direction vectors
+    u_hat = jnp.concatenate(
+        [jnp.sin(phi) * jnp.cos(theta),
+         jnp.sin(phi) * jnp.sin(theta),
+         jnp.cos(phi)], axis=1
+    )
+
+    # Midpoint at origin ⇒ endpoints are ±(L/2) * u_hat
+    p1s = -0.5 * rod_length * u_hat  # first endpoint
+    # (your q_to_x should reconstruct p2 = p1 + rod_length * u_hat)
+
+    # Pack for q_to_x: [p1x, p1y, p1z, phi, theta]
+    q0 = jnp.concatenate([p1s, phi, theta], axis=1)
+
+    # Flatten to 1D float64 as you expect
+    return q0.reshape(-1).astype(jnp.float64)
 
 def create_aligned_rods(num_rods):
     centers = jnp.zeros((num_rods, 3))
@@ -748,6 +755,9 @@ def create_entangled_rods(num_rods,f,random_keys,rod_diameter=0.1,Nmax=1e4,N_out
         # from protocols import create_nonintersecting_random_rods_contained
         container_size = 1.2
         q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
+    # if initial_q is jnp.array already, then use it directly
+    elif isinstance(initial_q, jnp.ndarray):
+        q0 = initial_q.flatten()
 
     
     df = grad(f)    
