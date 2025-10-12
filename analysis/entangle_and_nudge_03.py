@@ -167,7 +167,7 @@ def main():
     # RANDOM_SEED = 11
     
     # Gradient Descent Parameters
-    TOTAL_STEPS = 10000
+    # TOTAL_STEPS = 10000
     STEP_SIZE = 1e-3
     MAX_PROJECTION_STEPS = 1000
     
@@ -278,11 +278,12 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    # assert(len(sys.argv) == 4)
+    assert(len(sys.argv) == 5)
     NUM_RODS = int(sys.argv[1])
     ASPECT_RATIO = int(sys.argv[2])
     RANDOM_SEED = int(sys.argv[3])
+    TOTAL_STEPS = int(sys.argv[4])
 
-    print(f"NUM_RODS: {NUM_RODS}, ASPECT_RATIO: {ASPECT_RATIO}, RANDOM_SEED: {RANDOM_SEED}")
+    print(f"NUM_RODS: {NUM_RODS}, ASPECT_RATIO: {ASPECT_RATIO}, RANDOM_SEED: {RANDOM_SEED}, TOTAL_STEPS: {TOTAL_STEPS}")
 
     main()
