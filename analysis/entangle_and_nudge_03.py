@@ -278,7 +278,7 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    assert(len(sys.argv) == 4)
+    # assert(len(sys.argv) == 4)
     NUM_RODS = int(sys.argv[1])
     ASPECT_RATIO = int(sys.argv[2])
     RANDOM_SEED = int(sys.argv[3])
