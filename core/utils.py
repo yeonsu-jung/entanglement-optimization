@@ -6,6 +6,7 @@ import os
 import glob
 import shutil
 import re
+from pathlib import Path
 
 def timeit(func):
     import time
@@ -73,6 +74,18 @@ def parse_filename(pth):
                    'date_time': date_time}
     
     return parsed_info
+
+
+def setup_directories(script_path):
+    """Creates output directories for simulation results and movies."""
+    script_name = Path(script_path).stem
+    output_dir = Path(script_name)
+    movie_dir = output_dir / "movie"
+    output_dir.mkdir(exist_ok=True)
+    movie_dir.mkdir(exist_ok=True)
+    print(f"✅ Outputting to: {output_dir.resolve()}")
+    return output_dir, movie_dir
+
     
 if __name__ == '__main__':
     
