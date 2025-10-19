@@ -713,13 +713,13 @@ def prune_overlaps_keep_earlier(q, rod_length, C, rod_diameter, cell_size, grid_
 # =========================
 if __name__ == "__main__":
     # Problem setup
-    C = 6.0                # half-box length => box side = 12.0
+    C = 2.0                # half-box length => box side = 2*C
     rod_length = 1.0
     alpha = 100.0
     rod_diameter = rod_length / alpha  # 0.01
 
     # Rough density heuristic: N / C^3 * D * L^2 ~ 0.8
-    N = int((C**3) / (rod_diameter * rod_length**2) * 0.8)
+    N = int(( (2*C)**3) / (rod_diameter * rod_length**2) * 1.)
     # N = 10000
     print("Target N:", N)
 
@@ -768,8 +768,6 @@ if __name__ == "__main__":
     else:
         q_pruned = q[:placed]
 
-# %%
-    q_pruned.shape
 
 # %%
     from potentials import acn_over_ij
@@ -786,10 +784,6 @@ if __name__ == "__main__":
     print(type(x_pruned[0]))
     
     acn_mat = acn_over_ij(r1,r2,ii,jj)
-# %%
-    print(x_pruned.dtype, x_pruned.flags)
-
-# %%
 
     import jax
     import time    
@@ -801,6 +795,13 @@ if __name__ == "__main__":
     res = sum_abs_jit(acn_mat)
     res.block_until_ready()          # IMPORTANT: force computation before timing
     print("sum(|x|) =", float(res), "time:", time.time() - t0, "s")
+
+    # %%
+    from visualizations import plot_many_rods
+    plot_many_rods(q_pruned)
+    # %%
+    N*(N-1)/2 * 0.5
+
 
 # %%
     from jax import jit, vmap
@@ -848,16 +849,17 @@ if __name__ == "__main__":
     
     # %%
 
-    N = 10
-    C = 1
-
-    NN = np.geomspace(10, 1000, num=10, dtype=int)
+    N_jamming = (2*C)**3 / (rod_diameter * rod_length**2)
+    N_jamming = int(N_jamming)
+    NN = np.geomspace(10, N_jamming, num=10, dtype=int)
 
     tt = []
+    ee = []
+    qq = []
     for i in range(len(NN)):
         N = NN[i]
         start = time.time()
-        q, placed = create_nonintersecting_random_rods_contained_numba(
+        q,placed = create_nonintersecting_random_rods_contained_pbc_numba(
             num_rods=N,
             rod_diameter=rod_diameter,
             container_size=C,
@@ -871,12 +873,20 @@ if __name__ == "__main__":
         tt.append(time.time() - start)
         print("N=", N, "time:", tt[-1], "s")
 
-# %%
-    N = int((C**3) / (rod_diameter * rod_length**2) * 10)
+
+        x = q_to_x(q)
+        x = jnp.array(x)
+        r1 = x[:,:3]
+        r2 = x[:,3:6]
+        ii,jj = jnp.triu_indices(q.shape[0], k=1)
+        acn_mat = acn_over_ij(r1,r2,ii,jj)
+
+        ee.append(float(sum_abs_jit(acn_mat)))
+
+        qq.append(q)
+        
 
 # %%
-    # N/V*D*L**2 ~ 10
-
 
 # %%
     import matplotlib.pyplot as plt
@@ -886,3 +896,80 @@ if __name__ == "__main__":
     plt.ylabel('time (s)')
     plt.show()
         
+
+# %%
+    plt.plot(NN, ee, '-o')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('N')
+    plt.ylabel('entanglement')
+    plt.show()
+    # obviously entanglement ~ N^2
+
+# %%
+
+# %%
+    plt.plot(tt, ee, '-o')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('time (s)')
+    plt.ylabel('entanglement')
+    plt.show()
+
+
+# %%
+    from visualizations import plot_many_rods
+    q0 = qq[5]
+    plot_many_rods(q0)
+
+    # maximize entanglement
+# %%
+
+    from potentials import total_effective_potential
+    from optimization import optimize_fire_nonjax_individual
+
+    f = total_effective_potential
+    df = jax.grad(f)
+    df0 = df(q0)
+    print(f"Initial error: {jnp.max(jnp.abs(df0))}")
+
+    atol = 1e-12
+    atol = atol*jnp.max(jnp.abs(df0))
+
+    # def _callback(q,callback_params):
+    #     min_d = callback_params['min_distance']
+    #     from npy_append_array import NpyAppendArray
+    #     filename = f"{results_per_random_keys}/{packing_id}/qq.npy"
+    #     with NpyAppendArray(filename) as npaa:
+    #         npaa.append(onp.array(q))
+
+    #     # break_or_continue = ((min_d - rod_diameter) > 0) & (jnp.abs(min_d - rod_diameter) < 1e-3)
+    #     break_or_continue = (jnp.abs(min_d - rod_diameter) < 1e-6*rod_diameter) | (min_d > rod_diameter)
+
+    #     return break_or_continue
+
+    # "a slight projection"
+    dt = 1.e-2
+    Nmax = 1000
+    N_outer = 3
+
+    q = q0.flatten()
+    for k in range(N_outer):
+        q, f_val, num_iterations, error = optimize_fire_nonjax_individual(q, f, df, Nmax,atol, dt)
+        atol = atol/2
+
+
+        # print(f"iteration: {k}")
+        # print(f"f_val: {f_val:.2f}")
+        # print(f"num_iterations: {num_iterations}")
+        # print(f"error: {error}")
+    
+     # print(f"q: {q_onp:.2f}")
+    fval0 = f(q0)
+    print(f"f_val, initial: {fval0:.2f}")    
+    print(f"f_val: {f_val:.2f}")
+    print(f"error: {error}") # which is maximum of gradient vector
+    print(f"num_iterations: {num_iterations}")
+
+# %%
+    

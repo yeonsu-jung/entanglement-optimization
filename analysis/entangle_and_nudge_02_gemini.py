@@ -179,6 +179,7 @@ def main():
     output_dir, movie_dir = setup_directories(__file__)
     key = jax.random.PRNGKey(RANDOM_SEED)
 
+    CONTAINER_SIZE = 0.7
     q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
     
     # Define potential functions and their JIT-compiled gradients

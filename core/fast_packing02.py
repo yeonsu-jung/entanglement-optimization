@@ -18,6 +18,7 @@ import time
 import numpy as np
 from numba import njit, int64, float64
 from utils import setup_directories
+from numba import objmode
 
 # Add ../core to sys.path (for optional demo/plot helpers users may have)
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "core")))
@@ -33,9 +34,15 @@ _EPS_DIST = 1e-12       # for distance math (parallel checks / denominators)
 _GRID_PAD_MIN = 1e-12   # minimum absolute padding in box coords to avoid plane aliasing
 _GRID_PAD_REL = 1e-9    # relative padding w.r.t. cell size (used with max above)
 
+
+
+
+
+
 # ---------------------------------------------------------------------
 # Grid helpers (non-PBC)
 # ---------------------------------------------------------------------
+
 
 @njit
 def _grid_params(C: float, cell_size: float):
@@ -257,6 +264,27 @@ def _dist2_lin_seg(p0, p1, q0, q1, eps: float = _EPS_DIST) -> float:
 # Main placer (non-PBC; centroid inside the box)
 # ---------------------------------------------------------------------
 
+from numba import njit
+
+import os
+import numpy as np
+from numba import njit, objmode
+
+# -------- optional global log target ----------
+LOG_PATH = None       # set this to a filepath before calling the kernel
+# e.g. LOG_PATH = "/tmp/rod_log.txt"
+
+
+# ------------------------------------------------------------
+# Helper: safe write (called only inside objmode() blocks)
+# ------------------------------------------------------------
+def _safe_write(fd: int, s: str):
+    # NOTE: DO NOT @njit this. It's used inside objmode() only.
+    os.write(fd, s.encode("utf-8"))
+
+# ------------------------------------------------------------
+# Main kernel with file-descriptor logging
+# ------------------------------------------------------------
 @njit
 def create_nonintersecting_random_rods_contained_npbc_numba(
     num_rods: int,
@@ -266,15 +294,20 @@ def create_nonintersecting_random_rods_contained_npbc_numba(
     rod_length: float,
     cell_size: float,
     grid_capacity_multiplier: int,  # 48..96 typical
-    seed: int
+    seed: int,
+    # ---- logging knobs ----
+    log_fd: int = 1,              # pass an OS file descriptor; <0 disables logging
+    log_every_attempts: int = 0,   # 0 = off, otherwise log every K attempts
+    log_accepts: int = 1           # 1 = log accept events
 ):
     """
     Place up to `num_rods` spherocylinders with centerlines of length `rod_length` and
     diameter `rod_diameter`, such that centerline–centerline distance ≥ diameter.
 
     Returns:
-        q      : (placed, 5) array of [cx, cy, cz, phi, theta] per rod
-        placed : number of successfully placed rods
+        q                : (placed, 5) array of [cx, cy, cz, phi, theta] per rod
+        placed           : number of successfully placed rods
+        total_attempts   : total attempts across all placed rods
     """
     C = float(container_size)
     if cell_size <= 0.0:
@@ -315,6 +348,11 @@ def create_nonintersecting_random_rods_contained_npbc_numba(
         created = False
         attempts = 0
 
+        # per-rod header
+        if log_fd >= 0 and (log_every_attempts > 0 or log_accepts):
+            with objmode():
+                _safe_write(log_fd, f"[rod {i}] start\n")
+
         while (not created) and (attempts < max_attempts):
             # sample centroid uniformly in the box; random orientation on S2
             cx = (np.random.random()*2.0 - 1.0) * C
@@ -353,6 +391,13 @@ def create_nonintersecting_random_rods_contained_npbc_numba(
                     collide = True
                     break
 
+            # per-attempt logging (throttled)
+            if log_fd >= 0 and log_every_attempts > 0:
+                if (attempts % log_every_attempts) == 0:
+                    with objmode():
+                        _safe_write(log_fd, f"[rod {i}] attempt {attempts} cand={n_cand} "
+                                            f"collide={int(collide)}\n")
+
             if not collide:
                 # accept & insert
                 q[i, 0] = cx; q[i, 1] = cy; q[i, 2] = cz; q[i, 3] = phi; q[i, 4] = theta
@@ -364,18 +409,35 @@ def create_nonintersecting_random_rods_contained_npbc_numba(
                     nnz_ref, max_entries
                 )
                 if not ok:
+                    if log_fd >= 0:
+                        with objmode():
+                            _safe_write(log_fd, f"[rod {i}] GRID_FULL after attempts={attempts}\n")
                     return q[:i, :], i, total_attempts
+
                 created = True
+
+                if log_fd >= 0 and log_accepts:
+                    with objmode():
+                        _safe_write(log_fd, f"[rod {i}] ACCEPT after attempts={attempts+1} "
+                                            f"cand={n_cand}\n")
 
             attempts += 1
 
         if not created:
+            if log_fd >= 0:
+                with objmode():
+                    _safe_write(log_fd, f"[rod {i}] FAIL max_attempts={max_attempts}\n")
             return q[:i, :], i, total_attempts
 
         placed += 1
         total_attempts += attempts
 
+    if log_fd >= 0:
+        with objmode():
+            _safe_write(log_fd, f"[done] placed={placed} total_attempts={total_attempts}\n")
+
     return q, placed, total_attempts
+
 
 
 # ---------------------------------------------------------------------
@@ -725,29 +787,91 @@ if __name__ == "__main__":
 
 
     # N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2) * 3.7
-    N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2) * 10
+    N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2) * 5
     # NN = np.geomspace(10, N_max_est, num=n_points, dtype=int)
-    NN = np.geomspace(10, N_max_est, num=n_points, dtype=float)[::-1].astype(int)
+    # NN = np.geomspace(10, N_max_est, num=n_points, dtype=float)[::-1].astype(int)
+    print("Estimated max N:", N_max_est)
+    NN = np.array([N_max_est])
 
-    attempts_list = []
-    qq = []
-    for N in NN:fnis
-    
-        t0 = time.time()
+    log_path = f"{output_dir}/rod_log.txt"
+    # create the file
+
+
+    # optional: clear old file
+    open(log_path, "w").close()
+
+    fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+
+    # N_max_est = 2000
+    try:
         q, placed, attempts = create_nonintersecting_random_rods_contained_npbc_numba(
-            num_rods=int(N),
-            rod_diameter=rod_diameter,
-            container_size=C,
-            max_attempts=max_attempts,
-            rod_length=rod_length,
-            cell_size=cell_size,
-            grid_capacity_multiplier=grid_capacity_multiplier,
-            seed=seed
-        )
-        dt = time.time() - t0
-        print(f"N={N:6d} placed={placed:6d} time={dt:.3f} sec  ({dt / max(1, N) * 1e6:.1f} µs/rod)")
-        attempts_list.append(attempts)
-        qq.append(q)
+            num_rods=int(N_max_est),
+            # num_rods=int(2000),
+            rod_diameter=0.01,
+            container_size=1.0,
+            max_attempts=10_000_000,
+            rod_length=1.,
+            cell_size=C,
+            grid_capacity_multiplier=64,
+            seed=seed,
+            log_fd=fd,               # << enable logging
+            log_every_attempts=int(N_max_est/10_000),    # 0 = only accept lines (fast)
+            log_accepts=1
+    )
+    finally:
+        os.close(fd)
+
+    # check sanity
+    
+    
+    attempts_per_rod = []
+
+    import re
+    from matplotlib import pyplot as plt
+
+    pattern = re.compile(r"rod (\d+)\] ACCEPT after attempts=(\d+)")
+
+    
+    with open(log_path) as f:
+        for line in f:
+            m = pattern.search(line)
+            if m:
+                rod_idx = int(m.group(1))
+                attempts = int(m.group(2))
+                # Ensure list is long enough
+                while len(attempts_per_rod) <= rod_idx:
+                    attempts_per_rod.append(0)
+                attempts_per_rod[rod_idx] = attempts
+
+    # Plot
+    plt.figure(figsize=(6,4))
+    plt.plot(range(len(attempts_per_rod)), attempts_per_rod, 'o-')
+    plt.xlabel("Rod index")
+    plt.ylabel("Attempts until placement")
+    plt.title("Attempts per rod")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+    # attempts_list = []
+    # qq = []
+    # for N in NN:
+    #     t0 = time.time()
+    #     q, placed, attempts = create_nonintersecting_random_rods_contained_npbc_numba(
+    #         num_rods=int(N),
+    #         rod_diameter=rod_diameter,
+    #         container_size=C,
+    #         max_attempts=max_attempts,
+    #         rod_length=rod_length,
+    #         cell_size=cell_size,
+    #         grid_capacity_multiplier=grid_capacity_multiplier,
+    #         seed=seed
+    #     )
+    #     dt = time.time() - t0
+    #     print(f"N={N:6d} placed={placed:6d} time={dt:.3f} sec  ({dt / max(1, N) * 1e6:.1f} µs/rod)")
+    #     attempts_list.append(attempts)
+    #     qq.append(q)
 
     # final verification on last run
     inside = (
@@ -767,21 +891,24 @@ if __name__ == "__main__":
 
 
     # save all data
-    np.savetxt(f'{output_dir}/attempts_vs_N_npbc.txt', np.column_stack((NN, attempts_list)), header='N Attempts', comments='')
-    # save qq
-    qq = np.array(qq, dtype=object)
-    np.savez_compressed(f'{output_dir}/placed_rods_npbc.npz', NN=NN, qq=qq)    
-
-    from matplotlib import pyplot as plt
-    plt.plot(NN/N_max_est, attempts_list, marker='o')
-    plt.xlabel('N')
-    plt.ylabel('Attempts to place all rods')
-    plt.title('Attempts vs N')
-    plt.grid(True)
-    plt.savefig(f'{output_dir}/attempts_vs_N_npbc.png', dpi=300)
-    plt.show()
+    # np.savetxt(f'{output_dir}/attempts_vs_N_npbc.txt', np.column_stack((NN, attempts_list)), header='N Attempts', comments='')
+    # # save qq
+    # qq = np.array(qq, dtype=object)
+    # np.savez_compressed(f'{output_dir}/placed_rods_npbc.npz', NN=NN, qq=qq)
+    # np.savetxt(f'{output_dir}/placed_rods_npbc.txt', q, header='cx cy cz phi theta', comments='')
+    
+    # save q
+    np.save(f'{output_dir}/q.npy', q)
     
 
+    # from matplotlib import pyplot as plt
+    # plt.plot(NN/N_max_est, attempts_list, marker='o')
+    # plt.xlabel('N')
+    # plt.ylabel('Attempts to place all rods')
+    # plt.title('Attempts vs N')
+    # plt.grid(True)
+    # plt.savefig(f'{output_dir}/attempts_vs_N_npbc.png', dpi=300)
+    # plt.show()
 
     # Optional argmin visualization if your core utilities exist
     try:

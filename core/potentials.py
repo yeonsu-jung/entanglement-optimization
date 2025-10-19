@@ -18,14 +18,14 @@ def fixbound_nonjax(num):
         return 1
     return num
 
-def fixbound(num):
-    """Ensure the number is within the bounds [0, 1]."""
-    return jnp.clip(num, 0, 1)
 
 def compute_distance(d1, d2, d12, t, u):
     """Compute the distance for given parameters t and u."""
     return jnp.linalg.norm(d1 * t - d2 * u - d12)
 
+def fixbound(num):
+    """Ensure the number is within the bounds [0, 1]."""
+    return jnp.clip(num, 0, 1)
 ###########
 @jit
 def dist_lin_seg(point1s, point1e, point2s, point2e):

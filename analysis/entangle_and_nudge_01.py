@@ -1,7 +1,6 @@
 import sys
 sys.path.append('../core')  # to import from parent folder
 
-
 from protocols import create_nonintersecting_random_rods, create_nonintersecting_random_rods_contained
 from protocols import create_nonintersecting_random_rods_contained_centroids, create_nonintersecting_random_rods_contained_pbc
 from transforms import q_to_x
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     save_folder = f'{output_folder}'
 
 
-    num_rods = 100
+    num_rods = 20
     alpha = 100
     rod_diameter = 1/alpha
     container_size = 1
@@ -94,22 +93,32 @@ if __name__ == "__main__":
     i_indices, j_indices = jnp.triu_indices(num_rods, k=1)
 
     k = 0
-    step_size = 1e-2
+    step_size = 1e-3
+    qq = []
     for _ in range(10000):
 
-        step_size = step_size * 0.9995
+        # step_size = step_size * 0.9995
         
         grad = grad_fn(q)
         q = q - step_size * grad
 
         # project a bit
         
-        for __ in range(10):
+        for __ in range(1000):
             grad2 = grad_fn2(q)
             q = q - step_size * grad2
 
+            x = q_to_x(q)
+            r1 = x.reshape(-1, 6)[:,:3]
+            r2 = x.reshape(-1, 6)[:,3:]
+
+            dist_mat = dist_lin_seg_over_ij(r1,r2, i_indices, j_indices)
+            min_dist = jnp.min(dist_mat)
+            if min_dist > rod_diameter * 0.99:
+                break
+        qq.append(q)
         # save every 10 steps
-        if _ % 100 == 0:
+        if _ % 10 == 0:
 
             # x = q_to_x(q).reshape(2,-1,3)
             # p1s = x[0,0]
@@ -137,8 +146,9 @@ if __name__ == "__main__":
             ps.screenshot(str(pth))
             
             k += 1
-
-    
+    # save qq
+    onp.save(f"{output_folder}/qq.npy", onp.array(qq))
+# %%    
 
 
 # %%

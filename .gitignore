@@ -49,3 +49,6 @@ logd
 logp
 *.csv
 *.pyc
+*.npz
+**/.vscode/*
+.env
