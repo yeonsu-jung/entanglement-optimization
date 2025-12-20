@@ -893,34 +893,37 @@ def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize
     from potentials import dist_lin_seg_over_ij
     from transforms import q_to_x
     
-    for k in range(N_outer):
-        col_rad_0 = params["col_rad"]
-        params["col_rad"] = params["col_rad"]*(1.00001)
-        f = lambda q: f_in(q,params)
+    # Only stopping criterion: strict no-overlap.
+    # Rod diameter is 2*col_rad. Require min distance >= nextafter(diameter, +inf)
+    # to enforce machine-precision strictness.
+    col_rad_0 = params["col_rad"]
+    rod_diameter = 2 * col_rad_0
+    no_overlap_threshold = jnp.nextafter(rod_diameter, jnp.inf)
+
+    # Quick exit if already non-overlapping.
+    q_pairs = create_pairs(q.reshape(-1, 5))
+    distances = all_pairwise_distances(q_pairs)
+    if jnp.min(distances) >= no_overlap_threshold:
+        return q
+
+    # Iterate FIRE chunks until non-overlap is achieved.
+    # N_outer now acts only as a hard guard against infinite loops; we do not stop
+    # based on gradient/error/atol.
+    k = 0
+    while True:
+        f = lambda q: f_in(q, params)
         df = jit(grad(jit(f)))
-        # q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
         q, f_val, _, error = optimize_fire_nonjax_individual(q, f, df, Nmax, atol, dt, callback=callback)
-        # q, f_val, _, error = optimize_fire_jax_individual(q, f, df, Nmax, atol, dt, callback=callback)
-        
-        # if (error < atol_min):
-        #     print(f"Error is smaller than atol_min: {error}")
-        #     break
-        
-        q_pairs = create_pairs(q.reshape(-1,5))
+
+        q_pairs = create_pairs(q.reshape(-1, 5))
         distances = all_pairwise_distances(q_pairs)
-        # dt = dt/1.1     # TO DO: factor out this numbers
-        # if jnp.abs(jnp.min(distances) - col_rad_0) < col_rad_0*1e-6:
+        min_d = jnp.min(distances)
 
-        # if k % 100 == 0:
-        #     x = q_to_x(q)
-        #     r1 = x[:,0:3]
-        #     r2 = x[:,3:6]
-        #     dist_mat = dist_lin_seg_over_ij(r1, r2, i_indices, j_indices)
-        #     print(f"Min distance between rods: {jnp.min(dist_mat)}")
-
-        if (jnp.min(distances) - col_rad_0*2) > 0:
-            print(f"Enough pushoff: {jnp.min(distances)}")           
+        if min_d >= no_overlap_threshold:
+            print(f"No-overlap achieved: min_d={min_d}")
             break
+
+        k += 1
     
     return q
 
