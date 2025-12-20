@@ -895,7 +895,7 @@ def collision_relaxation(q,f_in,params,N_outer,Nmax,atol,dt,atol_min=1,visualize
     
     for k in range(N_outer):
         col_rad_0 = params["col_rad"]
-        params["col_rad"] = params["col_rad"]*(1)
+        params["col_rad"] = params["col_rad"]*(1.00001)
         f = lambda q: f_in(q,params)
         df = jit(grad(jit(f)))
         # q, f_val, num_iterations, error = optimize_fire_nonjax(q, f, df, Nmax, atol, dt, False)
