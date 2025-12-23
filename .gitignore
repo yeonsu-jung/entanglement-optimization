@@ -49,3 +49,5 @@ logp
 # Separate C++ workspace
 cpp-implementation/*
 backup-cpp/*
+
+documents/*
