@@ -18,14 +18,14 @@ def fixbound_nonjax(num):
         return 1
     return num
 
-def fixbound(num):
-    """Ensure the number is within the bounds [0, 1]."""
-    return jnp.clip(num, 0, 1)
 
 def compute_distance(d1, d2, d12, t, u):
     """Compute the distance for given parameters t and u."""
     return jnp.linalg.norm(d1 * t - d2 * u - d12)
 
+def fixbound(num):
+    """Ensure the number is within the bounds [0, 1]."""
+    return jnp.clip(num, 0, 1)
 ###########
 @jit
 def dist_lin_seg(point1s, point1e, point2s, point2e):
@@ -588,37 +588,86 @@ def nematic_tensor(q):
 
 @jit
 def compute_nematic_order(qq):
+    """Compute nematic order for a set of rods in 5D representation.
+
+    Inputs
+    ------
+    qq : (...,) or (N,5)
+        Flattened or shaped array where each rod is (cx, cy, cz, phi, theta).
+
+    Returns
+    -------
+    Q_avg : (3,3)
+        The average second-moment tensor <u u^T>.
+    Q : (3,3)
+        The traceless nematic tensor Q = (3/2)(Q_avg - I/3).
+    S : ()
+        Nematic order parameter (largest eigenvalue of Q).
+    evals : (3,)
+        Eigenvalues of Q in ascending order.
+    evecs : (3,3)
+        Corresponding eigenvectors as columns.
+    """
     qq = jnp.reshape(qq, (-1, 5))
-    
+
     def body_fun(carry, q):
-        # Increment carry by the result of effective_potential applied to q_pair
         return carry + nematic_tensor(q), None
-    # Perform scan; initial carry value is 0
-    total, _ = lax.scan(body_fun, 0, qq)
+
+    total, _ = lax.scan(body_fun, jnp.zeros((3,3)), qq)
+    N = qq.shape[0]
+    Q_avg = total / (N + 1e-12)
+    I = jnp.eye(3)
+    Q = 1.5 * (Q_avg - (1.0/3.0) * I)
+
+    # Eigen-decomposition (symmetric)
+    evals, evecs = jnp.linalg.eigh(Q)
+    S = evals[-1]
+    return Q_avg, Q, S, evals, evecs
+
+def directors_from_q(qq):
+    """Return unit directors u for each rod from 5D representation qq.
+
+    qq: (...,) or (N,5) with (cx,cy,cz, phi, theta)
+    returns: (N,3) unit vectors.
+    """
+    qq = jnp.reshape(qq, (-1,5))
+    phi = qq[:,3]
+    theta = qq[:,4]
+    u = jnp.stack([
+        jnp.sin(phi)*jnp.cos(theta),
+        jnp.sin(phi)*jnp.sin(theta),
+        jnp.cos(phi)
+    ], axis=1)
+    return u
 
 
 
 @jit
 def pairwise_angle(q_pair):
-    x_i =     q_pair[0]
-    y_i =     q_pair[1]
-    z_i =     q_pair[2]
-    phi_i =   q_pair[3]
-    theta_i = q_pair[4]
-  
-    x_j =     q_pair[5]
-    y_j =     q_pair[6]
-    z_j =     q_pair[7]
-    phi_j =   q_pair[8]
-    theta_j = q_pair[9]
+    """Minimal angle between two undirected rod axes.
 
-    p_i = jnp.array([x_i, y_i, z_i])
-    p_j = jnp.array([x_j, y_j, z_j])
-    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+    Rods are axis-like (u ~ -u), so only the smaller angle between directions matters.
+    We first compute θ in [0, π] via arctan2(||u_i × u_j||, u_i · u_j) and then map to
+    φ = min(θ, π - θ) giving φ ∈ [0, π/2]. For two random undirected axes, the isotropic
+    reference PDF becomes p(φ) = sin φ over [0, π/2].
+    """
+    x_i =     q_pair[0];  y_i =     q_pair[1];  z_i =     q_pair[2]
+    phi_i =   q_pair[3];  theta_i = q_pair[4]
+    x_j =     q_pair[5];  y_j =     q_pair[6];  z_j =     q_pair[7]
+    phi_j =   q_pair[8];  theta_j = q_pair[9]
 
-    # return jnp.arctan2(jnp.linalg.norm(jnp.cross(u_i, u_j)), jnp.dot(u_i, u_j))
-    return jnp.abs(jnp.arctan(jnp.linalg.norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i),
+                     jnp.sin(phi_i)*jnp.sin(theta_i),
+                     jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j),
+                     jnp.sin(phi_j)*jnp.sin(theta_j),
+                     jnp.cos(phi_j)])
+
+    cross_norm = jnp.linalg.norm(jnp.cross(u_i, u_j))
+    dot_val   = jnp.clip(jnp.dot(u_i, u_j), -1.0, 1.0)
+    theta = jnp.arctan2(cross_norm, dot_val)  # [0, π]
+    # map to minimal angle φ in [0, π/2]
+    return jnp.minimum(theta, jnp.pi - theta)
 
 @jit
 def pairwise_skewness(q_pair):
@@ -1011,7 +1060,8 @@ def collision_penalized_entanglement_potential(q):
     # min_dist = 0.02
     # boundary_regularization = 1e12 * (1.0/(dist - min_dist)) ** 2
        
-    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + 1.*(dist-0.001)**2
+    # eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + 1.*(dist-0.001)**2
+    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
     return eff_pot
 
 def seg_seg_distance(q):
@@ -1653,6 +1703,86 @@ def test_dist_lin_seg_periodic():
 
     print("Euclidean distance:", d_no_pbc)
     print("PBC distance     :", d_with_pbc)
+
+# ---------------------------------------------------------------------------
+# Infinite line distance utilities (skew line distance ignoring segment bounds)
+# ---------------------------------------------------------------------------
+# For lines L1: p1s + t u1, L2: p2s + s u2. If not parallel, distance = |(p2s-p1s)·(u1×u2)| / ||u1×u2||.
+# If parallel (u1×u2 ~ 0), use distance from p2s to L1: || (p2s-p1s) - ((p2s-p1s)·u1) u1 / ||u1||^2 ||.
+
+from jax import jit as _jit_infinite
+
+@_jit_infinite
+def dist_infinite_lines(p1s, p1e, p2s, p2e):
+    """Distance between the two infinite lines defined by the segment endpoints.
+    Rigid-motion invariant; ignores endpoints (no clamping) so softer derivative structure.
+    """
+    u1 = p1e - p1s
+    u2 = p2e - p2s
+    v = p2s - p1s
+    n = jnp.cross(u1, u2)
+    n_norm = jnp.linalg.norm(n)
+    # Parallel case fallback
+    def _parallel_case():
+        u1_norm2 = jnp.dot(u1, u1) + 1e-12
+        proj = v - (jnp.dot(v, u1) / u1_norm2) * u1
+        return jnp.linalg.norm(proj)
+    def _skew_case():
+        return jnp.abs(jnp.dot(v, n)) / (n_norm + 1e-12)
+    return lax.cond(n_norm < 1e-12, lambda _: _parallel_case(), lambda _: _skew_case(), operand=None)
+
+@_jit_infinite
+def dist_infinite_lines_over_ij(r1, r2, i_indices, j_indices):
+    """Vectorized infinite-line distances over index pairs.
+    r1, r2: (N,3) start/endpoints per rod; returns (num_pairs,) distances.
+    """
+    p1s = r1[i_indices]
+    p1e = r2[i_indices]
+    p2s = r1[j_indices]
+    p2e = r2[j_indices]
+    u1 = p1e - p1s
+    u2 = p2e - p2s
+    v = p2s - p1s
+    n = jnp.cross(u1, u2)
+    n_norm = jnp.linalg.norm(n, axis=1)
+    # Skew distances
+    skew_dist = jnp.abs(jnp.einsum('ij,ij->i', v, n)) / (n_norm + 1e-12)
+    # Parallel fallback distances
+    u1_norm2 = jnp.einsum('ij,ij->i', u1, u1) + 1e-12
+    proj = v - (jnp.einsum('ij,ij->i', v, u1) / u1_norm2)[:, None] * u1
+    par_dist = jnp.linalg.norm(proj, axis=1)
+    return jnp.where(n_norm < 1e-12, par_dist, skew_dist)
+
+# ---------------------------------------------------------------------------
+# Convenience: segment distances directly from q (center + spherical angles)
+# ---------------------------------------------------------------------------
+@_jit_infinite
+def dist_lin_seg_over_ij_q(q, i_indices, j_indices, length=1.0):
+        """Pairwise segment distances from 5D representation q = (cx,cy,cz,theta,phi).
+
+        Each rod endpoint pair is reconstructed as:
+            center = q[:,:3]
+            u = sph2cart(theta, phi)  (already defined in transforms)
+            r1 = center - 0.5*length*u
+            r2 = center + 0.5*length*u
+
+        Returns vector of distances over provided (i,j) index arrays.
+        """
+        from transforms import sph2cart  # local import to avoid circular issues at module load
+        q = q.reshape(-1,5)
+        center = q[:, :3]
+        u = sph2cart(q[:,3], q[:,4])  # (N,3)
+        r1 = center - 0.5*length*u
+        r2 = center + 0.5*length*u
+        p1s = r1[i_indices]; p1e = r2[i_indices]
+        p2s = r1[j_indices]; p2e = r2[j_indices]
+        # Reuse existing dist_lin_seg logic per pair via vmap for efficiency
+        # Vectorized minimal segment distance (bounded) rather than infinite-line distance.
+        def _pair_distance(a1,a2,b1,b2):
+                return dist_lin_seg(a1,a2,b1,b2)
+        from jax import vmap as _vmap
+        vfn = _vmap(_pair_distance, in_axes=(0,0,0,0))
+        return vfn(p1s, p1e, p2s, p2e)
 
 if __name__ == "__main__":
     # test_skewness()

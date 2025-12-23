@@ -1,11 +1,94 @@
+import sys
+sys.path.append('../core')  # to import from parent folder
+
 from protocols import create_nonintersecting_random_rods, create_nonintersecting_random_rods_contained
 from protocols import create_nonintersecting_random_rods_contained_centroids, create_nonintersecting_random_rods_contained_pbc
 from transforms import q_to_x
+
 import numpy as onp
 import jax.numpy as jnp
 
 import matplotlib.pyplot as plt
 from visualizations import plot_many_rods
+from jax import jit, vmap, lax
+import jax
+
+
+
+
+def fixbound(num):
+    """Ensure the number is within the bounds [0, 1]."""
+    return jnp.clip(num, 0, 1)
+###########
+@jit
+def dist_lin_seg(point1s, point1e, point2s, point2e):
+    """Calculate the shortest distance between two line segments using JAX with cond."""
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    
+    def case1():
+        (t,u) = lax.cond( D1 != 0. , 
+                    lambda _: (fixbound(S1/D1),0.),
+                    lambda _: lax.cond(D2 != 0.,
+                             lambda _: (0.,fixbound(-S2/D2)),
+                             lambda _: (0.,0.),
+                             None),
+                    None)        
+        return (t,u)
+    
+    def case2_1():
+        t = 0.
+        u = -S2/D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)
+    
+    def case2_2():
+        t = fixbound((S1 * D2 - S2 * R) / den)
+        u = (t * R - S2) / D2
+        uf = fixbound(u)
+        
+        (t,u) = lax.cond(uf != u, 
+                    lambda _: (fixbound((uf * R + S1) / D1), uf),
+                    lambda _: (t, u),
+                    None)
+        
+        return (t,u)        
+    
+    def case2():
+        (t,u) = lax.cond( den == 0. , 
+                    lambda _: case2_1(),                    
+                    lambda _: case2_2(),
+                    None)        
+        return (t,u)
+    
+    (t,u) = lax.cond( (D1 == 0.) & (D2 == 0.),
+                        lambda _: case1(),
+                        lambda _: case2(),
+                        None)
+    
+    dist = jnp.linalg.norm(d1 * t - d2 * u - d12)
+    
+    return dist
+
+@jit
+def dist_lin_seg_over_ij(r1, r2, i_indices, j_indices):
+    # vmap over the index pairs to compute the distance for each unique pair
+    return vmap(lambda i, j: dist_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
 
 
 # get current folder and make output folder named the current folder's name
@@ -32,7 +115,7 @@ if __name__ == "__main__":
     save_folder = f'{output_folder}'
 
 
-    num_rods = 100
+    num_rods = 20
     alpha = 100
     rod_diameter = 1/alpha
     container_size = 1
@@ -51,7 +134,7 @@ if __name__ == "__main__":
     
     col_rad = rod_diameter / 2
     amp = 100
-    params = {'col_rad': col_rad,
+    params = {'col_rad': col_rad*1.1,
               'amp': amp}
 
     grad_fn2 = jax.jit(jax.grad(lambda x: total_harmonic_line(x, params)))
@@ -60,6 +143,8 @@ if __name__ == "__main__":
     import polyscope as ps
     from transforms import q_to_x
     from visualizations import prep_for_polyscope
+
+
 
     q0 = create_nonintersecting_random_rods_contained_pbc(num_rods,rod_diameter, container_size)
     q = q0.copy()
@@ -90,22 +175,33 @@ if __name__ == "__main__":
     i_indices, j_indices = jnp.triu_indices(num_rods, k=1)
 
     k = 0
-    step_size = 1e-2
+    step_size = 1e-3
+    qq = []
     for _ in range(10000):
 
-        step_size = step_size * 0.9995
-        
+        # step_size = step_size * 0.9995        
         grad = grad_fn(q)
         q = q - step_size * grad
-
         # project a bit
         
-        for __ in range(10):
+        num_steps = 0
+        for __ in range(1000):
+            x = q_to_x(q)
+            r1 = x.reshape(-1, 6)[:,:3]
+            r2 = x.reshape(-1, 6)[:,3:]
+            dist_mat = dist_lin_seg_over_ij(r1,r2, i_indices, j_indices)
+
+            min_dist = jnp.min(dist_mat)
             grad2 = grad_fn2(q)
+
             q = q - step_size * grad2
 
+            num_steps += 1
+            if min_dist > rod_diameter * 1:
+                break
+        qq.append(q)
         # save every 10 steps
-        if _ % 100 == 0:
+        if _ % 10 == 0:
 
             # x = q_to_x(q).reshape(2,-1,3)
             # p1s = x[0,0]
@@ -113,7 +209,6 @@ if __name__ == "__main__":
             # p2s = x[1,0]
             # p2e = x[1,1]
             # t,u,r1,r2,r12,d = dist_lin_seg_vector(p1s, p1e, p2s, p2e)
-
             # print(f't: {t}, u: {u}, dist: {d}')
 
             
@@ -123,7 +218,7 @@ if __name__ == "__main__":
 
             dist_mat = dist_lin_seg_over_ij(r1,r2, i_indices, j_indices)
             min_dist = jnp.min(dist_mat)
-            print(f'step: {_}, min dist: {min_dist}, step size: {step_size}')
+            print(f'step: {_}, min dist: {min_dist}, step size: {step_size}, num projection steps: {num_steps}')
             
 
             a_list_of_curves = q_to_x(q).reshape(num_rods, -1, 3)
@@ -133,8 +228,9 @@ if __name__ == "__main__":
             ps.screenshot(str(pth))
             
             k += 1
-
-    
+    # save qq
+    onp.save(f"{output_folder}/qq.npy", onp.array(qq))
+# %%    
 
 
 # %%

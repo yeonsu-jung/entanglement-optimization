@@ -11,10 +11,14 @@ from jax import jit, vmap, lax
 from jax.lax import cond
 
 
+sys.path.append('core')
+
 # --- User-Defined Module Imports ---
 # Make sure the 'core' directory is in the Python path
 sys.path.append('../core') 
+
 from protocols import create_nonintersecting_random_rods_contained_pbc
+from protocols import create_nonintersecting_random_rods_contained_centroids
 from transforms import q_to_x
 # from visualizations import prep_for_polyscope
 from potentials import total_effective_potential, total_harmonic_line
@@ -123,7 +127,7 @@ def create_simulation_step_fn(grad_fn_potential, grad_fn_repulsion, rod_indices,
         """Performs one step of gradient descent followed by collision projection."""
         # 1. Apply the main potential gradient
         grad_potential = grad_fn_potential(q)
-        q = q - step_size * grad_potential
+        q = q - 0.1*step_size * grad_potential
         
         # 2. Use a while_loop for efficient collision projection
         def projection_cond(state):
@@ -158,13 +162,15 @@ def setup_directories(script_path):
 def main():
     # --- Configuration ---
     # Simulation Parameters
-    NUM_RODS = 200
-    ROD_DIAMETER = 1 / 500
-    CONTAINER_SIZE = 1.0
-    RANDOM_SEED = 11
+    # NUM_RODS = 200
+    ROD_DIAMETER = 1 / ASPECT_RATIO
+
+
+    CONTAINER_SIZE = 0.52
+    # RANDOM_SEED = 11
     
     # Gradient Descent Parameters
-    TOTAL_STEPS = 200
+    # TOTAL_STEPS = 10000
     STEP_SIZE = 1e-3
     MAX_PROJECTION_STEPS = 1000
     
@@ -179,7 +185,17 @@ def main():
     output_dir, movie_dir = setup_directories(__file__)
     key = jax.random.PRNGKey(RANDOM_SEED)
 
-    q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
+    # q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
+    CONTAINER_SIZE = 0.05
+    q0 = create_nonintersecting_random_rods_contained_centroids(NUM_RODS,ROD_DIAMETER,CONTAINER_SIZE,random_seed=RANDOM_SEED,max_attempts=10000)
+    # x0 = q_to_x(q0)
+    # # plot
+    # from visualizations import plot_many_rods
+    # # def plot_many_rods(q,ax=None,opt_dict={}):
+    # plot_many_rods(q0)
+    
+    # from matplotlib import pyplot as plt
+    # plt.axis('equal')
     
     # Define potential functions and their JIT-compiled gradients
     grad_potential_fn = jit(jax.grad(total_effective_potential))
@@ -202,30 +218,49 @@ def main():
     )
 
     # --- Polyscope Visualization Setup ---
-    # if os.name != 'nt':
-    #     ps.init()
-    #     ps.set_autoscale_structures(False)
-    #     ps.set_automatically_compute_scene_extents(False)
-    #     ps.set_ground_plane_mode("none")
-    #     ps.set_length_scale(2.)
-    #     ps.set_bounding_box((-2., -2., -2.), (2., 2., 2.))
-    #     ps.set_up_dir("z_up")
+    import platform
 
-    #     initial_curves = q_to_x(q0).reshape(NUM_RODS, -1, 3)
-    #     nodes, edges, _ = prep_for_polyscope(initial_curves, NUM_RODS)
-    #     ps_curves = ps.register_curve_network("filaments", nodes, edges)
-    #     ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)
-    # else:
-    #     print("Polyscope visualization skipped on Linux OS.")
+    system_name = platform.system()
+    if system_name == "Darwin":
+        print("Running on macOS")
+    elif system_name == "Linux":
+        print("Running on Linux")
+    else:
+        print(f"Other OS: {system_name}")
+
+    # only run polyscope if not on linux
+    if system_name == "Darwin":
+        import polyscope as ps
+        from visualizations import prep_for_polyscope
+        ps.init()
+        ps.set_autoscale_structures(False)
+        ps.set_automatically_compute_scene_extents(False)
+        ps.set_ground_plane_mode("none")
+        ps.set_length_scale(2.)
+        ps.set_bounding_box((-2., -2., -2.), (2., 2., 2.))
+        ps.set_up_dir("z_up")
+
+        initial_curves = q_to_x(q0).reshape(NUM_RODS, -1, 3)
+        nodes, edges, _ = prep_for_polyscope(initial_curves, NUM_RODS)
+        ps_curves = ps.register_curve_network("filaments", nodes, edges)
+        ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)    
 
     # --- Simulation Loop ---
     print("🚀 Starting simulation...")
     q = q0
+
+    from npy_append_array import NpyAppendArray
     # Pre-allocate array for history instead of appending to a list
     q_history = np.zeros((TOTAL_STEPS // SAVE_EVERY_N_STEPS, *q0.shape))
 
     for step_idx in range(TOTAL_STEPS):
         q, num_proj_steps = step_fn(q, STEP_SIZE)
+
+        # append
+        if step_idx % (SAVE_EVERY_N_STEPS*1) == 0:
+            npy_path = output_dir / "q_history_temp.npy"
+            np.save(npy_path, q_history[:step_idx // SAVE_EVERY_N_STEPS + 1])
+            
         
         # --- Visualization and Logging ---
         if step_idx % SAVE_EVERY_N_STEPS == 0:
@@ -236,19 +271,17 @@ def main():
             print(f"Step: {step_idx:5d} | Min Distance: {min_dist:.4f} | Projection Steps: {num_proj_steps}")
 
 
-            # if os is linux, ignore below
-            # if os.name != 'nt':
-            #     print("Polyscope visualization skipped on Linux OS.")
-            # else:                
-            #     ps.set_window_title(f"Step: {step_idx:5d} | Min Dist: {min_dist:.4f} | Proj Steps: {num_proj_steps}")
+            # if os is linux, ignore below            
+            if system_name == "Darwin":
+                # ps.set_window_title(f"Step: {step_idx:5d} | Min Dist: {min_dist:.4f} | Proj Steps: {num_proj_steps}")
 
-            #     # Update Polyscope view
-            #     updated_curves = q_to_x(q).reshape(NUM_RODS, -1, 3)
-            #     ps_curves.update_node_positions(updated_curves.reshape(-1, 3))
+                # Update Polyscope view
+                updated_curves = q_to_x(q).reshape(NUM_RODS, -1, 3)
+                ps_curves.update_node_positions(updated_curves.reshape(-1, 3))
                 
-            #     # Save screenshot
-            #     screenshot_path = movie_dir / f"step-{history_idx:04d}.png"
-            #     ps.screenshot(str(screenshot_path), transparent_bg=True)
+                # Save screenshot
+                screenshot_path = movie_dir / f"step-{history_idx:04d}.png"
+                ps.screenshot(str(screenshot_path), transparent_bg=True)
 
     # --- Save Final Results ---
     final_q_path = output_dir / "q_history.npy"
@@ -256,4 +289,21 @@ def main():
     print(f"✅ Simulation finished. Saved history to {final_q_path}")
 
 if __name__ == "__main__":
+    import sys
+    # assert(len(sys.argv) == 5)
+    
+    if len(sys.argv) != 5:
+        print("Usage: python entangle_and_nudge_03.py <NUM_RODS> <ASPECT_RATIO> <RANDOM_SEED> <TOTAL_STEPS>")
+        NUM_RODS = 20
+        ASPECT_RATIO = 100
+        RANDOM_SEED = 11
+        TOTAL_STEPS = 1000
+    else:
+        NUM_RODS = int(sys.argv[1])
+        ASPECT_RATIO = int(sys.argv[2])
+        RANDOM_SEED = int(sys.argv[3])
+        TOTAL_STEPS = int(sys.argv[4])
+
+    print(f"NUM_RODS: {NUM_RODS}, ASPECT_RATIO: {ASPECT_RATIO}, RANDOM_SEED: {RANDOM_SEED}, TOTAL_STEPS: {TOTAL_STEPS}")
+
     main()

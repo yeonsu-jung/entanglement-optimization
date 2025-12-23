@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "entanglement-optimization"
+version = "0.1.0"
+description = "Readable, reusable tools for rod packing and entanglement simulations"
+authors = [{ name = "Yeonsu" }]
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.22",
+  "numba>=0.56",
+  "matplotlib>=3.6",
+]
+license = { text = "MIT" }
+
+[project.urls]
+Homepage = "https://github.com/yeonsu/entanglement-optimization"
+
+[project.scripts]
+entangle-pack-npbc = "core.fast_packing:main"
+
+[tool.setuptools]
+packages = ["core"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+ignore = ["E501"]

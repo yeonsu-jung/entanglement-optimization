@@ -11,9 +11,12 @@ from jax import jit, vmap, lax
 from jax.lax import cond
 
 
+sys.path.append('core')
+
 # --- User-Defined Module Imports ---
 # Make sure the 'core' directory is in the Python path
 sys.path.append('../core') 
+
 from protocols import create_nonintersecting_random_rods_contained_pbc
 from protocols import create_nonintersecting_random_rods_contained_centroids
 from transforms import q_to_x
@@ -183,7 +186,16 @@ def main():
     key = jax.random.PRNGKey(RANDOM_SEED)
 
     # q0 = create_nonintersecting_random_rods_contained_pbc(NUM_RODS, ROD_DIAMETER, CONTAINER_SIZE)
+    CONTAINER_SIZE = 0.05
     q0 = create_nonintersecting_random_rods_contained_centroids(NUM_RODS,ROD_DIAMETER,CONTAINER_SIZE,random_seed=RANDOM_SEED,max_attempts=10000)
+    # x0 = q_to_x(q0)
+    # # plot
+    # from visualizations import plot_many_rods
+    # # def plot_many_rods(q,ax=None,opt_dict={}):
+    # plot_many_rods(q0)
+    
+    # from matplotlib import pyplot as plt
+    # plt.axis('equal')
     
     # Define potential functions and their JIT-compiled gradients
     grad_potential_fn = jit(jax.grad(total_effective_potential))
@@ -278,11 +290,19 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    assert(len(sys.argv) == 5)
-    NUM_RODS = int(sys.argv[1])
-    ASPECT_RATIO = int(sys.argv[2])
-    RANDOM_SEED = int(sys.argv[3])
-    TOTAL_STEPS = int(sys.argv[4])
+    # assert(len(sys.argv) == 5)
+    
+    if len(sys.argv) != 5:
+        print("Usage: python entangle_and_nudge_03.py <NUM_RODS> <ASPECT_RATIO> <RANDOM_SEED> <TOTAL_STEPS>")
+        NUM_RODS = 5
+        ASPECT_RATIO = 100
+        RANDOM_SEED = 11
+        TOTAL_STEPS = 1000
+    else:
+        NUM_RODS = int(sys.argv[1])
+        ASPECT_RATIO = int(sys.argv[2])
+        RANDOM_SEED = int(sys.argv[3])
+        TOTAL_STEPS = int(sys.argv[4])
 
     print(f"NUM_RODS: {NUM_RODS}, ASPECT_RATIO: {ASPECT_RATIO}, RANDOM_SEED: {RANDOM_SEED}, TOTAL_STEPS: {TOTAL_STEPS}")
 

@@ -290,7 +290,7 @@ from jax import jit, grad, tree_map
 import numpy as np
 from functools import partial
 
-@partial(jit, static_argnames=['f', 'df', 'callback'])
+@partial(jit, static_argnames=['f', 'df', 'callback', 'Nmax', 'logoutput'])
 def optimize_fire_jax_individual(q0, f, df, Nmax, atol=1e-4, dt=0.002, logoutput=False, callback=None):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
@@ -335,10 +335,10 @@ def optimize_fire_jax_individual(q0, f, df, Nmax, atol=1e-4, dt=0.002, logoutput
 
         # Error evaluation
         error = jnp.max(jnp.abs(F))
-        if i % 10 == 0:
-            print(f"Iteration: {i}, fval: {f(q):.7f}, error: {error:.7f}")
-            if callback is not None:
-                callback(q, {"numbering": i // 10})
+        # if i % 10 == 0:
+        #     print(f"Iteration: {i}, fval: {f(q):.7f}, error: {error:.7f}")
+        #     if callback is not None:
+        #         callback(q, {"numbering": i // 10})
 
         # Check for termination or NaNs
         if jnp.isnan(F).any():

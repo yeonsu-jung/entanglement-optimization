@@ -3,6 +3,20 @@ import sys
 sys.path.append('../core')
 sys.path.append('core')
 
+# /Users/yeonsu/GitHub/filamentFields/filamentFields.cpython-312-darwin.so
+sys.path.append('/Users/yeonsu/GitHub/filamentFields')
+
+this_file = __file__
+from pathlib import Path
+# Script filename stem
+file_name = Path(this_file).stem
+# Use script directory to build results path inside repo: <repo_root>/results/<script_stem>
+script_dir = Path(this_file).parent.resolve()
+repo_root = script_dir.parent  # one level up from analysis/
+output_folder = repo_root / 'results' / file_name
+output_folder.mkdir(parents=True, exist_ok=True)
+print(f"[analysis_entrel_final3] Saving copies of aggregate figures to: {output_folder}")
+
 import numpy as np
 from analysis import orientational_statistics,compute_nematic_order
 from transforms import q_to_x, x_to_q
@@ -20,6 +34,32 @@ pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/6,7,8/2025-02-18_
 pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/6,7,8/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0200-Scale1/x_relaxed.txt')
 pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/6,7,8/2025-11-05_21_EntangledRelaxedPacking-N0200-AR0010-Scale1/x_relaxed.txt')
 pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/6,7,8/2025-11-05_21_EntangledRelaxedPacking-N0200-AR1000-Scale1/x_relaxed.txt')
+
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-11-05_21_EntangledRelaxedPacking-N0200-AR1000-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-11-05_21_EntangledRelaxedPacking-N0200-AR0010-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0200-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0075-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0020-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0010-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0500-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0300-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0150-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0100-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/37,178,56/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0050-Scale1/x_relaxed.txt')
+
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0050-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0100-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0150-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0300-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-16_17_EntangledRelaxedPacking-N0200-AR0500-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0010-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0020-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0075-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-02-18_18_EntangledRelaxedPacking-N0200-AR0200-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-11-05_21_EntangledRelaxedPacking-N0200-AR0010-Scale1/x_relaxed.txt')
+pathlist.append('/Users/yeonsu/Downloads/entangled_config_data/919,461,568/2025-11-05_21_EntangledRelaxedPacking-N0200-AR1000-Scale1/x_relaxed.txt')
+
+
 
 # pathlist.append("/Users/yeonsu/Dropbox (Harvard University)/Data/maximum-entanglement/3_1_2/3_1_2_separately.../2024-10-16_11_EntangledRelaxedPacking-N0500-AR0010-Scale1/q_relaxed.txt")
 # pathlist.append("/Users/yeonsu/Dropbox (Harvard University)/Data/maximum-entanglement/3_1_2/3_1_2_separately.../2024-10-15_11_EntangledRelaxedPacking-N0500-AR0020-Scale1/q_relaxed.txt")
@@ -102,7 +142,7 @@ def parse_pathname(pathname):
 _,_,num_rods,random_keys = parse_pathname(pathlist[0])
 # %%
 import os
-common_folder = f"/Users/yeonsu/Dropbox (Harvard University)/Data/maximum-entanglement/{random_keys}"
+common_folder = f"/Users/yeonsu/Harvard University Dropbox/Yeonsu Jung/Data/maximum-entanglement/{random_keys}"
 if not os.path.exists(common_folder):
     os.makedirs(common_folder)
 
@@ -165,7 +205,7 @@ for pth in pathlist:
     num_contacts = np.count_nonzero(distances < diameter*1.1)
     num_contacts_list.append(num_contacts)
     distances_list.append(distances)
-
+ 
     skewness = all_pairwise_skewness(q_pairs)
     skewness_list.append(skewness)
 
@@ -184,7 +224,7 @@ for i,S in enumerate(total_nematic_order_list):
     # get the first eigenvalue
     w,v = np.linalg.eig(S)
     w = np.sort(w)
-    plt.scatter(AR_list[i],w[2])
+    plt.scatter(AR_list[i], w[2], facecolors='none', edgecolors='C0')
 
 plt.ylim([0,1])
 plt.xlabel('Aspect Ratio, $\\alpha$')
@@ -205,7 +245,7 @@ for skewness in skewness_list:
     # for skewness in skewness_list[0]:
     #     plt.hist(skewness, bins=np.linspace(0.5-2,0.5+2,200), density=True)
 
-# plt.xlim([0.5-2,0.5+2])
+plt.xlim([0.5-2,0.5+2])
 plt.xlabel('$a_i$')
 plt.ylabel('Probability density, $P(a_i)$')
 # plt.legend(np.array(AR_list).astype(int))
@@ -230,6 +270,7 @@ plt.xlabel('$\Delta_i$')
 plt.ylabel('Probability density, $P(\Delta_i)$')
 # plt.legend(np.array(AR_list).astype(int))
 plt.savefig(f'{common_folder}/skewness_histogram_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+plt.savefig(f'{common_folder}/skewness_histogram_{dt_string}_N{num_rods}.svg', bbox_inches='tight')
 # %%
 # b to sigma
 bs = np.array(popt_list)[:,1]
@@ -240,16 +281,17 @@ def power_law(x,a):
 
 from scipy.optimize import curve_fit
 popt,pcov = curve_fit(power_law,AR_list,sigmas)
-x_fit = np.linspace(0,500,100)
+x_fit = np.linspace(0,1000,100)
 y_fit = power_law(x_fit,*popt)
 
 plt.figure(figsize=(2.5,2))
-plt.loglog(AR_list,sigmas,'o-',label='Data')
+plt.loglog(AR_list, sigmas, 'o-', label='Data', markerfacecolor='none')
 plt.loglog(x_fit,y_fit,label=f'$y={popt[0]:.2f}x^{{-3/4}}$')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel('Skewness width, $\\sigma_a$')
 plt.legend(fontsize=8)
 plt.savefig(f'{common_folder}/skewness_width_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+plt.savefig(f'{common_folder}/skewness_width_{dt_string}_N{num_rods}.svg', bbox_inches='tight')
 
 # %%
 plt.figure(figsize=(2.5,2))
@@ -275,27 +317,30 @@ plt.legend(np.array(AR_list).astype(int))
     
 # %%
 plt.figure(figsize=(2.5,2))
-plt.plot(AR_list,num_contacts_list/500,'o-')
+plt.plot(AR_list, num_contacts_list/500, 'o-', markerfacecolor='none')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel('Avg. no. of contacts')
 plt.savefig(f'{common_folder}/num_contacts_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+plt.savefig(f'{common_folder}/num_contacts_{dt_string}_N{num_rods}.svg', bbox_inches='tight')
 
 # %%
 normalized = -total_entanglement_list/(num_rods*(num_rods-1)/2)
 plt.figure(figsize=(2.5,2))
-plt.plot(AR_list,normalized,'o-')
+plt.plot(AR_list, normalized, 'o-', markerfacecolor='none')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel(r'$e/n_p$')
 plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}.png',dpi=300, bbox_inches='tight')
+plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}.svg', bbox_inches='tight')
 
 def exp_hill(x,a,b):
     return a*(1 - np.exp(-x/b))
 
-popt,pcov=curve_fit(exp_hill,AR_list,normalized,p0=[1,100])
+popt,pcov=curve_fit(exp_hill,AR_list,normalized,p0=[max(0.1,float(np.nanmax(normalized))),100.0],bounds=(0,np.inf))
 y_fit = exp_hill(x_fit,*popt)
-plt.plot(x_fit,y_fit,label=f'$y={popt[0]:.2f}\exp(-x/{popt[1]:.2f})$')
+plt.plot(x_fit,y_fit,label=f'$a={popt[0]:.2f},\\ b={popt[1]:.1f}$')
 plt.legend()
 plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}_fit.png',dpi=300, bbox_inches='tight')
+plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}_fit.svg', bbox_inches='tight')
 # %%
 
 # %%
@@ -414,6 +459,11 @@ def compute_dataset_metrics(paths: List[str]):
     ent_per_pair: List[float] = []
     num_rods = None
 
+    # store raw distributions per AR for later aggregation of PDFs
+    dist_raw: List[np.ndarray] = []
+    angle_raw: List[np.ndarray] = []
+    skew_delta_raw: List[np.ndarray] = []
+
     # histogram bins and fit function for skewness width
     x_bins = np.linspace(0, 2, 100)
 
@@ -459,12 +509,19 @@ def compute_dataset_metrics(paths: List[str]):
         w = np.sort(w)
         Smax = float(w[2])
 
+        # angles for PDF storage
+        angles = all_pairwise_angles(q_pairs)
+
         # append
         ARs.append(float(AR))
         avg_contacts.append(2.0 * n_contacts / 500.0)
         sigmas.append(sigma)
         ent_per_pair.append(e_pp)
         S_max.append(Smax)
+        # store distributions
+        dist_raw.append(distances)
+        angle_raw.append(angles)
+        skew_delta_raw.append(deltas)
 
     return {
         'ARs': np.array(ARs, dtype=float),
@@ -473,6 +530,9 @@ def compute_dataset_metrics(paths: List[str]):
         'avg_contacts': np.array(avg_contacts, dtype=float),
         'ent_per_pair': np.array(ent_per_pair, dtype=float),
         'num_rods': num_rods if num_rods is not None else 0,
+        'dist_raw': dist_raw,
+        'angle_raw': angle_raw,
+        'skew_delta_raw': skew_delta_raw,
     }
 
 
@@ -522,6 +582,76 @@ for rk in datasets_keys:
 
 agg_ARs, agg_means, agg_stds = aggregate_metrics(all_ds)
 
+# Build unified histograms (distance, angle, skewness delta) averaged across datasets for each AR
+common_ARs_list = list(agg_ARs)
+
+# Flatten raw arrays to determine global bin ranges
+all_distances = []
+all_angles = []
+all_skew_deltas = []
+for ds in all_ds:
+    for d in ds['dist_raw']:
+        all_distances.append(d)
+    for a in ds['angle_raw']:
+        all_angles.append(a)
+    for s in ds['skew_delta_raw']:
+        all_skew_deltas.append(s)
+if len(all_distances) > 0:
+    dist_min = max(1e-6, np.min([d.min() for d in all_distances]))
+    dist_max = np.max([d.max() for d in all_distances])
+else:
+    dist_min, dist_max = 1e-6, 1
+if len(all_angles) > 0:
+    angle_min = 0.0
+    angle_max = np.max([a.max() for a in all_angles])
+else:
+    angle_min, angle_max = 0, np.pi
+# For skewness metric a in [0,1] (segment parameter), visualize Δ=|a-0.5| ∈ [0,0.5]
+skew_min, skew_max = 0.0, 0.5
+
+# Use logarithmic binning for distance PDF
+dist_bins = np.logspace(np.log10(dist_min), np.log10(dist_max), 100)
+angle_bins = np.linspace(angle_min, angle_max, 100)
+skew_bins = np.linspace(skew_min, skew_max, 100)
+
+# Per AR store mean and std histograms
+dist_hist_mean = {}
+dist_hist_std = {}
+angle_hist_mean = {}
+angle_hist_std = {}
+skew_hist_mean = {}
+skew_hist_std = {}
+
+for AR in common_ARs_list:
+    # collect hist arrays for each dataset for this AR
+    dists_H = []
+    angles_H = []
+    skew_H = []
+    for ds in all_ds:
+        if AR in ds['ARs']:
+            idx = list(ds['ARs']).index(AR)
+            d_raw = ds['dist_raw'][idx]
+            a_raw = ds['angle_raw'][idx]
+            s_raw = ds['skew_delta_raw'][idx]
+            d_hist,_ = np.histogram(d_raw, bins=dist_bins, density=True)
+            a_hist,_ = np.histogram(a_raw, bins=angle_bins, density=True)
+            s_hist,_ = np.histogram(s_raw, bins=skew_bins, density=True)
+            dists_H.append(d_hist)
+            angles_H.append(a_hist)
+            skew_H.append(s_hist)
+    if dists_H:
+        dist_stack = np.vstack(dists_H)
+        dist_hist_mean[AR] = dist_stack.mean(axis=0)
+        dist_hist_std[AR] = dist_stack.std(axis=0)
+    if angles_H:
+        angle_stack = np.vstack(angles_H)
+        angle_hist_mean[AR] = angle_stack.mean(axis=0)
+        angle_hist_std[AR] = angle_stack.std(axis=0)
+    if skew_H:
+        skew_stack = np.vstack(skew_H)
+        skew_hist_mean[AR] = skew_stack.mean(axis=0)
+        skew_hist_std[AR] = skew_stack.std(axis=0)
+
 # output folder
 agg_folder = f"/Users/yeonsu/Harvard University Dropbox/Yeonsu Jung/Data/maximum-entanglement/aggregate_{'+'.join([rk.replace(',', '-') for rk in datasets_keys])}"
 ensure_dir(agg_folder)
@@ -549,7 +679,7 @@ def _errorbar_plot(x, y, yerr, xlabel, ylabel, fname, logx=False, logy=False):
         elinewidth=1.0,
         capsize=3,
         capthick=1.0,
-        markerfacecolor='white',
+        markerfacecolor='none',
         markeredgewidth=0.5,
     )
     ax = plt.gca()
@@ -560,6 +690,76 @@ def _errorbar_plot(x, y, yerr, xlabel, ylabel, fname, logx=False, logy=False):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.savefig(f"{agg_folder}/{fname}", dpi=300, bbox_inches='tight')
+    # Also export SVG
+    try:
+        stem = fname.rsplit('.', 1)[0]
+        plt.savefig(f"{agg_folder}/{stem}.svg", bbox_inches='tight')
+    except Exception:
+        pass
+
+
+# Separate plot: Skewness delta PDFs on log-log axes (per-AR mean ± std)
+try:
+    AR_sorted = sorted(common_ARs_list)
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', ['C0','C1','C2','C3','C4','C5','C6','C7','C8','C9'])
+    ar_color_map = {ar: default_colors[i % len(default_colors)] for i, ar in enumerate(AR_sorted)}
+
+    centers_sk = 0.5 * (skew_bins[:-1] + skew_bins[1:])
+    plt.figure(figsize=(2.5, 2))
+    ax_sk = plt.gca()
+    legend_lines_sk = []
+    for AR in AR_sorted:
+        if AR in skew_hist_mean:
+            mean_v = skew_hist_mean[AR]
+            std_v = skew_hist_std.get(AR, np.zeros_like(mean_v))
+            color = ar_color_map[AR]
+            ln, = ax_sk.plot(centers_sk, np.maximum(mean_v, 1e-16), color=color, lw=1, label=f'{int(AR):d}')
+            ax_sk.fill_between(centers_sk, np.maximum(mean_v - std_v, 1e-16), np.maximum(mean_v + std_v, 1e-16), color=color, alpha=0.25, linewidth=0)
+            legend_lines_sk.append(ln)
+    ax_sk.set_xscale('log')
+    ax_sk.set_yscale('log')
+    # Determine positive lower bound
+    x_lower = max(centers_sk[0], 1e-4)
+    ax_sk.set_xlim([x_lower, 0.5])
+    ax_sk.set_xlabel('$\\Delta_i = |a_i-0.5|$')
+    ax_sk.set_ylabel('PDF')
+    # Add reference slope lines y ~ x, y ~ x^{-2}, y ~ x^{-3} scaled at pivot
+    try:
+        # Aggregate a representative PDF (average over ARs)
+        if legend_lines_sk:
+            # Build average mean over ARs
+            means_stack = []
+            for AR in AR_sorted:
+                if AR in skew_hist_mean:
+                    means_stack.append(skew_hist_mean[AR])
+            if means_stack:
+                avg_mean = np.mean(np.vstack(means_stack), axis=0)
+                # Choose pivot near middle of x range
+                pivot_x = centers_sk[len(centers_sk)//2]
+                pivot_y = np.interp(pivot_x, centers_sk, np.maximum(avg_mean,1e-16))
+                ref_specs = [ (-1, 'x^{-1}'), (-3, 'x^{-3}'), (-4, 'x^{-4}') ]
+                for p, lbl in ref_specs:
+                    C = pivot_y / (pivot_x**p)
+                    y_ref = C * centers_sk**p
+                    ax_sk.plot(centers_sk, y_ref, linestyle='--', linewidth=0.8,
+                               color='k', alpha=0.6, label=f'$\propto {lbl}$')
+    except Exception as _eref:
+        print(f"[warn] Could not add reference slopes: {_eref}")
+    # Full legend with all ARs plus reference slopes
+    if legend_lines_sk:
+        handles, existing_labels = ax_sk.get_legend_handles_labels()
+        ar_handles = [h for h,l in zip(handles, existing_labels) if not l.startswith('$\\propto')]
+        ar_labels  = [l for l in existing_labels if not l.startswith('$\\propto')]
+        slope_handles = [h for h,l in zip(handles, existing_labels) if l.startswith('$\\propto')]
+        slope_labels  = [l for l in existing_labels if l.startswith('$\\propto')]
+        # Order: all ARs then slope references
+        ax_sk.legend(ar_handles + slope_handles, ar_labels + slope_labels, title='AR & refs', loc='lower left', frameon=False, fontsize=7, ncol=1)
+    plt.tight_layout()
+    ax_sk.set_ylim([1e-4,1e2])
+    plt.savefig(f"{agg_folder}/skewness_delta_pdf_loglog_aggregate_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{agg_folder}/skewness_delta_pdf_loglog_aggregate_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
+except Exception as _e:
+    print(f"[warn] Failed to generate log-log skewness delta PDF plot: {_e}")
 
 
 # 1) Nematic order (no fit before, so errorbar only)
@@ -592,7 +792,7 @@ plt.errorbar(
     elinewidth=1.0,
     capsize=3,
     capthick=1.0,
-    markerfacecolor='white',
+    markerfacecolor='none',
     markeredgewidth=0.5,
     label='Data (mean ± std)'
 )
@@ -603,6 +803,7 @@ plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel('Skewness width, $\\sigma_a$')
 plt.legend(fontsize=8)
 plt.savefig(f"{agg_folder}/skewness_width_aggregate_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+plt.savefig(f"{agg_folder}/skewness_width_aggregate_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
 
 # 3) Avg. contacts (no explicit fit originally)
 _errorbar_plot(
@@ -616,7 +817,13 @@ def exp_hill(x, a, b):
     return a * (1 - np.exp(-x / b))
 
 try:
-    popt_ent, pcov_ent = _curve_fit(exp_hill, agg_ARs, agg_means['ent_per_pair'], p0=[1.0, 100.0])
+    popt_ent, pcov_ent = _curve_fit(
+        exp_hill,
+        agg_ARs,
+        agg_means['ent_per_pair'],
+        p0=[max(0.1, float(np.nanmax(agg_means['ent_per_pair']))), 100.0],
+        bounds=(0, np.inf)
+    )
 except Exception:
     popt_ent = [np.nan, np.nan]
 
@@ -632,16 +839,18 @@ plt.errorbar(
     elinewidth=1.0,
     capsize=3,
     capthick=1.0,
-    markerfacecolor='white',
+    markerfacecolor='none',
     markeredgewidth=0.5,
     label='Data (mean ± std)'
 )
 if not np.isnan(popt_ent[0]):
-    plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$y={popt_ent[0]:.2f}(1-e^{{-x/{popt_ent[1]:.2f}}})$')
+    # plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$a={popt_ent[0]:.2f},\\ b={popt_ent[1]:.1f}$')
+    plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$y={popt_ent[0]:.2f}(1 - e^{{-x/{popt_ent[1]:.1f}}})$')
 plt.xlabel('Aspect Ratio, $\\alpha$')
 plt.ylabel(r'$e/n_p$')
 plt.legend(fontsize=8)
 plt.savefig(f"{agg_folder}/total_entanglement_aggregate_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+plt.savefig(f"{agg_folder}/total_entanglement_aggregate_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
 
 # Optional: also fit the alternative sigmoidal model y = x^n / (1 + x^n) used at the end of the script
 def foo(x, n):
@@ -659,7 +868,7 @@ try:
         elinewidth=1.0,
         capsize=3,
         capthick=1.0,
-        markerfacecolor='white',
+        markerfacecolor='none',
         markeredgewidth=0.5,
         label='Data (mean ± std)'
     )
@@ -668,6 +877,7 @@ try:
     plt.ylabel(r'$e/n_p$')
     plt.legend(fontsize=8)
     plt.savefig(f"{agg_folder}/total_entanglement_aggregate_altfit_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{agg_folder}/total_entanglement_aggregate_altfit_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
 except Exception:
     pass
 
@@ -704,7 +914,7 @@ if np.count_nonzero(mask) >= 2:
         elinewidth=1.0,
         capsize=3,
         capthick=1.0,
-        markerfacecolor='white',
+        markerfacecolor='none',
         markeredgewidth=0.5,
         label='Data (mean ± std)'
     )
@@ -716,6 +926,7 @@ if np.count_nonzero(mask) >= 2:
     plt.ylabel(r'$e/n_p$')
     plt.legend(fontsize=8)
     plt.savefig(f"{agg_folder}/total_entanglement_aggregate_loglog_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{agg_folder}/total_entanglement_aggregate_loglog_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
 else:
     print("Insufficient positive data points for log-log entanglement plot.")
 
@@ -734,17 +945,18 @@ if np.count_nonzero(_ent_x > 0) >= 2:
         elinewidth=1.0,
         capsize=3,
         capthick=1.0,
-        markerfacecolor='white',
+        markerfacecolor='none',
         markeredgewidth=0.5,
         label='Data (mean ± std)'
     )
     if not np.isnan(popt_ent[0]):
-        plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$y={popt_ent[0]:.2f}(1-e^{{-x/{popt_ent[1]:.2f}}})$')
+        plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$a={popt_ent[0]:.2f},\\ b={popt_ent[1]:.1f}$')
     plt.xscale('log')
     plt.xlabel('Aspect Ratio, $\\alpha$')
     plt.ylabel(r'$e/n_p$')
     plt.legend(fontsize=8)
     plt.savefig(f"{agg_folder}/total_entanglement_aggregate_semilogx_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{agg_folder}/total_entanglement_aggregate_semilogx_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
 
 # --- Semilog-Y plot (linear x, log y) for aggregated total entanglement per pair ---
 if np.count_nonzero(_ent_y > 0) >= 2:
@@ -761,15 +973,167 @@ if np.count_nonzero(_ent_y > 0) >= 2:
         elinewidth=1.0,
         capsize=3,
         capthick=1.0,
-        markerfacecolor='white',
+        markerfacecolor='none',
         markeredgewidth=0.5,
         label='Data (mean ± std)'
     )
     if not np.isnan(popt_ent[0]):
-        plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$y={popt_ent[0]:.2f}(1-e^{{-x/{popt_ent[1]:.2f}}})$')
+        plt.plot(x_fit_ent, y_fit_ent, '-', label=f'$a={popt_ent[0]:.2f},\\ b={popt_ent[1]:.1f}$')
     plt.yscale('log')
     plt.xlabel('Aspect Ratio, $\\alpha$')
     plt.ylabel(r'$e/n_p$')
     plt.legend(fontsize=8)
     plt.savefig(f"{agg_folder}/total_entanglement_aggregate_semilogy_N{all_ds[0]['num_rods']}.png", dpi=300, bbox_inches='tight')
+    plt.savefig(f"{agg_folder}/total_entanglement_aggregate_semilogy_N{all_ds[0]['num_rods']}.svg", bbox_inches='tight')
+
+    # ------------------------------------------------------
+    # Combined 2x3 panel figure (A-F)
+    # A: distance pdf
+    # B: angle pdf
+    # C: skewness PDF (delta)
+    # D: skewness width vs AR (mean ± std already computed)
+    # E: avg contacts vs AR (mean ± std)
+    # F: entanglement per pair vs AR (mean ± std and exp hill fit)
+    # ------------------------------------------------------
+
+    import matplotlib as mpl
+    # Use Matplotlib's default discrete color cycle for diverse AR colors
+    AR_sorted = sorted(common_ARs_list)
+    default_colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', ['C0','C1','C2','C3','C4','C5','C6','C7','C8','C9'])
+    ar_color_map = {ar: default_colors[i % len(default_colors)] for i, ar in enumerate(AR_sorted)}
+
+    fig, axes = plt.subplots(2,3, figsize=(9,6))
+    axA, axB, axC, axD, axE, axF = axes.flatten()
+
+    # Panel A: distance PDFs (mean ± std shaded)
+    legend_lines = []
+    for AR in AR_sorted:
+        if AR in dist_hist_mean:
+            # Geometric centers for log-spaced bins
+            centers = np.sqrt(dist_bins[:-1] * dist_bins[1:])
+            mean_v = dist_hist_mean[AR]
+            std_v = dist_hist_std.get(AR, np.zeros_like(mean_v))
+            color = ar_color_map[AR]
+            ln, = axA.plot(centers, mean_v, color=color, lw=1, label=f'{int(AR):d}')
+            axA.fill_between(centers, np.maximum(mean_v-std_v, 1e-16), mean_v+std_v, color=color, alpha=0.25, linewidth=0)
+            legend_lines.append(ln)
+    axA.set_xscale('log')
+    axA.set_yscale('log')
+    axA.set_ylim([1e-5, 1e3])
+    axA.set_xlabel('Distance, $d$')
+    axA.set_ylabel('PDF')
+    axA.text(0.02, 0.98, 'A', transform=axA.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+
+    # Panel B: angle PDFs (mean ± std shaded)
+    for AR in AR_sorted:
+        if AR in angle_hist_mean:
+            centers = 0.5*(angle_bins[:-1] + angle_bins[1:])
+            mean_v = angle_hist_mean[AR]
+            std_v = angle_hist_std.get(AR, np.zeros_like(mean_v))
+            color = ar_color_map[AR]
+            axB.plot(centers, mean_v, color=color, lw=1)
+            axB.fill_between(centers, np.maximum(mean_v-std_v, 0.0), mean_v+std_v, color=color, alpha=0.25, linewidth=0)
+    axB.set_xlabel('Angle, $\\theta$')
+    axB.set_ylabel('PDF')
+    axB.text(0.02, 0.98, 'B', transform=axB.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+    # Isotropic reference for undirected axes (θ ∈ [0, π/2]): p(θ) = sin θ
+    angle_centers = 0.5*(angle_bins[:-1] + angle_bins[1:])
+    iso_pdf = np.sin(angle_centers)
+    iso_ln, = axB.plot(angle_centers, iso_pdf, 'k--', lw=1.5, label='$p(\\theta)=\\sin(\\theta)$')
+    axB.legend([iso_ln], [iso_ln.get_label()], loc='upper right', frameon=False, fontsize=8)
+
+    # Panel C: skewness delta PDFs (mean ± std shaded)
+    for AR in AR_sorted:
+        if AR in skew_hist_mean:
+            centers = 0.5*(skew_bins[:-1] + skew_bins[1:])
+            mean_v = skew_hist_mean[AR]
+            std_v = skew_hist_std.get(AR, np.zeros_like(mean_v))
+            color = ar_color_map[AR]
+            axC.plot(centers, mean_v, color=color, lw=1)
+            axC.fill_between(centers, np.maximum(mean_v-std_v, 0.0), mean_v+std_v, color=color, alpha=0.25, linewidth=0)
+    axC.set_xlabel('$\\Delta_i = |a_i-0.5|$')
+    axC.set_xlim([0, 0.5])
+    axC.set_ylabel('PDF')
+    axC.text(0.02, 0.98, 'C', transform=axC.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+
+    # Panel D: skewness width vs AR
+    axD.errorbar(agg_ARs, agg_means['sigma'], yerr=agg_stds['sigma'], fmt='o', markersize=3, lw=0.8, capsize=3, label='mean ± std')
+    # Add power-law fit y = a * α^{-3/4}
+    try:
+        axD.plot(x_fit, y_fit_sig, '-', color='k', lw=1.2, label=f'fit $a={popt_sig[0]:.2f}\\,\\alpha^{{-3/4}}$')
+    except Exception:
+        pass
+    axD.set_xscale('log')
+    axD.set_yscale('log')
+    axD.set_xlabel('Aspect Ratio, $\\alpha$')
+    axD.set_ylabel('$\\sigma_a$')
+    axD.text(0.02, 0.98, 'D', transform=axD.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+    axD.legend(fontsize=8, frameon=False, loc='lower left')
+
+    # Panel E: avg contacts vs AR (connect points with a line; ensure x is sorted)
+    order = np.argsort(agg_ARs)
+    xE = agg_ARs[order]
+    yE = agg_means['avg_contacts'][order]
+    yEerr = agg_stds['avg_contacts'][order]
+    axE.errorbar(xE, yE, yerr=yEerr, fmt='o-', markersize=3, lw=0.8, capsize=3)
+    axE.set_xlabel('Aspect Ratio, $\\alpha$')
+    axE.set_ylabel('Avg contacts')
+    axE.text(0.02, 0.98, 'E', transform=axE.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+
+    # Panel F: ent per pair vs AR
+    axF.errorbar(agg_ARs, agg_means['ent_per_pair'], yerr=agg_stds['ent_per_pair'], fmt='o', markersize=3, lw=0.8, capsize=3, label='Data')
+    if not np.isnan(popt_ent[0]):
+        axF.plot(x_fit_ent, y_fit_ent, '-', label=f'$a={popt_ent[0]:.2f},\\ b={popt_ent[1]:.1f}$')
+    axF.set_xlabel('Aspect Ratio, $\\alpha$')
+    axF.set_ylabel('$e/n_p$')
+    # Panel F requested to be on log-log scale (both axes). Ensure positive values only are displayed.
+    axF.set_xscale('log')
+    axF.set_yscale('log')
+    axF.text(0.02, 0.98, 'F', transform=axF.transAxes, fontsize=12, fontweight='bold', va='top', ha='left')
+    axF.legend(fontsize=8)
+
+    # No colorbar when using discrete default color cycle; rely on legend
+
+    # External legend with all AR entries
+    if legend_lines:
+        labels = [ln.get_label() for ln in legend_lines]
+        fig.legend(legend_lines, labels, title='AR', loc='center right', bbox_to_anchor=(1.02, 0.5), frameon=False, ncol=1)
+
+    fig.tight_layout()
+    combined_name = f"combined_panels_N{all_ds[0]['num_rods']}"
+    fig.savefig(f"{agg_folder}/{combined_name}.png", dpi=300)
+    fig.savefig(f"{agg_folder}/{combined_name}.pdf")
+    fig.savefig(f"{agg_folder}/{combined_name}.svg")
+
+    # Duplicate key aggregate outputs to local output folder using file_name
+    import shutil
+    def _copy_if_exists(fname: str):
+        src = Path(agg_folder)/fname
+        if src.exists():
+            shutil.copy2(src, Path(output_folder)/fname)
+
+    for f in [
+        f'nematic_order_aggregate_N{all_ds[0]["num_rods"]}.png',
+        f'nematic_order_aggregate_N{all_ds[0]["num_rods"]}.svg',
+        f'skewness_width_aggregate_N{all_ds[0]["num_rods"]}.png',
+        f'skewness_width_aggregate_N{all_ds[0]["num_rods"]}.svg',
+        f'num_contacts_aggregate_N{all_ds[0]["num_rods"]}.png',
+        f'num_contacts_aggregate_N{all_ds[0]["num_rods"]}.svg',
+        f'total_entanglement_aggregate_N{all_ds[0]["num_rods"]}.png',
+        f'total_entanglement_aggregate_N{all_ds[0]["num_rods"]}.svg',
+        f'total_entanglement_aggregate_loglog_N{all_ds[0]["num_rods"]}.png',
+        f'total_entanglement_aggregate_loglog_N{all_ds[0]["num_rods"]}.svg',
+        f'total_entanglement_aggregate_semilogx_N{all_ds[0]["num_rods"]}.png',
+        f'total_entanglement_aggregate_semilogx_N{all_ds[0]["num_rods"]}.svg',
+        f'total_entanglement_aggregate_semilogy_N{all_ds[0]["num_rods"]}.png',
+        f'total_entanglement_aggregate_semilogy_N{all_ds[0]["num_rods"]}.svg',
+        f'total_entanglement_aggregate_altfit_N{all_ds[0]["num_rods"]}.png',
+        f'total_entanglement_aggregate_altfit_N{all_ds[0]["num_rods"]}.svg',
+        f'skewness_delta_pdf_loglog_aggregate_N{all_ds[0]["num_rods"]}.png',
+        f'skewness_delta_pdf_loglog_aggregate_N{all_ds[0]["num_rods"]}.svg',
+        f'{combined_name}.png',
+        f'{combined_name}.svg'
+    ]:
+        _copy_if_exists(f)
+
 

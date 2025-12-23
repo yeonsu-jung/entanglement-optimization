@@ -19,9 +19,6 @@ import numpy as np
 from numba import njit, int64, float64
 from utils import setup_directories
 
-# Add ../core to sys.path (for optional demo/plot helpers users may have)
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "core")))
-
 # ---------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------
@@ -705,11 +702,7 @@ def demo_npbc_combined():
 # %%
 
 
-if __name__ == "__main__":
-    # _demo_scaling(C=3.0, rod_length=1.0, alpha=100.0,
-    #               grid_capacity_multiplier=96, max_attempts=1_000_000,
-    #               seed=12345, n_points=10)
-    output_dir, movie_dir = setup_directories(__file__)
+import argparse
 
     import sys
 
@@ -742,6 +735,28 @@ if __name__ == "__main__":
 
     # NN = np.linspace(N_max_est*factor, N_max_est*factor*1.5, num=5, dtype=int)
 
+def _run_scaling_cli(
+    C: float,
+    rod_length: float,
+    alpha: float,
+    grid_capacity_multiplier: int,
+    max_attempts: int,
+    seed: int,
+    n_points: int,
+    out_dir: str,
+):
+    """Run the scaling benchmark and save outputs/plots to out_dir."""
+    output_dir, _ = setup_directories(__file__)
+    if out_dir:
+        output_dir = out_dir
+
+    rod_diameter = rod_length / alpha
+    cell_size = rod_length
+
+    # conservative upper estimate; can be tuned
+    N_max_est = int((2 * C) ** 3) / (rod_diameter * rod_length ** 2) * 10
+    NN = np.geomspace(10, N_max_est, num=n_points, dtype=float)[::-1].astype(int)
+
     attempts_list = []
     qq = []
     for N in NN:
@@ -754,10 +769,12 @@ if __name__ == "__main__":
             rod_length=rod_length,
             cell_size=cell_size,
             grid_capacity_multiplier=grid_capacity_multiplier,
-            seed=seed
+            seed=seed,
         )
         dt = time.time() - t0
-        print(f"N={N:6d} placed={placed:6d} time={dt:.3f} sec  ({dt / max(1, N) * 1e6:.1f} µs/rod)")
+        print(
+            f"N={N:6d} placed={placed:6d} time={dt:.3f} sec  ({dt / max(1, N) * 1e6:.1f} µs/rod)"
+        )
         attempts_list.append(attempts)
         qq.append(q)
 
@@ -770,9 +787,12 @@ if __name__ == "__main__":
 
     # final verification on last run
     inside = (
-        (q[:placed, 0] >= -C) & (q[:placed, 0] <= C) &
-        (q[:placed, 1] >= -C) & (q[:placed, 1] <= C) &
-        (q[:placed, 2] >= -C) & (q[:placed, 2] <= C)
+        (q[:placed, 0] >= -C)
+        & (q[:placed, 0] <= C)
+        & (q[:placed, 1] >= -C)
+        & (q[:placed, 1] <= C)
+        & (q[:placed, 2] >= -C)
+        & (q[:placed, 2] <= C)
     ).all()
     print("Centroids inside box:", bool(inside))
 
@@ -784,50 +804,79 @@ if __name__ == "__main__":
     print(f"Argmin pair: (i={i_min}, j={j_min})")
     print(f"Violations (< diameter): {num_viol}  (should be 0)")
 
-
     # save all data
-    np.savetxt(f'{output_dir}/attempts_vs_N_npbc.txt', np.column_stack((NN, attempts_list)), header='N Attempts', comments='')
-    # save qq
+    np.savetxt(
+        f"{output_dir}/attempts_vs_N_npbc.txt",
+        np.column_stack((NN, attempts_list)),
+        header="N Attempts",
+        comments="",
+    )
     qq = np.array(qq, dtype=object)
-    np.savez_compressed(f'{output_dir}/placed_rods_npbc.npz', NN=NN, qq=qq)    
+    np.savez_compressed(f"{output_dir}/placed_rods_npbc.npz", NN=NN, qq=qq)
 
-    from matplotlib import pyplot as plt
-    plt.plot(NN/N_max_est, attempts_list, marker='o')
-    plt.xlabel('N')
-    plt.ylabel('Attempts to place all rods')
-    plt.title('Attempts vs N')
-    plt.grid(True)
-    plt.savefig(f'{output_dir}/attempts_vs_N_npbc.png', dpi=300)
-    plt.show()
-    
-
-
-    # Optional argmin visualization if your core utilities exist
     try:
-        from transforms import q_to_x
-        x = q_to_x(q[:placed])
-        p0 = x[i_min, 0:3]; p1 = x[i_min, 3:6]
-        q0 = x[j_min, 0:3]; q1 = x[j_min, 3:6]
-        d2_pair = _dist2_lin_seg(np.array(p0), np.array(p1), np.array(q0), np.array(q1))
-        print(f"Direct segment-segment distance for argmin pair: {np.sqrt(d2_pair):.6e}")
-        print(f"Distance: {dmin:.6e}   Direct: {np.sqrt(d2_pair):.6e}   Gap: {gap:.6e}")
-        print(f'{np.sqrt(d2_pair) - dmin:.6e} (should be near zero)')
+        from matplotlib import pyplot as plt
+
+        plt.plot(NN / N_max_est, attempts_list, marker="o")
+        plt.xlabel("N")
+        plt.ylabel("Attempts to place all rods")
+        plt.title("Attempts vs N")
+        plt.grid(True)
+        plt.savefig(f"{output_dir}/attempts_vs_N_npbc.png", dpi=300)
+        plt.show()
     except Exception:
         pass
 
-
     # build the SAME endpoints used by verify
     p0v, p1v = _endpoints_from_q_centroid(q[:placed], rod_length)
-
-    # recompute direct distance on the argmin pair from verify
     d2_pair_verify_space = _dist2_lin_seg(p0v[i_min], p1v[i_min], p0v[j_min], p1v[j_min])
     print("Direct distance (verify space):", np.sqrt(d2_pair_verify_space))
 
-    # sanity: brute-force check (slow but definitive for a subset or small N)
-    d2 = 1e300; ii=-1; jj=-1
-    for i in range(min(placed, 2000)):            # (optionally cap for speed)
-        for j in range(i+1, min(placed, 2000)):
+    # optional quick sanity brute-force for a subset
+    d2 = 1e300
+    ii = -1
+    jj = -1
+    for i in range(min(placed, 2000)):
+        for j in range(i + 1, min(placed, 2000)):
             v = _dist2_lin_seg(p0v[i], p1v[i], p0v[j], p1v[j])
             if v < d2:
-                d2 = v; ii = i; jj = j
+                d2 = v
+                ii = i
+                jj = j
     print("BF min dist:", np.sqrt(d2), "at (i,j)=", ii, jj)
+
+
+def _build_arg_parser():
+    p = argparse.ArgumentParser(
+        description=(
+            "Non-PBC random rod placement benchmark with Numba broad-phase grid and "
+            "segment–segment narrow-phase. Saves attempts and placements."
+        )
+    )
+    p.add_argument("--C", type=float, default=3.0, help="Half-side of the cubic box [-C, C]^3")
+    p.add_argument("--rod-length", type=float, default=1.0, help="Rod centerline length (L)")
+    p.add_argument("--alpha", type=float, default=100.0, help="Aspect ratio alpha = L / D")
+    p.add_argument("--grid-capacity-multiplier", type=int, default=96, help="Grid capacity multiplier")
+    p.add_argument("--max-attempts", type=int, default=1_000_000, help="Max attempts per rod")
+    p.add_argument("--seed", type=int, default=0, help="RNG seed")
+    p.add_argument("--n-points", type=int, default=30, help="Geomspace samples for N")
+    p.add_argument("--out-dir", type=str, default="", help="Output directory (defaults to ./logp)")
+    return p
+
+
+def main():
+    args = _build_arg_parser().parse_args()
+    _run_scaling_cli(
+        C=args.C,
+        rod_length=args.rod_length,
+        alpha=args.alpha,
+        grid_capacity_multiplier=args.grid_capacity_multiplier,
+        max_attempts=args.max_attempts,
+        seed=args.seed,
+        n_points=args.n_points,
+        out_dir=args.out_dir,
+    )
+
+
+if __name__ == "__main__":
+    main()

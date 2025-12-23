@@ -304,6 +304,55 @@ def prep_for_polyscope(r_list,num_nodes):
     
     return nodes,edges,edge_colors
 
+
+def create_movie_from_q_history(qq, MOVIE_DIR, NUM_RODS, ROD_DIAMETER, SAVE_EVERY_N_STEPS=1):
+    """
+    Create a movie from a history of rod configurations.
+
+    Parameters:
+    qq (np.ndarray): Array of shape (num_steps, num_rods, 5) containing rod configurations.
+    MOVIE_DIR (str): Directory to save the movie frames.
+    """
+    import polyscope as ps
+    from transforms import q_to_x, x_to_q
+
+    # ROD_DIAMETER = 1 / 100
+    # NUM_RODS = 200
+
+    # --- Polyscope Visualization Setup ---
+    ps.init()
+    ps.set_autoscale_structures(False)
+    ps.set_automatically_compute_scene_extents(False)
+    ps.set_ground_plane_mode("none")
+    ps.set_length_scale(2.)
+    ps.set_bounding_box((-2., -2., -2.), (2., 2., 2.))
+    ps.set_up_dir("z_up")
+
+    initial_curves = q_to_x(qq[0]).reshape(NUM_RODS, -1, 3)
+    nodes, edges, edge_colors = prep_for_polyscope(initial_curves, NUM_RODS)
+    ps_curves = ps.register_curve_network("filaments", nodes, edges)
+    ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)
+
+    k = 0
+    for _ in range(0,len(qq), SAVE_EVERY_N_STEPS):
+        q = qq[_]
+        x = q_to_x(q)
+        r1 = x.reshape(-1, 6)[:,:3]
+        r2 = x.reshape(-1, 6)[:,3:]
+
+        a_list_of_curves = q_to_x(q).reshape(NUM_RODS, -1, 3)
+        ps_curves.update_node_positions(a_list_of_curves.reshape(-1,3))
+        # ps_curves.add_color_quantity("edge_colors").update_values(edge_colors)
+        ps_curves.add_color_quantity("edge_colors",edge_colors,defined_on='edges',enabled=True)
+        pth = f"{MOVIE_DIR}/step-{k:04d}.png"
+        ps.screenshot(str(pth))     
+        k += 1
+
+    # ffmpeg
+    import os
+    os.system(f"ffmpeg -framerate 30 -i {MOVIE_DIR}/step-%04d.png -c:v libx264 -pix_fmt yuv420p -y {MOVIE_DIR}/output.mp4")
+    
+
 # %%
 def live_view_with_polyscope(a_list_of_curves):
     nodes,edges,edge_colors = prep_for_polyscope(a_list_of_curves)
