@@ -131,9 +131,9 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
         attempts = 0
         
         while not created and attempts < max_attempts:
-            x = onp.random.uniform(-0.5, 0.5)
-            y = onp.random.uniform(-0.5, 0.5)
-            z = onp.random.uniform(-0.5, 0.5)
+            x = onp.random.uniform(-0.6, 0.6)
+            y = onp.random.uniform(-0.6, 0.6)
+            z = onp.random.uniform(-0.6, 0.6)
             phi = onp.random.uniform(0, onp.pi)
             theta = onp.random.uniform(0, 2 * onp.pi)
             
@@ -252,7 +252,7 @@ def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
-            p_i = onp.array([x, y, z])
+            p_i = onp.array([x, y, z]) - 0.5*onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
             p_ii = p_i + 1 * onp.array([onp.sin(phi) * onp.cos(theta), onp.sin(phi) * onp.sin(theta), onp.cos(phi)])
             
             # if (i == 0):
@@ -260,7 +260,7 @@ def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter
             
             for j in range(i):
                 x2, y2, z2, phi2, theta2 = q[j]
-                p_j = onp.array([x2, y2, z2])
+                p_j = onp.array([x2, y2, z2]) - 0.5*onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
                 p_jj = p_j + 1 * onp.array([onp.sin(phi2) * onp.cos(theta2), onp.sin(phi2) * onp.sin(theta2), onp.cos(phi2)])
                 
                 distance = dist_lin_seg_nonjax(p_i, p_ii, p_j, p_jj)
@@ -274,7 +274,7 @@ def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter
                 #     break
             
             if not intersect:
-                q[i] = onp.array([x, y, z, phi, theta])
+                q[i] = onp.array([p_i[0], p_i[1], p_i[2], phi, theta])
                 created = True
                 
             attempts += 1
@@ -753,8 +753,9 @@ def create_entangled_rods(num_rods,f,random_keys,rod_diameter=0.1,Nmax=1e4,N_out
         q0 = create_aligned_rods(num_rods)
     elif initial_q == "gathered":
         # from protocols import create_nonintersecting_random_rods_contained
-        container_size = 1.2
+        container_size = 1.
         q0 = create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container_size,max_attempts=10000)
+        q0 = q0.flatten()
     # if initial_q is jnp.array already, then use it directly
     elif isinstance(initial_q, jnp.ndarray):
         q0 = initial_q.flatten()
@@ -3211,11 +3212,12 @@ def standard_protocol():
     N_outer = 1
     Nmax = 100000
     scale_factor = 1
-    num_rods = 100
+    num_rods = 1000
     dt = 1.e-2
     amp = 100
 
-    random_keys = [6,7,8]
+    random_keys = [56,321,194]
+    # random_keys = [6,7,8]
     # random_keys = [37,178,56]
     # random_keys = [919,461,568]
 
@@ -3235,7 +3237,7 @@ def standard_protocol():
     now = datetime.datetime.now()
     
     # for AR in [10,20,50,75,100,200,300,500]:
-    for AR in [10,20,50]:
+    for AR in [100]:
     # for AR in [50,100,150,300,500]:
     # for AR in [10,20,75,200]:
 
@@ -3282,7 +3284,8 @@ def standard_protocol():
         else:
 
             os.makedirs(f'{results_per_random_keys}/N{num_rods}',exist_ok=True)
-            q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="non-intersecting",callback=_callback)
+            # q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="non-intersecting",callback=_callback)
+            q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q=None,callback=_callback)
 
             # initial_q == "gathered"
             # q_entangled = create_entangled_rods(num_rods,total_effective_potential,random_keys,rod_diameter=(1/AR),Nmax=300,N_outer=5,atol=1e-8,dt=dt,initial_q="gathered",callback=_callback)
@@ -3464,7 +3467,7 @@ def projection_every_step():
         with open(f'{output_folder}/{results_per_random_keys}/{packing_id}/log.txt','w') as f:
             f.write(log_output)            
 
-   
+
 
    
 
