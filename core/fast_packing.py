@@ -711,23 +711,36 @@ if __name__ == "__main__":
     #               seed=12345, n_points=10)
     output_dir, movie_dir = setup_directories(__file__)
 
+    import sys
+
+    alpha = float(sys.argv[1]) if len(sys.argv) > 1 else 100.0
+    seed = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+
+    print(f"Alpha = {alpha}   Seed = {seed}")
+
     rod_length = 1.0
-    alpha = 100
+    # alpha = 100
     n_points = 30
-    max_attempts = 1_000_000
+    max_attempts = 1_000_000_000
 
     rod_diameter = rod_length / alpha
     cell_size = rod_length
     C = 3.0
     grid_capacity_multiplier = 96
-    seed = 0
+    # seed = 0
 
 
 
     # N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2) * 3.7
-    N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2) * 10
+    N_max_est = int((2*C)**3) / (rod_diameter * rod_length**2)
     # NN = np.geomspace(10, N_max_est, num=n_points, dtype=int)
-    NN = np.geomspace(10, N_max_est, num=n_points, dtype=float)[::-1].astype(int)
+
+    factor = 6.5
+    # NN = np.geomspace(10, N_max_est*factor, num=n_points, dtype=float)[::-1].astype(int)
+
+    NN = np.linspace(10, N_max_est*factor, num=n_points, dtype=int)
+
+    # NN = np.linspace(N_max_est*factor, N_max_est*factor*1.5, num=5, dtype=int)
 
     attempts_list = []
     qq = []
@@ -747,6 +760,13 @@ if __name__ == "__main__":
         print(f"N={N:6d} placed={placed:6d} time={dt:.3f} sec  ({dt / max(1, N) * 1e6:.1f} µs/rod)")
         attempts_list.append(attempts)
         qq.append(q)
+
+        # save intermediate
+        np.save(f'{output_dir}/placed_rods_npbc_intermediate_N{N}.npy', q)
+        # save attempts
+        np.save(f'{output_dir}/attempts_npbc_intermediate_N{N}.npy', np.array(attempts))
+
+        
 
     # final verification on last run
     inside = (

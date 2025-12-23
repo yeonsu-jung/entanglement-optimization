@@ -353,7 +353,7 @@ def optimize_fire_jax_individual(q0, f, df, Nmax, atol=1e-4, dt=0.002, logoutput
     return q, f(q), Npos, error
 
 
-def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
+def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None,allow_callback_break=False):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
     alpha0 = 0.1  # example starting value for alpha
@@ -431,11 +431,11 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
 
             callback_params = {"numbering": k, "min_distance": jnp.min(d)}
             if callback is not None:
-                break_or_continue = callback(q,callback_params)
+                break_or_continue = callback(q, callback_params)
 
-            if break_or_continue:
+            if allow_callback_break and break_or_continue:
                 print("Callback requested to break the loop")
-                break            
+                break
 
             k += 1
         

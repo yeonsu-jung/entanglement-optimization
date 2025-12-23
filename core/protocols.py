@@ -105,7 +105,8 @@ def create_random_rods(num_rods,random_keys):
     key = random.key(random_keys[0])
     p1s = random.uniform(key, (num_rods,3), minval=-0.5, maxval=0.5)
     key = random.key(random_keys[1])
-    phi1 = random.uniform(key, (num_rods,1), minval=0., maxval=jnp.pi)
+    u1 = random.uniform(key, (num_rods,1), minval=-1.0, maxval=1.0)
+    phi1 = jnp.arccos(u1)
     key = random.key(random_keys[2])
     theta1 = random.uniform(key, (num_rods,1), minval=0., maxval=2*jnp.pi)
     q0 = jnp.concatenate([p1s, phi1, theta1], axis=1)
@@ -134,7 +135,7 @@ def create_nonintersecting_random_rods(num_rods,rod_diameter,max_attempts=10000)
             x = onp.random.uniform(-0.5, 0.5)
             y = onp.random.uniform(-0.5, 0.5)
             z = onp.random.uniform(-0.5, 0.5)
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
@@ -188,7 +189,7 @@ def create_nonintersecting_random_rods_contained(num_rods,rod_diameter,container
             x = onp.random.uniform(-1,1)
             y = onp.random.uniform(-1,1)
             z = onp.random.uniform(-1,1)
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
@@ -248,7 +249,7 @@ def create_nonintersecting_random_rods_contained_centroids(num_rods,rod_diameter
             y = onp.random.uniform(-container_size,container_size)
             z = onp.random.uniform(-container_size,container_size)
 
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
@@ -304,7 +305,7 @@ def create_nonintersecting_random_rods_contained_pbc(num_rods,rod_diameter,conta
             y = onp.random.uniform(-container_size,container_size)
             z = onp.random.uniform(-container_size,container_size)
 
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
@@ -359,7 +360,7 @@ def create_nonintersecting_random_rods_contained_in_box(num_rods, rod_diameter, 
             x = onp.random.uniform(-container_size/2, container_size/2)
             y = onp.random.uniform(-container_size/2, container_size/2)
             z = onp.random.uniform(-container_size/2, container_size/2)
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
@@ -588,7 +589,7 @@ def create_nonintersecting_random_rods_com_contained_sphere(num_rods,rod_diamete
             x = onp.random.uniform(-1,1)
             y = onp.random.uniform(-1,1)
             z = onp.random.uniform(-1,1)
-            phi = onp.random.uniform(0, onp.pi)
+            phi = onp.arccos(onp.random.uniform(-1.0, 1.0))
             theta = onp.random.uniform(0, 2 * onp.pi)
             
             intersect = False
