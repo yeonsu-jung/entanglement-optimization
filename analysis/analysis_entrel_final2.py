@@ -1,7 +1,11 @@
 # %%
+import sys
+sys.path.append('../core')
+sys.path.append('core')
+
 import numpy as np
 from analysis import orientational_statistics,compute_nematic_order
-from transforms import q_to_x
+from transforms import q_to_x, x_to_q
 # %%
 pathlist = []
 
@@ -107,10 +111,8 @@ for pth in pathlist:
     dt_string, AR, num_rods,random_keys = parse_pathname(pth)
     print(dt_string, AR, num_rods,random_keys)
 
-    # glob q_relaxed.txt
-    file_pth = list(Path(pth).parent.rglob('q_relaxed.txt'))[0]
-    qf = np.loadtxt(file_pth)
-    x = q_to_x(qf)
+    # Load x_relaxed.txt
+    x = np.loadtxt(pth)
     filename = f"MaxEnt_{random_keys}_N{num_rods}-AR{int(AR):04d}-Scale1.txt"
     np.savetxt(f"{common_folder}/{filename}",x)
 
@@ -151,10 +153,9 @@ for pth in pathlist:
     # qq_reshaped = qq.reshape(-1,num_rods,5)
     # q = qq_reshaped[-1]
 
-    file_pth = list(Path(pth).parent.rglob('q_relaxed.txt'))[0]
-
-    q = np.loadtxt(file_pth)
-    x = q_to_x(q)
+    # Load x_relaxed.txt and convert to q
+    x = np.loadtxt(pth)
+    q = x_to_q(x)
     q_pairs = create_pairs(q.reshape(-1,5))
     distances = all_pairwise_distances(q_pairs)
 
@@ -303,7 +304,8 @@ plt.savefig(f'{common_folder}/total_entanglement_{dt_string}_N{num_rods}_fit.png
 
 # %%
 pth = pathlist[0]
-q = np.loadtxt(pth)
+x = np.loadtxt(pth)
+q = x_to_q(x)
 _,AR,_,_ = parse_pathname(pth)
 
 import polyscope as ps

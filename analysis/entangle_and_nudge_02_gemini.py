@@ -7,7 +7,7 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from jax import jit, vmap, lax
-import polyscope as ps
+# import polyscope as ps
 from jax.lax import cond
 
 
@@ -16,7 +16,7 @@ from jax.lax import cond
 sys.path.append('../core') 
 from protocols import create_nonintersecting_random_rods_contained_pbc
 from transforms import q_to_x
-from visualizations import prep_for_polyscope
+# from visualizations import prep_for_polyscope
 from potentials import total_effective_potential, total_harmonic_line
 
 # --- Core Geometric & Utility Functions ---
@@ -159,7 +159,7 @@ def main():
     # --- Configuration ---
     # Simulation Parameters
     NUM_RODS = 200
-    ROD_DIAMETER = 1 / 100
+    ROD_DIAMETER = 1 / 500
     CONTAINER_SIZE = 1.0
     RANDOM_SEED = 11
     
@@ -202,18 +202,21 @@ def main():
     )
 
     # --- Polyscope Visualization Setup ---
-    ps.init()
-    ps.set_autoscale_structures(False)
-    ps.set_automatically_compute_scene_extents(False)
-    ps.set_ground_plane_mode("none")
-    ps.set_length_scale(2.)
-    ps.set_bounding_box((-2., -2., -2.), (2., 2., 2.))
-    ps.set_up_dir("z_up")
+    # if os.name != 'nt':
+    #     ps.init()
+    #     ps.set_autoscale_structures(False)
+    #     ps.set_automatically_compute_scene_extents(False)
+    #     ps.set_ground_plane_mode("none")
+    #     ps.set_length_scale(2.)
+    #     ps.set_bounding_box((-2., -2., -2.), (2., 2., 2.))
+    #     ps.set_up_dir("z_up")
 
-    initial_curves = q_to_x(q0).reshape(NUM_RODS, -1, 3)
-    nodes, edges, _ = prep_for_polyscope(initial_curves, NUM_RODS)
-    ps_curves = ps.register_curve_network("filaments", nodes, edges)
-    ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)
+    #     initial_curves = q_to_x(q0).reshape(NUM_RODS, -1, 3)
+    #     nodes, edges, _ = prep_for_polyscope(initial_curves, NUM_RODS)
+    #     ps_curves = ps.register_curve_network("filaments", nodes, edges)
+    #     ps_curves.set_radius(ROD_DIAMETER / 2, relative=False)
+    # else:
+    #     print("Polyscope visualization skipped on Linux OS.")
 
     # --- Simulation Loop ---
     print("🚀 Starting simulation...")
@@ -232,13 +235,20 @@ def main():
             min_dist = min_dist_fn(q)
             print(f"Step: {step_idx:5d} | Min Distance: {min_dist:.4f} | Projection Steps: {num_proj_steps}")
 
-            # Update Polyscope view
-            updated_curves = q_to_x(q).reshape(NUM_RODS, -1, 3)
-            ps_curves.update_node_positions(updated_curves.reshape(-1, 3))
-            
-            # Save screenshot
-            screenshot_path = movie_dir / f"step-{history_idx:04d}.png"
-            ps.screenshot(str(screenshot_path), transparent_bg=True)
+
+            # if os is linux, ignore below
+            # if os.name != 'nt':
+            #     print("Polyscope visualization skipped on Linux OS.")
+            # else:                
+            #     ps.set_window_title(f"Step: {step_idx:5d} | Min Dist: {min_dist:.4f} | Proj Steps: {num_proj_steps}")
+
+            #     # Update Polyscope view
+            #     updated_curves = q_to_x(q).reshape(NUM_RODS, -1, 3)
+            #     ps_curves.update_node_positions(updated_curves.reshape(-1, 3))
+                
+            #     # Save screenshot
+            #     screenshot_path = movie_dir / f"step-{history_idx:04d}.png"
+            #     ps.screenshot(str(screenshot_path), transparent_bg=True)
 
     # --- Save Final Results ---
     final_q_path = output_dir / "q_history.npy"
