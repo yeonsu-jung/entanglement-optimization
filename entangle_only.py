@@ -18,11 +18,14 @@ from __future__ import annotations
 import argparse
 import datetime
 import os
+import time
 from pathlib import Path
 
 import numpy as np
 
 import jax.numpy as jnp
+import jax
+jax.config.update("jax_enable_x64", True)
 
 import potentials as pt
 from potentials import create_pairs, total_effective_potential
@@ -110,6 +113,8 @@ def main() -> None:
             q_snapshots.append(np.asarray(q_state))
             return False
 
+        t_start = time.time()
+
         q_entangled = pr.create_entangled_rods(
             num_rods,
             total_effective_potential,
@@ -122,6 +127,13 @@ def main() -> None:
             initial_q=initial_q,
             callback=_callback,
         )
+
+        t_end = time.time()
+        print(f"\n{'='*60}")
+        print(f"  Entanglement optimisation completed in {t_end - t_start:.2f}s")
+        print(f"  Backend: {jax.default_backend()}")
+        print(f"{'='*60}\n")
+
         np.save(cache_q_path, np.asarray(q_entangled))
         print(f"Saved cached q_entangled to {cache_q_path}")
 
