@@ -25,7 +25,7 @@ import datetime
 N_outer = 1
 Nmax = 100000
 scale_factor = 1
-num_rods = 500
+num_rods = 2000
 dt = 1.e-2
 amp = 100
 
@@ -47,7 +47,7 @@ if not os.path.exists(results_per_random_keys):
 
 now = datetime.datetime.now()
 
-for num_rods in [500]:
+for num_rods in [2000]:
 
     save_dir_name = f'{results_per_random_keys}/N{num_rods}'
     if not os.path.exists(save_dir_name):
