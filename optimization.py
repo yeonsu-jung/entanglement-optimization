@@ -2,8 +2,6 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 import numpy as onp
-from potentials import compute_linking_number_vectorized, effective_potential, total_harmonic_line
-from matplotlib import pyplot as plt
 from potentials import create_pairs, all_pairwise_distances
 
 def optimize_fire_nonjax_individual_with_constraint(q0,f,df,g,dg,Nmax,atol=1e-4,dt = 0.002,logoutput=False,callback=None):
@@ -938,8 +936,8 @@ def onestep_fire(q, df, atol=1e-4, dt=0.002):
         """Update velocity using the FIRE algorithm."""
         norm_F = jnp.linalg.norm(F)
         norm_V = jnp.linalg.norm(V)
-        safe_norm_F = jnp.where(norm_F > 0, norm_F, 1.0)
-        return (1 - alpha) * V + alpha * F * norm_V / safe_norm_F
+        jnp.linalg.norm_F = jnp.where(norm_F > 0, norm_F, 1.0)
+        return (1 - alpha) * V + alpha * F * norm_V / jnp.linalg.norm_F
 
     def conditionally_update_parameters(P, Npos, dt, alpha):
         """Update time step and alpha based on power P."""

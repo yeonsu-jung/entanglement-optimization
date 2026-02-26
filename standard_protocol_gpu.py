@@ -41,18 +41,27 @@ import protocols as pr
 
 def _print_device_info() -> None:
     """Print JAX device info and confirm GPU is available."""
-    devices = jax.devices()
-    print("=" * 60)
-    print("JAX device info")
-    print(f"  Default backend : {jax.default_backend()}")
-    print(f"  Devices         : {devices}")
-    for d in devices:
-        print(f"    {d.device_kind} | {d.platform} | id={d.id}")
-    if jax.default_backend() != "gpu":
-        print("  ⚠  WARNING: JAX is NOT using a GPU.")
-    else:
-        print("  ✓  GPU detected — computations will run on GPU.")
-    print("=" * 60)
+    try:
+        devices = jax.devices()
+        print("=" * 60)
+        print("JAX device info")
+        print(f"  Default backend : {jax.default_backend()}")
+        print(f"  Devices         : {devices}")
+        for d in devices:
+            print(f"    {d.device_kind} | {d.platform} | id={d.id}")
+        if jax.default_backend() != "gpu":
+            print("  ⚠  WARNING: JAX is NOT using a GPU.")
+        else:
+            print("  ✓  GPU detected — computations will run on GPU.")
+        print("=" * 60)
+    except RuntimeError as e:
+        print("=" * 60)
+        print("JAX device info")
+        print(f"  ⚠  WARNING: Could not initialize JAX devices: {e}")
+        print("  Falling back to CPU backend.")
+        jax.config.update("jax_platform_name", "cpu")
+        print(f"  Default backend : {jax.default_backend()}")
+        print("=" * 60)
 
 
 def parse_args() -> argparse.Namespace:
