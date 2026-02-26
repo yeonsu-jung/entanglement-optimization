@@ -53,3 +53,6 @@ backup-cpp/*
 documents/*
 writing/*
 notebooks/*
+
+*.out
+*.err
