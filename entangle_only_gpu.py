@@ -175,26 +175,37 @@ def main() -> None:
             )
         else:
             # Use pre-computed GPU initial config
-            from jax import grad
+            from jax import grad, jit
             f = total_effective_potential
-            df = grad(f)
+            df = jit(grad(f))
             df0 = df(_initial_q_arg)
             print(f"Initial error: {jnp.max(jnp.abs(df0))}")
             atol_eff = args.atol * jnp.max(jnp.abs(df0))
 
-            from optimization import optimize_fire_nonjax_individual
+            from optimization import optimize_fire2
             q = _initial_q_arg
+            
+            # Create a localized JIT wrapper so the while_loop compiles natively
+            @jit
+            def _gpu_optimize(q_in, atol_in):
+                return optimize_fire2(q_in, f, df, Nmax=args.Nmax, atol=atol_in, dt=args.dt, logoutput=False)
+
+            t_opt_start = time.time()
             for k in range(args.N_outer):
-                q, f_val, num_iterations, error = optimize_fire_nonjax_individual(
-                    q, f, df, args.Nmax, atol_eff, args.dt, callback=_callback
-                )
+                print(f"Outer iteration {k+1}/{args.N_outer}, atol_eff = {atol_eff:.2e} ...")
+                q, f_val, num_iterations, error = _gpu_optimize(q, atol_eff)
+                # Ensure device execution finishes before next check/timing
+                jax.block_until_ready(q)
+                
                 atol_eff = atol_eff / 2
 
             fval0 = f(_initial_q_arg)
-            print(f"f_val, initial: {fval0:.2f}")
-            print(f"f_val: {f_val:.2f}")
-            print(f"error: {error}")
-            print(f"num_iterations: {num_iterations}")
+            print(f"\nf_val (initial): {fval0:.2f}")
+            print(f"f_val (final): {f_val:.2f}")
+            print(f"error (max gradient): {error:.2e}")
+            print(f"num_iterations (inner loop steps total): {num_iterations}")
+            print(f"Pure GPU optimization part took {time.time() - t_opt_start:.2f}s")
+            
             q_entangled = q
 
         # Make sure GPU work is actually done before measuring time
@@ -249,6 +260,22 @@ def main() -> None:
 
     print(log_output, end="")
     print(f"Wrote outputs under {packing_dir}")
+
+    # ── Auto-Export to Structured Directory ──────────────────────────
+    # To bypass manual export steps, format the output for relaxation here directly
+    base_out_dir = Path("/n/home01/yjung/Github/entanglement-optimization/relaxation_4th_gpu")
+    out_folder = base_out_dir / f"N{num_rods}" / f"{args.k1},{args.k2},{args.k3}"
+    out_folder.mkdir(parents=True, exist_ok=True)
+    
+    if AR is not None:
+        out_file = out_folder / f"x_relaxed_AR{AR}.txt"
+        rod_radius = 0.5 / AR
+        
+        with open(packing_dir / "x_entangled.txt", 'r') as f_in, open(out_file, 'w') as f_out:
+            f_out.write(f"# rod_radius = {rod_radius:g}\n")
+            f_out.write(f_in.read())
+            
+        print(f"Auto-exported formatted output to: {out_file}")
 
 
 if __name__ == "__main__":

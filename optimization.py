@@ -583,18 +583,13 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     error = 10*atol
 
     carry_init = (q, V, alpha, dt, Npos, error)
-    # error_init = jnp.array(10 * atol)  # Initial error to start the loop
 
-    # q, V, alpha, dt, Npos, error = jax.lax.while_loop(
-    #     cond_fun,
-    #     body_fun,
-    #     carry_init
-    # )
+    q, V, alpha, dt, Npos, error = jax.lax.while_loop(
+        cond_fun,
+        body_fun,
+        carry_init
+    )
     
-    q, V, alpha, dt, Npos, error = jax.lax.fori_loop(0, Nmax,
-                                                     lambda i, carry: body_fun(carry),
-                                                     carry_init)
-
     return q, f(q), Npos, error
 
 def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
@@ -1078,6 +1073,42 @@ def entangle_and_release():
     plt.show()    
 
     return
+
+def optimize_gd_nonjax_individual(q0, f, df, Nmax, atol=1e-4, dt=1e-3, logoutput=False, callback=None, allow_callback_break=False):
+    error = 10 * atol 
+    q = q0.copy()
+    
+    # disgusting hack to save the q values
+    from pathlib import Path
+    k = 0
+    
+    break_or_continue = False
+    for i in range(Nmax):
+        F = -df(q)
+        q = q + dt * F
+
+        error = jnp.max(jnp.abs(F))
+        if onp.mod(i,100) == 0:
+            q_pairs = create_pairs(jnp.reshape(q,(-1,5)))
+            d = all_pairwise_distances(q_pairs)
+            print(f"Iteration: {i:3d}, "
+                  f"fval: {f(q):12.7f}, "
+                  f"error: {error:12.7f}, "
+                  f"min. dist.: {jnp.min(d):12.7f}")
+
+            callback_params = {"numbering": k, "min_distance": jnp.min(d)}
+            if callback is not None:
+                break_or_continue = callback(q, callback_params)
+
+            if allow_callback_break and break_or_continue:
+                print("Callback requested to break the loop")
+                break
+
+            k += 1
+        
+        if logoutput: print(f(q),error)
+
+    return q, f(q), jnp.zeros(q0.shape[0]), error
 
 if __name__ == "__main__":
     # main()
