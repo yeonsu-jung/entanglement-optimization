@@ -328,8 +328,7 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
 
         # P = (F*V).sum() # dissipated power
         P = F*V
-        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/(jnp.linalg.norm(F) + 1e-14)
-        V = jnp.clip(V, -10.0, 10.0)
+        V = (1-alpha)*V + alpha*F*jnp.linalg.norm(V)/jnp.linalg.norm(F)
         Npos = jnp.where(P>0,Npos+1,0)
         
         dt_choice = jnp.array([dt_array * finc, dtmax])
@@ -379,7 +378,7 @@ def optimize_fire_nonjax_individual(q0,f,df,Nmax,atol=1e-4,dt = 0.002,logoutput=
         # if jnp.isnan(F).any():
         #     print("NaN detected in variables")
             
-        if error < atol: break
+        # if error < atol: break
 
         if logoutput: print(f(q),error)
 
@@ -527,98 +526,6 @@ import jax
 import jax.numpy as jnp
 
 # @jax.jit
-def optimize_fire_jax_individual(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
-    """
-    JITTED per-DOF (degree of freedom) FIRE optimizer.
-    Each DOF maintains its own time-step and momentum reset logic, 
-    making it much more robust for complex entangled systems.
-    """
-    dtmax = 10 * dt
-    dtmin = 0.02 * dt
-    alpha0 = 0.1
-    alpha = alpha0    
-    Ndelay = 10
-    finc = 1.1
-    fdec = 0.5
-    fa = 0.99
-
-    def body_fun(carry):
-        q, V, alpha, dt_array, Npos, step, error = carry        
-        F = -df(q)
-        P = F * V  # Element-wise power
-
-        # Per-DOF time-step update
-        # Increase dt if P > 0 for more than Ndelay steps
-        dt_array = jnp.where(
-            P > 0,
-            jnp.where(Npos > Ndelay, jnp.minimum(dt_array * finc, dtmax), dt_array),
-            jnp.maximum(dt_array * fdec, dtmin)
-        )
-        
-        # Per-DOF alpha update
-        alpha_array = jnp.where(
-            P > 0,
-            jnp.where(Npos > Ndelay, alpha * fa, alpha),
-            alpha0
-        )
-        # Note: In this version alpha is also effectively per-DOF if we wanted, 
-        # but here we follow the standard and reset to alpha0 on negative power.
-        
-        # Reset Npos for each DOF
-        Npos = jnp.where(P > 0, Npos + 1, 0)
-
-        # Standard Velocity Verlet update with FIRE mixing
-        # (Using per-DOF alpha and dt)
-        
-        # Mixing rule (steering) - also per DOF
-        norm_V = jnp.linalg.norm(V)
-        norm_F = jnp.linalg.norm(F)
-        
-        V_mix = (1 - alpha_array) * V + alpha_array * F * (norm_V / (norm_F + 1e-14))
-        # Keep the mixing but maybe clip it to prevent extreme jumps?
-        # Removed clipping as per requirement to restore speed
-        
-        V = V_mix
-        
-        V = V + 0.5 * dt_array * F
-        q = q + dt_array * V
-        F_new = -df(q)
-        V = V + 0.5 * dt_array * F_new
-        
-        # Momentum reset: if P < 0, zero out velocity for that DOF
-        V = jnp.where(P < 0, 0.0, V)
-
-        error = jnp.max(jnp.abs(F_new))
-        
-        # We need to carry 'alpha' but it's actually part of alpha_array now?
-        # Actually in the per-DOF version, alpha itself can be an array.
-        # For simplicity we'll keep it scalar if it's identical across all.
-        # But we'll use alpha_array for the update.
-        new_alpha = jnp.mean(alpha_array) # just to carry a scalar placeholder
-
-        return q, V, new_alpha, dt_array, Npos, step + 1, error
-
-    def cond_fun(carry):
-        _, _, _, _, _, step, error = carry
-        return (error > atol) & (step < Nmax)
-
-    q = q0
-    V = jnp.zeros_like(q0)
-    dt_array = jnp.full_like(q0, dt)
-    Npos = jnp.zeros_like(q0)
-    step = 0
-    error = 10*atol
-
-    carry_init = (q, V, alpha, dt_array, Npos, step, error)
-
-    q, V, alpha, dt_array, Npos, step, error = jax.lax.while_loop(
-        cond_fun,
-        body_fun,
-        carry_init
-    )
-    
-    return q, f(q), step, error
-
 def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     dtmax = 10 * dt
     dtmin = 0.02 * dt
@@ -630,7 +537,7 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
     fa = 0.99     # factor to adjust alpha
 
     def body_fun(carry):
-        q, V, alpha, dt, Npos, step, error = carry        
+        q, V, alpha, dt, Npos, error = carry        
         F = -df(q)
         P = jnp.sum(F * V)  # dissipated power
 
@@ -646,10 +553,7 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
         
         alpha = jax.lax.cond(
             P > 0,
-            lambda _: jax.lax.cond(Npos > Ndelay,
-                                   lambda _: alpha * fa,
-                                   lambda _: alpha,
-                                   None),
+            lambda _: alpha * fa,
             lambda _: alpha0,
             None
         )
@@ -657,8 +561,7 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
                                 lambda _: 0, None)
 
         V = V + 0.5 * dt * F
-        V = (1 - alpha) * V + alpha * F * jnp.linalg.norm(V) / (jnp.linalg.norm(F) + 1e-14)
-        # Velocity clipping removed to restore convergence speed
+        V = (1 - alpha) * V + alpha * F * jnp.linalg.norm(V) / jnp.linalg.norm(F)
         q = q + dt * V
         
         F = -df(q)
@@ -668,27 +571,26 @@ def optimize_fire2(q0, f, df, Nmax = 1e4, atol=1e-4, dt=0.002, logoutput=False):
 
         error = jnp.max(jnp.abs(F))
 
-        return q, V, alpha, dt, Npos, step + 1, error
+        return q, V, alpha, dt, Npos, error
 
     def cond_fun(carry):
-        _, _, _, _, _, step, error = carry
-        return (error > atol) & (step < Nmax)
+        _, _, _, _, Npos, error = carry
+        return (error > atol) & (Npos < Nmax)
 
     q = q0
     V = jnp.zeros_like(q0)
     Npos = 0
-    step = 0
     error = 10*atol
 
-    carry_init = (q, V, alpha, dt, Npos, step, error)
+    carry_init = (q, V, alpha, dt, Npos, error)
 
-    q, V, alpha, dt, Npos, step, error = jax.lax.while_loop(
+    q, V, alpha, dt, Npos, error = jax.lax.while_loop(
         cond_fun,
         body_fun,
         carry_init
     )
     
-    return q, f(q), step, error
+    return q, f(q), Npos, error
 
 def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
     dtmax = 10 * dt
@@ -702,7 +604,7 @@ def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
     fa = 0.99     # factor to adjust alpha
 
     def body_fun(carry):
-        q, V, alpha, dt, Npos, step, error = carry        
+        q, V, alpha, dt, Npos, error = carry        
         F = -df(q)
         P = jnp.sum(F * V)  # dissipated power
 
@@ -714,10 +616,7 @@ def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
         )
         alpha = jax.lax.cond(
             P > 0,
-            lambda _: jax.lax.cond(Npos > Ndelay,
-                                   lambda _: alpha * fa,
-                                   lambda _: alpha,
-                                   None),
+            lambda _: alpha * fa,
             lambda _: alpha0,
             None
         )
@@ -736,23 +635,22 @@ def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
         if jnp.any(jnp.isnan(q)) or jnp.any(jnp.isnan(F)):
             if logoutput:
                 print("NaN detected in variables")
-            return jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan  # Propagate NaNs
+            return jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan, jnp.nan  # Propagate NaNs
         
-        return q, V, alpha, dt, Npos, step + 1, error
+        return q, V, alpha, dt, Npos, error
 
     def cond_fun(carry):
-        _, _, _, _, _, step, error = carry
-        return (error > atol) & (step < Nmax) & (~jnp.any(jnp.isnan(carry)))
+        _, _, _, _, Npos, error = carry
+        return (error > atol) & (Npos < Nmax) & (~jnp.any(jnp.isnan(carry)))
 
     q = q0
     V = jnp.zeros_like(q0)
     Npos = 0
-    step = 0
     error = 10*atol
 
-    carry_init = (q, V, alpha, dt, Npos, step, error)
+    carry_init = (q, V, alpha, dt, Npos, error)
 
-    q, V, alpha, dt, Npos, step, error = jax.lax.while_loop(
+    q, V, alpha, dt, Npos, error = jax.lax.while_loop(
         cond_fun,
         body_fun,
         carry_init
@@ -763,7 +661,7 @@ def optimize_fire_debug(q0, f, df, atol=1e-4, dt=0.002, logoutput=False):
             print("NaN detected at initialization")
         return jnp.nan, jnp.nan, jnp.nan, jnp.nan  # Return NaNs if initial values are problematic
 
-    return q, f(q), step, error
+    return q, f(q), Npos, error
 
 # scipy.optimize.minimize_scalar(fun, bracket=None, bounds=None, args=(), method=None, tol=None, options=None)
 

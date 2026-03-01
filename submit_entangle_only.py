@@ -25,8 +25,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-rods", type=int, default=200)
     p.add_argument("--count", type=int, default=5)
     p.add_argument("--dt", type=float, default=1e-2)
-    p.add_argument("--Nmax", type=int, default=300)
-    p.add_argument("--N-outer", type=int, default=5, dest="N_outer")
+    p.add_argument("--Nmax", type=int, default=10000)
+    p.add_argument("--N-outer", type=int, default=1, dest="N_outer")
     p.add_argument("--atol", type=float, default=1e-8)
     p.add_argument("--initial-q", type=str, default="non-intersecting", choices=["non-intersecting", "test", "aligned", "random"],)
     p.add_argument("--snapshot-every", type=int, default=1)
@@ -45,7 +45,7 @@ def generate_sbatch(run_py: str, partition: str, time_limit: str, mem: str, mail
 #SBATCH -N 1
 #SBATCH -t {time_limit}
 #SBATCH -p {partition}
-#SBATCH --cpus-per-task=32
+#SBATCH --cpus-per-task=8
 #SBATCH --mem={mem}
 #SBATCH -o output_%j.out
 #SBATCH -e errors_%j.err
@@ -54,6 +54,11 @@ def generate_sbatch(run_py: str, partition: str, time_limit: str, mem: str, mail
 
 module load python
 mamba activate simdata-analysis
+
+export XLA_FLAGS="--xla_cpu_multi_thread_eigen=true intra_op_parallelism_threads=8"
+export OMP_NUM_THREADS=8
+export OPENBLAS_NUM_THREADS=8
+export MKL_NUM_THREADS=8
 
 python {run_py}
 """

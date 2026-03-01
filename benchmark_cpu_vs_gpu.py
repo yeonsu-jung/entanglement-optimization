@@ -25,7 +25,8 @@ import jax.numpy as jnp
 
 # Project imports
 import potentials as pt
-from potentials import create_pairs, total_effective_potential
+from potentials import create_pairs, total_effective_potential, compute_linking_number_arai
+from transforms import q_to_x
 from transforms import q_to_x
 import protocols as pr
 
@@ -45,6 +46,40 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--random-keys", type=int, nargs=3, default=[42, 0, 0],
                    help="Random key triplet (default: 42 0 0)")
     return p.parse_args()
+
+
+def calc_rg(q_vec):
+    q_mat = jnp.reshape(q_vec, (-1, 5))
+    x, y, z, phi, theta = q_mat[:,0], q_mat[:,1], q_mat[:,2], q_mat[:,3], q_mat[:,4]
+    u_x = jnp.sin(phi)*jnp.cos(theta)
+    u_y = jnp.sin(phi)*jnp.sin(theta)
+    u_z = jnp.cos(phi)
+    
+    cx = x + 0.5 * u_x
+    cy = y + 0.5 * u_y
+    cz = z + 0.5 * u_z
+    
+    centroids = jnp.stack([cx, cy, cz], axis=-1)
+    com = jnp.mean(centroids, axis=0)
+    rg = jnp.sqrt(jnp.mean(jnp.sum((centroids - com)**2, axis=-1)))
+    return rg
+
+def calc_normalized_entanglement(q_vec):
+    q_mat = jnp.reshape(q_vec, (-1, 5))
+    N = q_mat.shape[0]
+    q_pairs = create_pairs(q_mat)
+    
+    def lk_pair(qp):
+        x_i = qp[0];  y_i = qp[1];  z_i = qp[2];  phi_i = qp[3];  theta_i = qp[4]
+        x_j = qp[5];  y_j = qp[6];  z_j = qp[7];  phi_j = qp[8];  theta_j = qp[9]
+        return compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i,
+                                           x_j, y_j, z_j, phi_j, theta_j, 1)
+
+    import jax
+    lks = jax.vmap(lk_pair)(q_pairs)
+    total_lk = jnp.sum(lks)
+    norm = total_lk / (N * (N - 1) / 2)
+    return norm
 
 
 def run_entanglement(device_label: str, device, args):
@@ -83,11 +118,18 @@ def run_entanglement(device_label: str, device, args):
         # Compute final energy
         energy = float(total_effective_potential(jnp.asarray(q_result)))
         jax.block_until_ready(energy)
+        
+        norm_ent = float(calc_normalized_entanglement(jnp.asarray(q_result)))
+        jax.block_until_ready(norm_ent)
+        
+        rg = float(calc_rg(jnp.asarray(q_result)))
+        jax.block_until_ready(rg)
 
         print(f"  [{device_label}] Done in {elapsed:.2f}s  |  energy = {energy:.6f}")
+        print(f"  [{device_label}] Norm Ent = {norm_ent:.6f} | Rg = {rg:.6f}")
         print(f"{'='*60}")
 
-    return np.asarray(q_result), elapsed, energy
+    return np.asarray(q_result), elapsed, energy, norm_ent, rg
 
 
 def main() -> None:
@@ -112,14 +154,14 @@ def main() -> None:
 
     # ── CPU benchmark ────────────────────────────────────────────────
     # Clear any cached compilations by using the specific device
-    q_cpu, t_cpu, e_cpu = run_entanglement("CPU", cpu_device, args)
+    q_cpu, t_cpu, e_cpu, ne_cpu, rg_cpu = run_entanglement("CPU", cpu_device, args)
 
     # ── GPU benchmark ────────────────────────────────────────────────
     if gpu_devices:
         gpu_device = gpu_devices[0]
-        q_gpu, t_gpu, e_gpu = run_entanglement("GPU", gpu_device, args)
+        q_gpu, t_gpu, e_gpu, ne_gpu, rg_gpu = run_entanglement("GPU", gpu_device, args)
     else:
-        q_gpu, t_gpu, e_gpu = None, None, None
+        q_gpu, t_gpu, e_gpu, ne_gpu, rg_gpu = None, None, None, None, None
 
     # ── Summary ──────────────────────────────────────────────────────
     print("\n" + "=" * 60)
@@ -129,10 +171,10 @@ def main() -> None:
           f"Nmax={args.Nmax}, N_outer={args.N_outer}")
     print(f"  Random keys  : {args.random_keys}")
     print(f"")
-    print(f"  CPU time     : {t_cpu:8.2f}s  |  energy = {e_cpu:.6f}")
+    print(f"  CPU time     : {t_cpu:8.2f}s  |  energy = {e_cpu:.6f}  |  norm ent = {ne_cpu:.6f}  |  Rg = {rg_cpu:.6f}")
 
     if t_gpu is not None:
-        print(f"  GPU time     : {t_gpu:8.2f}s  |  energy = {e_gpu:.6f}")
+        print(f"  GPU time     : {t_gpu:8.2f}s  |  energy = {e_gpu:.6f}  |  norm ent = {ne_gpu:.6f}  |  Rg = {rg_gpu:.6f}")
         speedup = t_cpu / t_gpu if t_gpu > 0 else float("inf")
         print(f"  Speedup      : {speedup:.2f}x")
 

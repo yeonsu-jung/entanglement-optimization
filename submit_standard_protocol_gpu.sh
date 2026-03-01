@@ -20,7 +20,7 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null
 K1=${1:-42}
 K2=${2:-0}
 K3=${3:-0}
-NUM_RODS=${4:-200}
+NUM_RODS=${4:-500}
 AR=${5:-1000}
 
 echo ""

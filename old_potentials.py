@@ -1,4 +1,3 @@
-import jax
 import numpy as np
 import jax.numpy as jnp
 from jax import grad, jit, vmap
@@ -29,30 +28,10 @@ def safe_norm(x, axis=None, keepdims=False, eps=1e-14):
     """Compute the norm of x safely for gradients at zero."""
     return jnp.sqrt(jnp.sum(jnp.square(x), axis=axis, keepdims=keepdims) + eps)
 
-@jax.custom_jvp
-def safe_arcsin(x):
-    """Safely compute arcsin by clipping inputs strictly to [-1, 1]."""
-    return jnp.arcsin(jnp.clip(x, -1.0, 1.0))
-
-@safe_arcsin.defjvp
-def safe_arcsin_jvp(primals, tangents):
-    x, = primals
-    dx, = tangents
-    # Explicit derivative bounded from reaching infinity
-    eps = 1e-14
-    safe_x_sq = jnp.clip(jnp.square(x), 0.0, 1.0 - eps)
-    grad_val = 1.0 / jnp.sqrt(1.0 - safe_x_sq)
-    return safe_arcsin(x), grad_val * dx
-
 @jit
 def safe_normalize(x, eps=1e-14):
     """Normalize x safely for gradients at zero."""
     return x / safe_norm(x, eps=eps)
-
-@jit
-def safe_abs(x, eps=1e-14):
-    """Compute absolute value safely for gradients at zero."""
-    return jnp.sqrt(jnp.square(x) + eps)
 
 @jit
 def _segment_segment_parameters(point1s, point1e, point2s, point2e):
@@ -320,7 +299,7 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     n4 = safe_normalize(n4)
     
     tol = 1e-7
-    return -1/4/jnp.pi*safe_abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
@@ -353,38 +332,12 @@ def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, 
     n4 = jnp.cross(r_iij, r_ij)
     n4 = safe_normalize(n4)
     
-    return -1/4/jnp.pi*safe_abs(safe_arcsin(jnp.dot(n1,n2))
-                               + safe_arcsin(jnp.dot(n2,n3))
-                               + safe_arcsin(jnp.dot(n3,n4))
-                               + safe_arcsin(jnp.dot(n4,n1)))
-    
-def compute_linking_number_fast(rod_i, rod_j, l):
-    p_i = rod_i[:3]
-    p_j = rod_j[:3]
-    phi_i, theta_i = rod_i[3], rod_i[4]
-    phi_j, theta_j = rod_j[3], rod_j[4]
-    
-    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+    tol = 0.
 
-    p_ii = p_i + l*u_i
-    p_jj = p_j + l*u_j
-
-    r_ij = p_i - p_j
-    r_ijj = p_i - p_jj
-    r_iij = p_ii - p_j
-    r_iijj = p_ii - p_jj
-
-    n1 = safe_normalize(jnp.cross(r_ij, r_ijj))
-    n2 = safe_normalize(jnp.cross(r_ijj, r_iijj))
-    n3 = safe_normalize(jnp.cross(r_iijj, r_iij))
-    n4 = safe_normalize(jnp.cross(r_iij, r_ij))
-    
-    return -1/4/jnp.pi*safe_abs(safe_arcsin(jnp.dot(n1,n2))
-                               + safe_arcsin(jnp.dot(n2,n3))
-                               + safe_arcsin(jnp.dot(n3,n4))
-                               + safe_arcsin(jnp.dot(n4,n1)))
-
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
     
     
 def compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
