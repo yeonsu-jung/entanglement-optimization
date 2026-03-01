@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scale", type=float, default=1.0)
     p.add_argument("--dt", type=float, default=1e-2)
     p.add_argument("--Nmax", type=int, default=300)
-    p.add_argument("--N-outer", type=int, default=5, dest="N_outer")
+    p.add_argument("--N-outer", type=int, default=1, dest="N_outer")
     p.add_argument("--atol", type=float, default=1e-8)
     p.add_argument("--initial-q", type=str, default="non-intersecting",
                    choices=["non-intersecting", "test", "aligned", "random"])

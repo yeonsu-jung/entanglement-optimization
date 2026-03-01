@@ -1064,6 +1064,35 @@ def collision_penalized_entanglement_potential(q):
     eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
     return eff_pot
 
+@jit
+def collision_penalized_entanglement_potential_sq(q):
+    x_i = q[0]
+    y_i = q[1]
+    z_i = q[2]
+    phi_i = q[3]
+    theta_i = q[4]
+
+    x_j = q[5]
+    y_j = q[6]
+    z_j = q[7]
+    phi_j = q[8]
+    theta_j = q[9]
+
+    # Use Arai linking number and return negative square
+    lk = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    return -(lk ** 2)
+
+@jit
+def total_entanglement_potential_sq(q):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    
+    def body_fun(carry, q_pair):
+        return carry + collision_penalized_entanglement_potential_sq(q_pair), None
+    
+    total, _ = lax.scan(body_fun, 0, q_pairs)
+    return total
+
 def seg_seg_distance(q):
     # assumming seg-seg contacts (not point-seg contacts)
     x_i = q[0]

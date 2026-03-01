@@ -913,72 +913,24 @@ def gpu_relax_collision(q, dt, params, max_iters=1000000, effective_diameter_fac
         return jnp.min(all_pairwise_distances(q_pairs))
 
     # ── JIT-compiled while loop ──────────────────────────────────────
-    # State: (q, V, alpha, dt_val, Npos, min_d, i)
+    # State: (q, iteration_count, min_dist)
     @jit
     def _relax_loop(q_init):
-        dtmax = 10.0 * dt
-        dtmin = 0.02 * dt
-        alpha0 = 0.1
-        finc = 1.1
-        fdec = 0.5
-        fa = 0.99
-        Ndelay = 10
-
         def cond_fn(state):
-            q, V, alpha, dt_val, Npos, min_d, i = state
+            q, i, min_d = state
             return (min_d < target_min_dist) & (i < max_iters)
 
         def body_fn(state):
-            q, V, alpha, dt_val, Npos, min_d, i = state
-            
-            F = -_grad(q)
-            P = jnp.sum(F * V)
-            
-            P_gt_0 = P > 0
-            
-            dt_new = jnp.where(
-                P_gt_0,
-                jnp.where(Npos > Ndelay, jnp.minimum(dt_val * finc, dtmax), dt_val),
-                jnp.maximum(dt_val * fdec, dtmin)
-            )
-            
-            alpha_new = jnp.where(P_gt_0, alpha * fa, alpha0)
-            Npos_new = jnp.where(P_gt_0, Npos + 1, 0)
-            
-            V = jnp.where(P_gt_0, V, jnp.zeros_like(V))
-            
-            V_half = V + 0.5 * dt_new * F
-            
-            norm_V = jnp.linalg.norm(V_half)
-            norm_F = jnp.linalg.norm(F)
-            V_mixed = jnp.where(
-                norm_F > 1e-12,
-                (1.0 - alpha_new) * V_half + alpha_new * F * (norm_V / norm_F),
-                V_half
-            )
-            
-            q_new = q + dt_new * V_mixed
-            
-            F_new = -_grad(q_new)
-            V_new = V_mixed + 0.5 * dt_new * F_new
-            
+            q, i, min_d = state
+            g = _grad(q)
+            q_new = q - dt * g
             new_min_d = _min_dist(q_new)
-            
-            return (q_new, V_new, alpha_new, dt_new, Npos_new, new_min_d, i + 1)
+            return (q_new, i + 1, new_min_d)
 
         init_min_d = _min_dist(q_init)
-        init_state = (
-            q_init, 
-            jnp.zeros_like(q_init), 
-            jnp.float64(alpha0), 
-            jnp.float64(dt), 
-            jnp.int32(0), 
-            init_min_d,
-            jnp.int32(0)
-        )
+        init_state = (q_init, jnp.int32(0), init_min_d)
         final_state = lax.while_loop(cond_fn, body_fn, init_state)
-        # Returns q_final, i, final_min_d
-        return final_state[0], final_state[6], final_state[5]
+        return final_state
 
     # Run it
     print(f"Starting JIT-compiled GPU relaxation (max_iters={max_iters}, dt={dt})...")

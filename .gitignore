@@ -56,3 +56,8 @@ notebooks/*
 
 *.out
 *.err
+
+relaxation*/*
+log_files/*
+results/*
+entangle_only/*

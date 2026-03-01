@@ -916,6 +916,35 @@ def collision_penalized_entanglement_potential(q):
     return lk
 
 
+@jit
+def collision_penalized_entanglement_potential_sq(q):
+    """Per-pair potential: collision penalty + negated squared linking number.
+
+    Minimising this objective maximises Σ lk_ij^2 (entanglement)
+    while penalising rods closer than collision_radius.
+    """
+    x_i = q[0];  y_i = q[1];  z_i = q[2];  phi_i = q[3];  theta_i = q[4]
+    x_j = q[5];  y_j = q[6];  z_j = q[7];  phi_j = q[8];  theta_j = q[9]
+
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l * u_i
+    p_jj = p_j + l * u_j
+
+    # Entanglement objective: MINIMISE lk^2
+    lk = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i,
+                                     x_j, y_j, z_j, phi_j, theta_j, 1)
+    return -(lk ** 2)
+
+@jit
+def total_entanglement_potential_sq(q):
+    q_mat = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q_mat)
+    return jnp.sum(vmap(collision_penalized_entanglement_potential_sq)(q_pairs))
  
 @jit
 def seg_seg_distance(q):

@@ -24,6 +24,9 @@ from pathlib import Path
 import numpy as np
 
 import jax.numpy as jnp
+import os
+os.environ["JAX_PLATFORMS"] = "cpu"
+
 import jax
 jax.config.update("jax_enable_x64", True)
 
@@ -47,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--scale", type=float, default=1.0)
     p.add_argument("--dt", type=float, default=1e-2)
     p.add_argument("--Nmax", type=int, default=300)
-    p.add_argument("--N-outer", type=int, default=5, dest="N_outer")
+    p.add_argument("--N-outer", type=int, default=1, dest="N_outer")
     p.add_argument("--atol", type=float, default=1e-8)
     p.add_argument("--initial-q", type=str, default="non-intersecting", choices=["non-intersecting", "test", "aligned", "random"],)
     p.add_argument("--force", action="store_true", help="Recompute even if cached q_entangled.npy exists")
