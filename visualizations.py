@@ -2,7 +2,7 @@ import jax.numpy as jnp
 from jax import grad, jit, vmap
 from jax import random
 from jax import lax
-from optimization import optimize_fire2,optimize_fire_debug
+
 from potentials import effective_potential,total_effective_potential,total_effective_potential_ref
 import numpy as np
 from matplotlib import pyplot as plt

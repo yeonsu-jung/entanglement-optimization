@@ -118,8 +118,7 @@ def main() -> None:
             q_in, f_jitted, df_jitted,
             Nmax=args.Nmax,
             atol=atol_in,
-            dt=args.dt,
-            logoutput=False
+            dt=args.dt
         )
 
     print("\n============================================================")

@@ -1,7 +1,7 @@
 # %%
 from jax import grad,random,jit
 import jax.numpy as jnp
-from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual, optimize_fire_nonjax_individual_with_constraint
+from optimization import optimize_fire2, optimize_fire_nonjax_individual, optimize_fire_nonjax_individual_with_constraint
 from optimization import optimize_fire_jax_individual
 
 from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances, total_harmonic_line_relax
