@@ -912,38 +912,24 @@ def gpu_relax_collision(q, dt, params, max_iters=1000000, effective_diameter_fac
         q_pairs = create_pairs(q_mat)
         return jnp.min(all_pairwise_distances(q_pairs))
 
-    # ── JIT-compiled while loop ──────────────────────────────────────
-    # State: (q, iteration_count, min_dist)
-    @jit
-    def _relax_loop(q_init):
-        def cond_fn(state):
-            q, i, min_d = state
-            return (min_d < target_min_dist) & (i < max_iters)
-
-        def body_fn(state):
-            q, i, min_d = state
-            g = _grad(q)
-            q_new = q - dt * g
-            new_min_d = _min_dist(q_new)
-            return (q_new, i + 1, new_min_d)
-
-        init_min_d = _min_dist(q_init)
-        init_state = (q_init, jnp.int32(0), init_min_d)
-        final_state = lax.while_loop(cond_fn, body_fn, init_state)
-        return final_state
-
-    # Run it
+    # ── Per-DOF FIRE with distance-based termination ─────────────────
     print(f"Starting JIT-compiled GPU relaxation (max_iters={max_iters}, dt={dt})...")
     import time
     t0 = time.time()
 
-    q_final, n_iters, final_min_d = _relax_loop(q)
-    # Force completion
+    q_final, _, n_iters, _ = optimize_fire_jax_individual(
+        q, _potential, _grad,
+        Nmax=max_iters,
+        atol=1e-8,
+        dt=dt,
+        dist_fn=_min_dist,
+        target_dist=target_min_dist,
+    )
     jax.block_until_ready(q_final)
 
     t1 = time.time()
     n_iters = int(n_iters)
-    final_min_d = float(final_min_d)
+    final_min_d = float(_min_dist(q_final))
 
     print(f"GPU relaxation completed:")
     print(f"  Iterations: {n_iters}")

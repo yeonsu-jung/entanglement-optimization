@@ -188,7 +188,7 @@ def main() -> None:
             # Create a localized JIT wrapper so the while_loop compiles natively
             @jit
             def _gpu_optimize(q_in, atol_in):
-                return optimize_fire2(q_in, f, df, Nmax=args.Nmax, atol=atol_in, dt=args.dt, logoutput=False)
+                return optimize_fire2(q_in, f, df, Nmax=args.Nmax, atol=atol_in, dt=args.dt)
 
             t_opt_start = time.time()
             for k in range(args.N_outer):
