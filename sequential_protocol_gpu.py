@@ -356,13 +356,25 @@ def main() -> None:
         params = {"col_rad": col_rad, "amp": args.amp, "sigma": 0.025}
         t_start = time.time()
 
-        q_relaxed = pr.gpu_relax_collision(
-            q_current,
-            args.relax_dt,
-            params,
-            max_iters=args.max_relax_iters,
-            effective_diameter_factor=args.clearance,
-        )
+        if args.save_trajectory:
+            q_relaxed, relax_snapshots = pr.gpu_relax_collision_traj(
+                q_current,
+                args.relax_dt,
+                params,
+                max_iters=args.max_relax_iters,
+                effective_diameter_factor=args.clearance,
+                snapshot_every=args.snapshot_every,
+            )
+        else:
+            q_relaxed = pr.gpu_relax_collision(
+                q_current,
+                args.relax_dt,
+                params,
+                max_iters=args.max_relax_iters,
+                effective_diameter_factor=args.clearance,
+            )
+            relax_snapshots = None
+
         jax.block_until_ready(q_relaxed)
         t_relax = time.time() - t_start
 
@@ -377,6 +389,15 @@ def main() -> None:
             t_relax=t_relax,
             q_entangled=q_entangled,
         )
+
+        if relax_snapshots is not None:
+            # Convert each q snapshot -> endpoints (N, 6), stack to (T, N, 6)
+            traj = np.stack(
+                [np.asarray(q_to_x(jnp.asarray(snap))) for snap in relax_snapshots]
+            )
+            traj_path = ar_dir / "trajectory.npy"
+            np.save(traj_path, traj)
+            print(f"  Saved trajectory: {traj_path}  shape={traj.shape}")
 
         q_current = q_relaxed
 
