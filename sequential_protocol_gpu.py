@@ -303,7 +303,7 @@ def main() -> None:
         
         @jit
         def _gpu_optimize_entangle(q_in, atol_in):
-            return optimize_fire2(q_in, f_ent, df_ent, Nmax=args.Nmax_entangle, atol=atol_in, dt=args.dt, logoutput=False)
+            return optimize_fire2(q_in, f_ent, df_ent, Nmax=args.Nmax_entangle, atol=atol_in, dt=args.dt)
 
         for k in range(args.N_outer_entangle):
             print(f"Outer iteration {k+1}/{args.N_outer_entangle}, atol_ent = {atol_ent:.2e} ...")
