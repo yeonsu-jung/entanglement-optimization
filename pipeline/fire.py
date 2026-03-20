@@ -75,16 +75,20 @@ def fire_init_carry(q0, dt):
     )
 
 
-@partial(jit, static_argnames=["f", "df", "dist_fn"])
+@partial(jit, static_argnames=["f", "df", "dist_fn", "dtmax_factor"])
 def optimize_fire(q0, f, df, Nmax, atol=1e-8, dt=1e-4,
+                  dtmax_factor=10.0,
                   dist_fn=None, target_dist=-1.0):
     """Full lax.while_loop FIRE — fastest, no Python interaction during run.
 
     Terminates when:
       max|force| < atol  OR  step >= Nmax
       OR (if dist_fn given) min_dist >= target_dist
+
+    dtmax_factor: dt can grow up to dtmax_factor * dt (default 10).
+      Set to 1.0 to disable adaptive dt growth (fixed-dt mode).
     """
-    dtmax = 10.0 * dt
+    dtmax = dtmax_factor * dt
     dtmin = 0.02 * dt
 
     body = _fire_body(df, dtmax, dtmin)
@@ -115,11 +119,18 @@ def optimize_fire(q0, f, df, Nmax, atol=1e-8, dt=1e-4,
     return q, f(q), carry[5], carry[6]
 
 
-def make_fire_runner(f, df, dt):
-    """Return run_chunk(carry, n) that advances FIRE by exactly n steps.
+def make_fire_runner(f, df, dt, dtmax_factor=10.0, dist_fn=None, target_dist=-1.0):
+    """Return run_chunk(carry, n) that advances FIRE by up to n steps.
 
     Use this for trajectory export: call run_chunk in a Python loop,
     saving carry[0] (q) after each chunk.
+
+    If dist_fn and target_dist are provided, each chunk also stops early
+    (within the n steps) as soon as min_dist >= target_dist, matching the
+    behaviour of optimize_fire.  carry[7] is then the live min_dist.
+
+    dtmax_factor: dt can grow up to dtmax_factor * dt (default 10).
+      Set to 1.0 to disable adaptive dt growth (fixed-dt mode).
 
     Example::
 
@@ -130,17 +141,31 @@ def make_fire_runner(f, df, dt):
             carry = run_chunk(carry, stride)
             snapshots.append(np.asarray(carry[0]))
     """
-    dtmax = 10.0 * dt
+    dtmax = dtmax_factor * dt
     dtmin = 0.02 * dt
 
     body = _fire_body(df, dtmax, dtmin)
 
-    # fori_loop body ignores loop index
-    def _fori_body(_, carry):
-        return body(carry)
+    if dist_fn is None:
+        # Original path: fori_loop runs exactly n steps.
+        def _fori_body(_, carry):
+            return body(carry)
 
-    @partial(jit, static_argnums=[1])
-    def run_chunk(carry, n):
-        return lax.fori_loop(0, n, _fori_body, carry)
+        @partial(jit, static_argnums=[1])
+        def run_chunk(carry, n):
+            return lax.fori_loop(0, n, _fori_body, carry)
+    else:
+        # With dist_fn: while_loop stops early when min_dist >= target_dist.
+        def body_fn(carry):
+            new = body(carry)
+            return new[:7] + (dist_fn(new[0]),)
+
+        @jit
+        def run_chunk(carry, n):
+            step_start = carry[5]
+            def cond_fn(c):
+                _, _, _, _, _, step, _, min_dist = c
+                return (step - step_start < n) & (min_dist < target_dist)
+            return lax.while_loop(cond_fn, body_fn, carry)
 
     return run_chunk

@@ -68,12 +68,19 @@ def parse_args() -> argparse.Namespace:
                    help="Max FIRE iterations per outer loop.")
     p.add_argument("--N-outer",    type=int,   default=1,
                    help="Outer iterations (halves atol each time).")
-    p.add_argument("--atol",       type=float, default=1e-5,
+    p.add_argument("--atol",       type=float, default=1e-8,
                    help="Relative force tolerance (scaled by initial force).")
-    p.add_argument("--dt",         type=float, default=1e-2)
+    p.add_argument("--dt",            type=float, default=1e-2)
+    p.add_argument("--dtmax-factor",  type=float, default=1.0,
+                   help="Max dt = dtmax_factor * dt. Default 1.0 (fixed dt, matches "
+                        "benchmark). Use 10.0 to enable adaptive dt growth.")
     p.add_argument("--out-dir",    type=str,   default="results/entangled")
     p.add_argument("--force",      action="store_true",
                    help="Overwrite existing results.")
+    p.add_argument("--save-traj",  action="store_true",
+                   help="Export endpoint snapshots during entanglement optimisation.")
+    p.add_argument("--stride",     type=int,   default=500,
+                   help="FIRE iterations between snapshots (--save-traj only).")
     return p.parse_args()
 
 
@@ -97,7 +104,30 @@ def main():
         return fire_mod.optimize_fire(
             q, f_ent, df_ent,
             Nmax=args.Nmax, atol=atol, dt=args.dt,
+            dtmax_factor=args.dtmax_factor,
         )
+
+    def _optimize_with_traj(q0, atol, stride, Nmax):
+        """Chunked FIRE — captures endpoint snapshots every `stride` iters."""
+        run_chunk = fire_mod.make_fire_runner(f_ent, df_ent, args.dt,
+                                              dtmax_factor=args.dtmax_factor)
+        carry     = fire_mod.fire_init_carry(q0, args.dt)
+        snapshots: list[np.ndarray] = []
+        total = 0
+
+        while total < Nmax:
+            chunk = min(stride, Nmax - total)
+            carry = run_chunk(carry, chunk)
+            jax.block_until_ready(carry[0])
+            total = int(carry[5])
+            error = float(carry[6])
+            snapshots.append(np.asarray(carry[0]))
+
+            if error <= atol:
+                break
+
+        q = carry[0]
+        return q, f_ent(q), carry[5], carry[6], snapshots
 
     print("\nCompiling JIT graph (once)…")
     dummy = jnp.zeros(num_rods * 5, dtype=jnp.float64)
@@ -142,9 +172,15 @@ def main():
         # Optimise
         t_opt = time.time()
         q = q0
+        all_snapshots: list[np.ndarray] = [np.asarray(q0)] if args.save_traj else []
         for k in range(args.N_outer):
             print(f"  outer {k+1}/{args.N_outer}  atol={atol:.2e}")
-            q, f_val, n_iters, error = _optimize(q, atol)
+            if args.save_traj:
+                q, f_val, n_iters, error, snapshots = _optimize_with_traj(
+                    q, atol, args.stride, args.Nmax)
+                all_snapshots.extend(snapshots)
+            else:
+                q, f_val, n_iters, error = _optimize(q, atol)
             jax.block_until_ready(q)
             atol /= 2.0
         t_opt = time.time() - t_opt
@@ -157,6 +193,14 @@ def main():
         x_np  = np.asarray(physics.q_to_x(jnp.asarray(q_np)))
         np.save(packing_dir / "q_entangled.npy", q_np)
         np.save(packing_dir / "x_entangled.npy", x_np)
+
+        if args.save_traj and all_snapshots:
+            traj = np.stack([
+                np.asarray(physics.q_to_x(jnp.asarray(snap)))
+                for snap in all_snapshots
+            ])
+            np.save(packing_dir / "trajectory.npy", traj)
+            print(f"  trajectory saved: shape={traj.shape}")
 
         d_all = physics.all_pairwise_distances(
             physics.create_pairs(jnp.reshape(jnp.asarray(q_np), (-1, 5)))

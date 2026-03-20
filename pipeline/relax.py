@@ -151,13 +151,20 @@ def _relax_fast(q, f, df, dt, target_min_dist, max_iters):
 
 
 def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
-    """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters."""
+    """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters.
+
+    Uses the same per-step min_dist early-stop as optimize_fire, so the final
+    packing tightness matches _relax_fast.
+    """
     @jit
     def _min_d(q_flat):
         return physics.min_pairwise_distance(q_flat)
 
-    run_chunk = fire_mod.make_fire_runner(f, df, dt)
+    run_chunk = fire_mod.make_fire_runner(f, df, dt,
+                                          dist_fn=_min_d,
+                                          target_dist=target_min_dist)
     carry     = fire_mod.fire_init_carry(q, dt)
+    carry     = carry[:7] + (_min_d(q),)   # seed carry[7] with initial min_dist
     snapshots: list[np.ndarray] = []
     total     = 0
 
@@ -168,12 +175,11 @@ def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
         chunk = min(stride, max_iters - total)
         carry = run_chunk(carry, chunk)
         jax.block_until_ready(carry[0])
-        total += chunk
+        total = int(carry[5])
 
-        q_snap   = carry[0]
         error    = float(carry[6])
-        min_dist = float(_min_d(q_snap))
-        snapshots.append(np.asarray(q_snap))
+        min_dist = float(carry[7])
+        snapshots.append(np.asarray(carry[0]))
 
         if total % (stride * 10) == 0:
             print(f"  iter={total:>9d}  error={error:.3e}  min_dist={min_dist:.6e}"
@@ -236,7 +242,8 @@ def main():
 
         print(f"[{idx+1}/{len(ar_list)}] AR={AR}  diameter={rod_diameter:.6f}")
 
-        if cache_path.exists() and not args.force:
+        traj_missing = args.save_traj and not (ar_dir / "trajectory.npy").exists()
+        if cache_path.exists() and not args.force and not traj_missing:
             print(f"  cached → loading {cache_path}")
             q_current = jnp.asarray(np.load(cache_path), dtype=jnp.float64).flatten()
             continue
