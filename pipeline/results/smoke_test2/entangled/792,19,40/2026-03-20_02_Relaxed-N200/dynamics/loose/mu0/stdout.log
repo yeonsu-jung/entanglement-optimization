@@ -1,0 +1,117 @@
+[App] Loading scene configuration from: /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test2/entangled/792,19,40/2026-03-20_02_Relaxed-N200/dynamics/loose/mu0/scene.json
+[config] Loading randomForce settings from JSON.
+[config] Loaded /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test2/entangled/792,19,40/2026-03-20_02_Relaxed-N200/dynamics/loose/mu0/scene.json | bodies=1 | dt=0.0005 | periodic=off
+[App] Successfully loaded scene: /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test2/entangled/792,19,40/2026-03-20_02_Relaxed-N200/dynamics/loose/mu0/scene.json
+[Debug] Calling softContactSolver.setPBC...
+[Debug] setPBC done.
+[Debug] Using random init...
+[init-csv] Parsed rod_radius=0.0025
+[init-csv] Rod 0: radius=0.0025 diameter=0.005 halfHeight=0.5 length=1
+[App] Auto-switching to serial mode (threads=1) for small N=200
+Running headless for 5000 steps...
+[Headless] Step 0 begin
+[Headless] Step 0 end
+[Headless] frame=1 bodies=200 KE=0.000128 ent_pairs=0 ent_sum=0.000000
+[Headless] Step 100 begin
+[Headless] Step 100 end
+[Headless] Step 200 begin
+[Headless] Step 200 end
+[Headless] Step 300 begin
+[Headless] Step 300 end
+[Headless] Step 400 begin
+[Headless] Step 400 end
+[Headless] Step 500 begin
+[Headless] Step 500 end
+[Headless] Step 600 begin
+[Headless] Step 600 end
+[Headless] Step 700 begin
+[Headless] Step 700 end
+[Headless] Step 800 begin
+[Headless] Step 800 end
+[Headless] Step 900 begin
+[Headless] Step 900 end
+[Headless] Step 1000 begin
+[Headless] Step 1000 end
+[Headless] frame=1025 bodies=200 KE=0.000127 ent_pairs=0 ent_sum=0.000000
+[Headless] Step 1100 begin
+[Headless] Step 1100 end
+[Headless] Step 1200 begin
+[Headless] Step 1200 end
+[Headless] Step 1300 begin
+[Headless] Step 1300 end
+[Headless] Step 1400 begin
+[Headless] Step 1400 end
+[Headless] Step 1500 begin
+[Headless] Step 1500 end
+[Headless] Step 1600 begin
+[Headless] Step 1600 end
+[Headless] Step 1700 begin
+[Headless] Step 1700 end
+[Headless] Step 1800 begin
+[Headless] Step 1800 end
+[Headless] Step 1900 begin
+[Headless] Step 1900 end
+[Headless] Step 2000 begin
+[Headless] Step 2000 end
+[Headless] frame=2049 bodies=200 KE=0.000128 ent_pairs=0 ent_sum=0.000000
+[Headless] Step 2100 begin
+[Headless] Step 2100 end
+[Headless] Step 2200 begin
+[Headless] Step 2200 end
+[Headless] Step 2300 begin
+[Headless] Step 2300 end
+[Headless] Step 2400 begin
+[Headless] Step 2400 end
+[Headless] Step 2500 begin
+[Headless] Step 2500 end
+[Headless] Step 2600 begin
+[Headless] Step 2600 end
+[Headless] Step 2700 begin
+[Headless] Step 2700 end
+[Headless] Step 2800 begin
+[Headless] Step 2800 end
+[Headless] Step 2900 begin
+[Headless] Step 2900 end
+[Headless] Step 3000 begin
+[Headless] Step 3000 end
+[Headless] frame=3073 bodies=200 KE=0.000128 ent_pairs=0 ent_sum=0.000000
+[Headless] Step 3100 begin
+[Headless] Step 3100 end
+[Headless] Step 3200 begin
+[Headless] Step 3200 end
+[Headless] Step 3300 begin
+[Headless] Step 3300 end
+[Headless] Step 3400 begin
+[Headless] Step 3400 end
+[Headless] Step 3500 begin
+[Headless] Step 3500 end
+[Headless] Step 3600 begin
+[Headless] Step 3600 end
+[Headless] Step 3700 begin
+[Headless] Step 3700 end
+[Headless] Step 3800 begin
+[Headless] Step 3800 end
+[Headless] Step 3900 begin
+[Headless] Step 3900 end
+[Headless] Step 4000 begin
+[Headless] Step 4000 end
+[Headless] frame=4097 bodies=200 KE=0.000128 ent_pairs=0 ent_sum=0.000000
+[Headless] Step 4100 begin
+[Headless] Step 4100 end
+[Headless] Step 4200 begin
+[Headless] Step 4200 end
+[Headless] Step 4300 begin
+[Headless] Step 4300 end
+[Headless] Step 4400 begin
+[Headless] Step 4400 end
+[Headless] Step 4500 begin
+[Headless] Step 4500 end
+[Headless] Step 4600 begin
+[Headless] Step 4600 end
+[Headless] Step 4700 begin
+[Headless] Step 4700 end
+[Headless] Step 4800 begin
+[Headless] Step 4800 end
+[Headless] Step 4900 begin
+[Headless] Step 4900 end
+Headless run complete. Frames=5000
