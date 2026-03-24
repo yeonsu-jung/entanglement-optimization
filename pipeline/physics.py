@@ -173,6 +173,41 @@ def min_pairwise_distance(q):
     return jnp.min(all_pairwise_distances(pairs))
 
 
+def make_min_dist_fn(threshold: float):
+    """Return a JIT'd min-dist function that uses AABB pruning.
+
+    Pairs whose AABBs don't overlap within `threshold` are guaranteed to
+    have distance >= threshold, so they are skipped and contribute
+    `threshold` to the minimum.  This makes the check cheap enough to
+    call every FIRE step even at large N.
+
+    The result is exact: it equals min_pairwise_distance(q) whenever
+    the true minimum is < threshold, and returns >= threshold otherwise.
+    """
+    _threshold = float(threshold)
+
+    @jit
+    def _pair_dist_aabb(q_pair):
+        ri = q_pair[:3];  ui = sph2cart(q_pair[3], q_pair[4])
+        rj = q_pair[5:8]; uj = sph2cart(q_pair[8], q_pair[9])
+        p1s = ri;  p1e = ri + ui
+        p2s = rj;  p2e = rj + uj
+        return lax.cond(
+            aabb_overlap_capsule(p1s, p1e, p2s, p2e, _threshold),
+            lambda _: dist_lin_seg(p1s, p1e, p2s, p2e),
+            lambda _: _threshold,
+            None,
+        )
+
+    @jit
+    def _f(q_flat):
+        q = jnp.reshape(q_flat, (-1, 5))
+        pairs = create_pairs(q)
+        return jnp.min(vmap(_pair_dist_aabb)(pairs))
+
+    return _f
+
+
 # ── Potentials ─────────────────────────────────────────────────────────────
 
 def make_entangle_potential(num_rods: int):

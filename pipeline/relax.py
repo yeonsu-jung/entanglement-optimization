@@ -135,37 +135,32 @@ def _save_ar_result(q_relaxed, q_entangled, ar_dir: Path,
 
 # ── Relax one AR step ──────────────────────────────────────────────────────
 
-def _relax_fast(q, f, df, dt, target_min_dist, max_iters, stride=10_000):
-    """Chunked FIRE relax — checks min_dist in Python loop every `stride` iters.
+def _relax_fast(q, f, df, dt, target_min_dist, max_iters):
+    """Single lax.while_loop relax — fastest, no snapshot.
 
-    Avoids calling min_pairwise_distance (O(N^2), no AABB) inside the
-    lax.while_loop; instead checks convergence once per chunk.
+    Uses an AABB-pruned min_dist function as dist_fn so the stopping
+    criterion (min_dist >= target_min_dist) is checked every FIRE step
+    with floating-point precision, without the O(N^2) full-distance cost.
     """
-    run_chunk = fire_mod.make_fire_runner(f, df, dt)
-    carry     = fire_mod.fire_init_carry(q, dt)
-    total     = 0
+    min_d_fn = physics.make_min_dist_fn(target_min_dist)
 
-    while total < max_iters:
-        chunk = min(stride, max_iters - total)
-        carry = run_chunk(carry, chunk)
-        jax.block_until_ready(carry[0])
-        total = int(carry[5])
-
-        error    = float(carry[6])
-        min_dist = float(physics.min_pairwise_distance(carry[0]))
-
-        if min_dist >= target_min_dist:
-            break
-        if error <= 1e-8:
-            break
-
-    return carry[0]
+    q_out, _, n, _ = fire_mod.optimize_fire(
+        q, f, df,
+        Nmax=max_iters, atol=1e-8, dt=dt,
+        dist_fn=min_d_fn, target_dist=target_min_dist,
+    )
+    jax.block_until_ready(q_out)
+    return q_out
 
 
 def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
     """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters."""
-    run_chunk = fire_mod.make_fire_runner(f, df, dt)
+    min_d_fn  = physics.make_min_dist_fn(target_min_dist)
+    run_chunk = fire_mod.make_fire_runner(f, df, dt,
+                                          dist_fn=min_d_fn,
+                                          target_dist=target_min_dist)
     carry     = fire_mod.fire_init_carry(q, dt)
+    carry     = carry[:7] + (min_d_fn(q),)
     snapshots: list[np.ndarray] = []
     total     = 0
 
@@ -179,7 +174,7 @@ def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
         total = int(carry[5])
 
         error    = float(carry[6])
-        min_dist = float(physics.min_pairwise_distance(carry[0]))
+        min_dist = float(carry[7])
         snapshots.append(np.asarray(carry[0]))
 
         if total % (stride * 10) == 0:
@@ -226,7 +221,8 @@ def main():
     # Warm-up: compile min_dist once
     print("JIT warm-up…")
     _dummy = jnp.zeros(num_rods * 5, dtype=jnp.float64)
-    _ = physics.min_pairwise_distance(_dummy)
+    _dummy_min_d = physics.make_min_dist_fn(1.0)
+    _ = _dummy_min_d(_dummy)
     jax.block_until_ready(_)
     print("  done\n")
 
