@@ -135,36 +135,37 @@ def _save_ar_result(q_relaxed, q_entangled, ar_dir: Path,
 
 # ── Relax one AR step ──────────────────────────────────────────────────────
 
-def _relax_fast(q, f, df, dt, target_min_dist, max_iters):
-    """Single lax.while_loop relax — fastest, no snapshot."""
-    @jit
-    def _min_d(q_flat):
-        return physics.min_pairwise_distance(q_flat)
+def _relax_fast(q, f, df, dt, target_min_dist, max_iters, stride=10_000):
+    """Chunked FIRE relax — checks min_dist in Python loop every `stride` iters.
 
-    q_out, _, n, _ = fire_mod.optimize_fire(
-        q, f, df,
-        Nmax=max_iters, atol=1e-8, dt=dt,
-        dist_fn=_min_d, target_dist=target_min_dist,
-    )
-    jax.block_until_ready(q_out)
-    return q_out
+    Avoids calling min_pairwise_distance (O(N^2), no AABB) inside the
+    lax.while_loop; instead checks convergence once per chunk.
+    """
+    run_chunk = fire_mod.make_fire_runner(f, df, dt)
+    carry     = fire_mod.fire_init_carry(q, dt)
+    total     = 0
+
+    while total < max_iters:
+        chunk = min(stride, max_iters - total)
+        carry = run_chunk(carry, chunk)
+        jax.block_until_ready(carry[0])
+        total = int(carry[5])
+
+        error    = float(carry[6])
+        min_dist = float(physics.min_pairwise_distance(carry[0]))
+
+        if min_dist >= target_min_dist:
+            break
+        if error <= 1e-8:
+            break
+
+    return carry[0]
 
 
 def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
-    """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters.
-
-    Uses the same per-step min_dist early-stop as optimize_fire, so the final
-    packing tightness matches _relax_fast.
-    """
-    @jit
-    def _min_d(q_flat):
-        return physics.min_pairwise_distance(q_flat)
-
-    run_chunk = fire_mod.make_fire_runner(f, df, dt,
-                                          dist_fn=_min_d,
-                                          target_dist=target_min_dist)
+    """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters."""
+    run_chunk = fire_mod.make_fire_runner(f, df, dt)
     carry     = fire_mod.fire_init_carry(q, dt)
-    carry     = carry[:7] + (_min_d(q),)   # seed carry[7] with initial min_dist
     snapshots: list[np.ndarray] = []
     total     = 0
 
@@ -178,7 +179,7 @@ def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
         total = int(carry[5])
 
         error    = float(carry[6])
-        min_dist = float(carry[7])
+        min_dist = float(physics.min_pairwise_distance(carry[0]))
         snapshots.append(np.asarray(carry[0]))
 
         if total % (stride * 10) == 0:
