@@ -38,6 +38,11 @@ adjij
 imgui.ini
 .polyscope.ini
 runs/
+
+# Cohort: machine-specific env and generated job scripts
+pipeline/cohort/cluster.env
+pipeline/cohort/jobs/
+pipeline/cohort/results/
 perform-segmentation/
 qs/
 filament_fields_output/
