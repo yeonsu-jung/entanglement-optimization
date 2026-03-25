@@ -224,19 +224,17 @@ def _repulsion_pair(q_pair, col_rad, amp):
                     lambda _: _full(), lambda _: 0.0, None)
 
 
-def make_repulsion_potential(col_rad: float, amp: float):
-    """Return a JIT'd potential f(q) = sum of pair repulsions.
+@jit
+def repulsion_potential(q_flat, col_rad, amp):
+    """Harmonic repulsion potential with traced col_rad and amp.
 
-    col_rad and amp are captured as Python constants → compiled in.
-    Call once per AR step (cheap retrace).
+    Compiled once per q shape (once per N) — col_rad is a dynamic JAX scalar
+    so the same XLA program covers all AR values for a given N.
     """
-    _col_rad = float(col_rad)
-    _amp     = float(amp)
+    q = jnp.reshape(q_flat, (-1, 5))
+    pairs = create_pairs(q)
+    return jnp.sum(vmap(lambda qp: _repulsion_pair(qp, col_rad, amp))(pairs))
 
-    @jit
-    def _f(q_flat):
-        q = jnp.reshape(q_flat, (-1, 5))
-        pairs = create_pairs(q)
-        return jnp.sum(vmap(lambda qp: _repulsion_pair(qp, _col_rad, _amp))(pairs))
 
-    return _f
+# Gradient w.r.t. q (first argument) — also compiled once per N.
+repulsion_gradient = jit(grad(repulsion_potential))

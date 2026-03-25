@@ -138,30 +138,29 @@ run_entangle() {
         --out-dir "\$out_dir" \$FORCE_FLAG
 }
 
-run_relax_all() {
-    local N="\$1" AR="\$2"
-    local out_dir="\${RESULTS_DIR}/N\${N}/AR\${AR}"
-    local found=0
+run_relax_N() {
+    local N="\$1"; shift
+    local ars=("\$@")
     local q_paths=()
+    local found=0
 
-    if [[ ! -d "\$out_dir" ]]; then
-        log "Relax: skip missing directory \$out_dir"
-        return
-    fi
-
-    while IFS= read -r -d '' q_path; do
-        found=1
-        q_paths+=("\$q_path")
-    done < <(find "\$out_dir" -type f -name q_entangled.npy -print0 | sort -z)
+    for AR in "\${ars[@]}"; do
+        local out_dir="\${RESULTS_DIR}/N\${N}/AR\${AR}"
+        [[ -d "\$out_dir" ]] || continue
+        while IFS= read -r -d '' q_path; do
+            found=1
+            q_paths+=("\$q_path")
+        done < <(find "\$out_dir" -type f -name q_entangled.npy -print0 | sort -z)
+    done
 
     if [[ "\$found" -eq 0 ]]; then
-        log "Relax: no q_entangled.npy found under \$out_dir"
+        log "Relax: no q_entangled.npy found for N=\$N"
         return
     fi
 
-    log "Relax: N=\$N AR=\$AR seeds=\${#q_paths[@]}"
+    log "Relax: N=\$N  ARs=\${ars[*]}  total_seeds=\${#q_paths[@]}"
     python "${pipeline_dir}/relax.py" \
-        "\${q_paths[@]}" --AR-list "\$AR" --max-iters "\$MAX_ITERS" \$FORCE_FLAG
+        "\${q_paths[@]}" --AR-list auto --max-iters "\$MAX_ITERS" \$FORCE_FLAG
 }
 
 log "Phase 1/2: entangle all packings"
@@ -178,14 +177,10 @@ done
 
 log "Phase 2/2: relax all generated packings"
 for N in "\${N_MAIN[@]}"; do
-    for AR in "\${AR_MAIN[@]}"; do
-        run_relax_all "\$N" "\$AR"
-    done
+    run_relax_N "\$N" "\${AR_MAIN[@]}"
 done
 for N in "\${N_LARGE[@]}"; do
-    for AR in "\${AR_LARGE[@]}"; do
-        run_relax_all "\$N" "\$AR"
-    done
+    run_relax_N "\$N" "\${AR_LARGE[@]}"
 done
 
 log "Done: full sequential cohort run complete"

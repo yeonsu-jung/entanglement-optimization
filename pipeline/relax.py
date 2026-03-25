@@ -35,15 +35,16 @@ from __future__ import annotations
 
 import argparse
 import datetime
-import sys
+import re
 import time
+from functools import partial
 from pathlib import Path
 
 import jax
 jax.config.update("jax_enable_x64", True)
 import jax.numpy as jnp
 import numpy as np
-from jax import grad, jit
+from jax import grad, jit, lax
 
 import physics
 import fire as fire_mod
@@ -71,8 +72,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("q_paths", nargs="+", type=str,
                    help="One or more paths to q_entangled.npy (same N; JIT shared).")
     p.add_argument("--AR-list", type=str,
-                   default="1000,500,300,200,150,100,50,25,10",
-                   help="Comma-separated AR values largest→smallest.")
+                   default="auto",
+                   help='Comma-separated AR values largest→smallest, '
+                        'or "auto" to infer AR from the /AR{N}/ path component.')
     p.add_argument("--max-iters",  type=int,   default=1_000_000)
     p.add_argument("--relax-dt",   type=float, default=1e-4)
     p.add_argument("--clearance",  type=float, default=1.005,
@@ -135,26 +137,103 @@ def _save_ar_result(q_relaxed, q_entangled, ar_dir: Path,
 
 # ── Relax one AR step ──────────────────────────────────────────────────────
 
-def _relax_fast(q, f, df, dt, target_min_dist, max_iters):
-    """Single lax.while_loop relax — fastest, no snapshot.
+# FIRE hyper-parameters (duplicated from fire.py to avoid exporting private names)
+_FIRE_NDELAY = 10
+_FIRE_FINC   = 1.1
+_FIRE_FDEC   = 0.5
+_FIRE_FA     = 0.99
+_FIRE_ALPHA0 = 0.1
 
-    Uses an AABB-pruned min_dist function as dist_fn so the stopping
-    criterion (min_dist >= target_min_dist) is checked every FIRE step
-    with floating-point precision, without the O(N^2) full-distance cost.
+
+@partial(jit, static_argnames=["dt", "dtmax_factor"])
+def _fire_repulsion_fast(q0, col_rad, amp, Nmax, dt=1e-4,
+                         dtmax_factor=10.0, atol=1e-8, target_dist=-1.0):
+    """FIRE optimizer for harmonic repulsion with dynamic col_rad/amp.
+
+    Traces once per (q shape, dt, dtmax_factor) — the same XLA program is
+    reused for every AR value and every seed that shares the same N.
     """
-    min_d_fn = physics.make_min_dist_fn(target_min_dist)
+    dtmax = jnp.float64(dtmax_factor * dt)
+    dtmin = jnp.float64(0.02 * dt)
 
-    q_out, _, n, _ = fire_mod.optimize_fire(
-        q, f, df,
-        Nmax=max_iters, atol=1e-8, dt=dt,
-        dist_fn=min_d_fn, target_dist=target_min_dist,
+    def df(q):
+        return physics.repulsion_gradient(q, col_rad, amp)
+
+    def body(carry):
+        q, V, alpha, dt_c, Npos, step, _err, _md = carry
+        F      = -df(q)
+        P      = jnp.sum(F * V)
+        P_pos  = P > 0
+        V      = jnp.where(P_pos, V, jnp.zeros_like(V))
+        dt_c   = jnp.where(P_pos,
+                     jnp.where(Npos > _FIRE_NDELAY,
+                               jnp.minimum(dt_c * _FIRE_FINC, dtmax), dt_c),
+                     jnp.maximum(dt_c * _FIRE_FDEC, dtmin))
+        alpha  = jnp.where(P_pos,
+                     jnp.where(Npos > _FIRE_NDELAY, alpha * _FIRE_FA, alpha),
+                     jnp.float64(_FIRE_ALPHA0))
+        Npos   = jnp.where(P_pos, Npos + 1, jnp.int32(0))
+        V_half = V + 0.5 * dt_c * F
+        nV     = jnp.linalg.norm(V_half)
+        nF     = jnp.linalg.norm(F)
+        V_mix  = jnp.where(nF > 1e-12,
+                            (1.0 - alpha) * V_half + alpha * F * (nV / nF),
+                            V_half)
+        q      = q + dt_c * V_mix
+        F2     = -df(q)
+        V      = V_mix + 0.5 * dt_c * F2
+        error  = jnp.max(jnp.abs(F2))
+        md     = physics.min_pairwise_distance(q)
+        return q, V, alpha, dt_c, Npos, step + 1, error, md
+
+    def cond(carry):
+        _, _, _, _, _, step, error, min_dist = carry
+        return ((error > atol) & (step < Nmax) &
+                jnp.where(target_dist > 0.0, min_dist < target_dist, True))
+
+    carry = (
+        q0,
+        jnp.zeros_like(q0),
+        jnp.float64(_FIRE_ALPHA0),
+        jnp.float64(dt),
+        jnp.int32(0),
+        jnp.int32(0),
+        jnp.float64(1.0),
+        physics.min_pairwise_distance(q0),
+    )
+    carry = lax.while_loop(cond, body, carry)
+    return carry[0]
+
+
+def _relax_fast(q, col_rad, amp, dt, target_min_dist, max_iters):
+    """Thin wrapper: run FIRE with dynamic col_rad/amp, no snapshots."""
+    q_out = _fire_repulsion_fast(
+        q, col_rad, amp, max_iters,
+        dt=dt, target_dist=target_min_dist,
     )
     jax.block_until_ready(q_out)
     return q_out
 
 
-def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
+# ── Trajectory-mode JIT cache (compiled per eff_col_rad; rare path) ──────────
+_traj_fn_cache: dict[tuple, tuple] = {}
+
+def _get_traj_fns(eff_col_rad: float, amp: float):
+    """Return (f, df) for trajectory mode, compiled once per (eff_col_rad, amp)."""
+    key = (float(eff_col_rad), float(amp))
+    if key not in _traj_fn_cache:
+        _cr = jnp.float64(eff_col_rad)
+        _a  = jnp.float64(amp)
+        _traj_fn_cache[key] = (
+            jit(lambda q: physics.repulsion_potential(q, _cr, _a)),
+            jit(lambda q: physics.repulsion_gradient(q, _cr, _a)),
+        )
+    return _traj_fn_cache[key]
+
+
+def _relax_with_traj(q, col_rad, amp, dt, target_min_dist, max_iters, stride):
     """Chunked FIRE relax — captures (N*5,) snapshots every `stride` iters."""
+    f, df     = _get_traj_fns(float(col_rad), float(amp))
     min_d_fn  = physics.make_min_dist_fn(target_min_dist)
     run_chunk = fire_mod.make_fire_runner(f, df, dt,
                                           dist_fn=min_d_fn,
@@ -193,31 +272,27 @@ def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
     return carry[0], snapshots
 
 
-# ── JIT cache (keyed by eff_col_rad; reused across seeds with same N) ─────
-
-_jit_fn_cache: dict[float, tuple] = {}
-
-def _get_fns(eff_col_rad: float, amp: float):
-    """Return (f, df) for this eff_col_rad, compiling df only once per value."""
-    if eff_col_rad not in _jit_fn_cache:
-        f  = physics.make_repulsion_potential(eff_col_rad, amp)
-        df = jit(grad(f))
-        _jit_fn_cache[eff_col_rad] = (f, df)
-    return _jit_fn_cache[eff_col_rad]
-
-
 # ── Per-file relaxation ────────────────────────────────────────────────────
 
-def _relax_file(q_path: Path, ar_list: list[int], args,
-                warmed_up_n: int | None) -> int:
-    """Relax one q_entangled.npy through the full AR sequence.
+def _relax_file(q_path: Path, ar_list: list[int] | None, args) -> None:
+    """Relax one q_entangled.npy through the AR sequence.
 
-    Returns num_rods so the caller knows whether the JIT warm-up is still valid
-    for the next file.
+    If ar_list is None (--AR-list auto), the AR is inferred from the path
+    component /AR{N}/.  col_rad is passed as a dynamic JAX scalar so that
+    _fire_repulsion_fast reuses the same XLA program for all AR values
+    sharing the same N.
     """
     if not q_path.exists():
         print(f"WARNING: file not found, skipping: {q_path}")
-        return warmed_up_n  # type: ignore[return-value]
+        return
+
+    # Infer AR from path when --AR-list auto
+    if ar_list is None:
+        m = re.search(r"/AR(\d+)/", str(q_path))
+        if m is None:
+            print(f"WARNING: cannot infer AR from path {q_path}; skipping")
+            return
+        ar_list = [int(m.group(1))]
 
     q_entangled = jnp.asarray(np.load(q_path), dtype=jnp.float64).flatten()
     num_rods    = q_entangled.size // 5
@@ -227,15 +302,6 @@ def _relax_file(q_path: Path, ar_list: list[int], args,
     run_dir = q_path.parent / f"{ts}_Relaxed-N{num_rods}"
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output: {run_dir}\n")
-
-    # Warm-up min_dist only when N changes (first file or new N)
-    if warmed_up_n != num_rods:
-        print("JIT warm-up…")
-        _dummy     = jnp.zeros(num_rods * 5, dtype=jnp.float64)
-        _dummy_min = physics.make_min_dist_fn(1.0)
-        _r = _dummy_min(_dummy)
-        jax.block_until_ready(_r)
-        print("  done\n")
 
     q_current = q_entangled
 
@@ -256,24 +322,19 @@ def _relax_file(q_path: Path, ar_list: list[int], args,
             q_current = jnp.asarray(np.load(cache_path), dtype=jnp.float64).flatten()
             continue
 
-        # (f, df) cached by eff_col_rad — compiled once, reused for all seeds
-        needs_compile = eff_col_rad not in _jit_fn_cache
-        f, df = _get_fns(eff_col_rad, args.amp)
-        if needs_compile:
-            # Trigger JIT compilation before the timer starts
-            _ = f(q_current); _ = df(q_current)
-            jax.block_until_ready(_)
+        col_rad_jnp = jnp.float64(eff_col_rad)
+        amp_jnp     = jnp.float64(args.amp)
 
         t_start = time.time()
 
         if args.save_traj:
             q_relaxed, snapshots = _relax_with_traj(
-                q_current, f, df, args.relax_dt,
+                q_current, col_rad_jnp, amp_jnp, args.relax_dt,
                 target_d, args.max_iters, args.stride,
             )
         else:
-            q_relaxed  = _relax_fast(
-                q_current, f, df, args.relax_dt,
+            q_relaxed = _relax_fast(
+                q_current, col_rad_jnp, amp_jnp, args.relax_dt,
                 target_d, args.max_iters,
             )
             snapshots = None
@@ -296,7 +357,6 @@ def _relax_file(q_path: Path, ar_list: list[int], args,
         q_current = q_relaxed
 
     print(f"\nAll done. Outputs: {run_dir}")
-    return num_rods
 
 
 # ── Main ───────────────────────────────────────────────────────────────────
@@ -305,16 +365,19 @@ def main():
     _print_device_info()
     args = parse_args()
 
-    ar_list = sorted(
-        [int(x.strip()) for x in args.AR_list.split(",") if x.strip()],
-        reverse=True,
-    )
-    print(f"AR sequence: {ar_list}")
+    if args.AR_list.strip().lower() == "auto":
+        ar_list = None
+        print("AR sequence: auto (inferred per file from /AR{N}/ path component)")
+    else:
+        ar_list = sorted(
+            [int(x.strip()) for x in args.AR_list.split(",") if x.strip()],
+            reverse=True,
+        )
+        print(f"AR sequence: {ar_list}")
     print(f"Processing {len(args.q_paths)} file(s)…\n")
 
-    warmed_up_n: int | None = None
     for q_path_str in args.q_paths:
-        warmed_up_n = _relax_file(Path(q_path_str).resolve(), ar_list, args, warmed_up_n)
+        _relax_file(Path(q_path_str).resolve(), ar_list, args)
 
 
 if __name__ == "__main__":
