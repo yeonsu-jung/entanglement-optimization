@@ -41,9 +41,9 @@ def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float,
         attempts = 0
 
         while not created and attempts < max_attempts:
-            x     = np.random.uniform(-.5, .5)
-            y     = np.random.uniform(-.5, .5)
-            z     = np.random.uniform(-.5, .5)
+            x     = np.random.uniform(-.2, .2)
+            y     = np.random.uniform(-.2, .2)
+            z     = np.random.uniform(-.2, .2)
             theta = np.arccos(np.random.uniform(-1.0, 1.0))
             phi   = np.random.uniform(0.0, 2.0 * np.pi)
 

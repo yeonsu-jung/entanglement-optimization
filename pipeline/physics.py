@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from jax import jit, lax, vmap
+from jax import grad, jit, lax, vmap
 from functools import partial
 import numpy as np
 

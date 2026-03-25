@@ -190,6 +190,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
     echo "[dry-run] sbatch $job_script"
 else
     job_id=$(env -u BASH_ENV -u ENV sbatch --parsable "$job_script")
+    final_script="$JOBS_DIR/${job_name}_${job_id}.sh"
+    mv "$job_script" "$final_script"
     echo "Submitted ${job_name} -> job $job_id"
-    echo "Script: $job_script"
+    echo "Script: $final_script"
 fi
