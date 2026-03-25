@@ -65,4 +65,5 @@ notebooks/*
 relaxation*/*
 log_files/*
 results/*
+pipeline/results/
 entangle_only/*

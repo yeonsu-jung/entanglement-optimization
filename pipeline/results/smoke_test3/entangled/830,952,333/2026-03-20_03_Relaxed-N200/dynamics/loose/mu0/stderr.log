@@ -1,6 +1,0 @@
-[app] Compact output logging enabled: /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test3/entangled/830,952,333/2026-03-20_03_Relaxed-N200/dynamics/loose/mu0/output.csv
-[Debug] setProfiling: 0
-[app] Initial CSV configured: /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test3/entangled/830,952,333/2026-03-20_03_Relaxed-N200/AR200/endpoints.csv
-[app] Targeting random initialization to rod 181
-[init-csv] Parsed rows=200 (malformed=0) header=no fileLines=202
-[init-csv] Loaded initial configuration from /home/yjung/Github/entanglement-optimization/pipeline/results/smoke_test3/entangled/830,952,333/2026-03-20_03_Relaxed-N200/AR200/endpoints.csv (rods=200)
