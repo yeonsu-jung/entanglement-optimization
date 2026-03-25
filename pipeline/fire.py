@@ -5,14 +5,15 @@ Two modes:
   make_fire_runner   -- chunked loop (slower, captures snapshots)
 
 Carry state tuple:
-  (q, V, alpha, dt_array, Npos, step, error, min_dist)
-  where alpha, dt_array, Npos are per-DOF arrays.
+  (q, V, alpha, dt, Npos, step, error, min_dist)
+  where alpha, dt, Npos are global scalars — standard FIRE, not per-DOF.
+  This matches the benchmark gpu_relax_collision pattern.
 """
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-from jax import jit, lax, grad
+from jax import jit, lax
 from functools import partial
 
 
@@ -25,38 +26,47 @@ _ALPHA0 = 0.1
 
 
 def _fire_body(df, dtmax, dtmin):
-    """Return a single-step body_fun for use in lax.while_loop / fori_loop."""
+    """Return a single-step body_fun — global FIRE with scalar dt/alpha/Npos.
 
+    Algorithm (matches benchmark gpu_relax_collision):
+      1. Compute F = -df(q)
+      2. P = sum(F·V)  (global power, scalar)
+      3. Reset V <- 0 if P <= 0
+      4. Update dt, alpha, Npos based on P
+      5. Half-step V, apply FIRE mixing, full position step, second half-step
+    """
     def body(carry):
-        q, V, alpha, dt_arr, Npos, step, _err, _md = carry
+        q, V, alpha, dt, Npos, step, _err, _md = carry
         F = -df(q)
-        P = F * V
+        P = jnp.sum(F * V)
+        P_pos = P > 0
 
-        dt_arr = jnp.where(
-            P > 0,
-            jnp.where(Npos > _NDELAY, jnp.minimum(dt_arr * _FINC, dtmax), dt_arr),
-            jnp.maximum(dt_arr * _FDEC, dtmin),
-        )
-        alpha_arr = jnp.where(
-            P > 0,
-            jnp.where(Npos > _NDELAY, alpha * _FA, alpha),
-            _ALPHA0,
-        )
-        new_alpha = jnp.mean(alpha_arr)
-        Npos = jnp.where(P > 0, Npos + 1, 0)
+        # Velocity reset when P <= 0
+        V = jnp.where(P_pos, V, jnp.zeros_like(V))
 
-        nV = jnp.linalg.norm(V)
-        nF = jnp.linalg.norm(F)
-        V = (1 - alpha_arr) * V + alpha_arr * F * (nV / (nF + 1e-14))
+        # Update FIRE scalars
+        dt    = jnp.where(P_pos,
+                    jnp.where(Npos > _NDELAY,
+                              jnp.minimum(dt * _FINC, dtmax), dt),
+                    jnp.maximum(dt * _FDEC, dtmin))
+        alpha = jnp.where(P_pos,
+                    jnp.where(Npos > _NDELAY, alpha * _FA, alpha),
+                    jnp.float64(_ALPHA0))
+        Npos  = jnp.where(P_pos, Npos + 1, jnp.int32(0))
 
-        V = V + 0.5 * dt_arr * F
-        q = q + dt_arr * V
+        # Leapfrog half-step, FIRE mixing, position update
+        V_half = V + 0.5 * dt * F
+        nV     = jnp.linalg.norm(V_half)
+        nF     = jnp.linalg.norm(F)
+        V_mix  = jnp.where(nF > 1e-12,
+                            (1.0 - alpha) * V_half + alpha * F * (nV / nF),
+                            V_half)
+        q  = q + dt * V_mix
         F2 = -df(q)
-        V = V + 0.5 * dt_arr * F2
-        V = jnp.where(P < 0, 0.0, V)
+        V  = V_mix + 0.5 * dt * F2
 
         error = jnp.max(jnp.abs(F2))
-        return q, V, new_alpha, dt_arr, Npos, step + 1, error, -1.0
+        return q, V, alpha, dt, Npos, step + 1, error, _md
 
     return body
 
@@ -66,12 +76,12 @@ def fire_init_carry(q0, dt):
     return (
         q0,
         jnp.zeros_like(q0),          # V
-        _ALPHA0,                       # alpha (scalar mean)
-        jnp.full_like(q0, dt),        # dt_arr (per-DOF)
-        jnp.zeros_like(q0),           # Npos  (per-DOF)
-        0,                             # step
-        1.0,                           # error (initial large value)
-        -1.0,                          # min_dist (unused internally)
+        jnp.float64(_ALPHA0),         # alpha (scalar)
+        jnp.float64(dt),              # dt    (scalar)
+        jnp.int32(0),                 # Npos  (scalar)
+        jnp.int32(0),                 # step
+        jnp.float64(1.0),             # error
+        jnp.float64(-1.0),            # min_dist (unused until dist_fn injected)
     )
 
 
@@ -84,9 +94,6 @@ def optimize_fire(q0, f, df, Nmax, atol=1e-8, dt=1e-4,
     Terminates when:
       max|force| < atol  OR  step >= Nmax
       OR (if dist_fn given) min_dist >= target_dist
-
-    dtmax_factor: dt can grow up to dtmax_factor * dt (default 10).
-      Set to 1.0 to disable adaptive dt growth (fixed-dt mode).
     """
     dtmax = dtmax_factor * dt
     dtmin = 0.02 * dt
@@ -104,12 +111,9 @@ def optimize_fire(q0, f, df, Nmax, atol=1e-8, dt=1e-4,
         return not_conv & in_steps & too_close
 
     carry = fire_init_carry(q0, dt)
-    # Inject initial min_dist if dist_fn provided
+
     if dist_fn is not None:
         carry = carry[:7] + (dist_fn(q0),)
-
-    # patch body to update min_dist when dist_fn is given
-    if dist_fn is not None:
         def body_fn(carry):
             new = body(carry)
             return new[:7] + (dist_fn(new[0]),)
@@ -122,24 +126,9 @@ def optimize_fire(q0, f, df, Nmax, atol=1e-8, dt=1e-4,
 def make_fire_runner(f, df, dt, dtmax_factor=10.0, dist_fn=None, target_dist=-1.0):
     """Return run_chunk(carry, n) that advances FIRE by up to n steps.
 
-    Use this for trajectory export: call run_chunk in a Python loop,
-    saving carry[0] (q) after each chunk.
-
     If dist_fn and target_dist are provided, each chunk also stops early
-    (within the n steps) as soon as min_dist >= target_dist, matching the
-    behaviour of optimize_fire.  carry[7] is then the live min_dist.
-
-    dtmax_factor: dt can grow up to dtmax_factor * dt (default 10).
-      Set to 1.0 to disable adaptive dt growth (fixed-dt mode).
-
-    Example::
-
-        run_chunk = make_fire_runner(potential, grad_fn, dt)
-        carry = fire_init_carry(q0, dt)
-        snapshots = []
-        while not_converged:
-            carry = run_chunk(carry, stride)
-            snapshots.append(np.asarray(carry[0]))
+    (within the n steps) as soon as min_dist >= target_dist.
+    carry[7] is then the live min_dist.
     """
     dtmax = dtmax_factor * dt
     dtmin = 0.02 * dt
@@ -147,7 +136,6 @@ def make_fire_runner(f, df, dt, dtmax_factor=10.0, dist_fn=None, target_dist=-1.
     body = _fire_body(df, dtmax, dtmin)
 
     if dist_fn is None:
-        # Original path: fori_loop runs exactly n steps.
         def _fori_body(_, carry):
             return body(carry)
 
@@ -155,7 +143,6 @@ def make_fire_runner(f, df, dt, dtmax_factor=10.0, dist_fn=None, target_dist=-1.
         def run_chunk(carry, n):
             return lax.fori_loop(0, n, _fori_body, carry)
     else:
-        # With dist_fn: while_loop stops early when min_dist >= target_dist.
         def body_fn(carry):
             new = body(carry)
             return new[:7] + (dist_fn(new[0]),)
