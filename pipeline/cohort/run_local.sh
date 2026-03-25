@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # pipeline/cohort/run_local.sh
 #
-# Run the full cohort locally (sequential, one GPU).
+# Run the full cohort locally (sequential, one GPU) in two phases:
+#   Phase 1: entangle all (N, AR) pairs  — JAX compiles once per N, reused for
+#             all random seeds of that N.
+#   Phase 2: relax every q_entangled.npy produced in Phase 1.
+#
 # Grid is defined in cohort_def.sh — edit that, not this file.
 #
 # Usage:
 #   cd pipeline/cohort
-#   bash run_local.sh [--force] 2>&1 | tee run_local.log
+#   bash run_local.sh [--force] [--n-packings K] 2>&1 | tee run_local.log
 #
 # Tunables via env vars:
-#   CONDA_ENV   conda environment name   (default: jax-env)
+#   MAMBA_ENV   mamba environment name   (default: simdata-analysis)
 #   NMAX        entangle FIRE budget     (default from cohort_def.sh: 10000)
 #   MAX_ITERS   relax FIRE budget        (default from cohort_def.sh: 1000000)
 
@@ -21,49 +25,78 @@ RESULTS_DIR="$COHORT_DIR/results"
 
 source "$COHORT_DIR/cohort_def.sh"
 
-CONDA_ENV="${CONDA_ENV:-jax-env}"
+MAMBA_ENV="${MAMBA_ENV:-simdata-analysis}"
+MAMBA_EXE="${MAMBA_EXE:-/n/sw/Miniforge3-25.3.1-0/bin/mamba}"
+MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$HOME/.local/share/mamba}"
+
 FORCE_FLAG=""
-for arg in "$@"; do [[ "$arg" == "--force" ]] && FORCE_FLAG="--force"; done
+N_PACKINGS=1
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --force)      FORCE_FLAG="--force"; shift ;;
+        --n-packings) N_PACKINGS="$2"; shift 2 ;;
+        *) echo "ERROR: unknown option: $1"; exit 1 ;;
+    esac
+done
+
+# Activate mamba without depending on module/lmod
+eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
+mamba activate "$MAMBA_ENV"
 
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
-run_packing() {
+# ── Phase 1: entangle ─────────────────────────────────────────────────────────
+run_entangle() {
     local N=$1 AR=$2
     local out_dir="$RESULTS_DIR/N${N}/AR${AR}"
     mkdir -p "$out_dir"
-
-    log "━━━  N=$N  AR=$AR  ━━━"
-
-    conda run -n "$CONDA_ENV" python "$PIPELINE_DIR/entangle.py" \
+    log "Entangle: N=$N  AR=$AR  N_PACKINGS=$N_PACKINGS"
+    python "$PIPELINE_DIR/entangle.py" \
         --num-rods "$N" --AR "$AR" --Nmax "$NMAX" \
+        --N-packings "$N_PACKINGS" \
         --out-dir  "$out_dir" $FORCE_FLAG
+}
 
-    local q_path
-    q_path=$(ls -td "$out_dir"/*/q_entangled.npy 2>/dev/null | head -1 || true)
-    if [[ -z "$q_path" ]]; then
-        log "  ERROR: q_entangled.npy not found — skipping relax."; return 1
+# ── Phase 2: relax ────────────────────────────────────────────────────────────
+run_relax_all() {
+    local N=$1 AR=$2
+    local out_dir="$RESULTS_DIR/N${N}/AR${AR}"
+    local found=0
+
+    if [[ ! -d "$out_dir" ]]; then
+        log "Relax: skip missing directory $out_dir"; return
     fi
 
-    conda run -n "$CONDA_ENV" python "$PIPELINE_DIR/relax.py" \
-        "$q_path" --AR-list "$AR" --max-iters "$MAX_ITERS" $FORCE_FLAG
+    while IFS= read -r -d '' q_path; do
+        found=1
+        log "Relax: N=$N  AR=$AR  q=$q_path"
+        python "$PIPELINE_DIR/relax.py" \
+            "$q_path" --AR-list "$AR" --max-iters "$MAX_ITERS" $FORCE_FLAG
+    done < <(find "$out_dir" -type f -name q_entangled.npy -print0 | sort -z)
 
-    log "  done  N=$N  AR=$AR"
+    if [[ "$found" -eq 0 ]]; then
+        log "Relax: no q_entangled.npy found under $out_dir"
+    fi
 }
 
 TOTAL=$(( ${#N_MAIN[@]} * ${#AR_MAIN[@]} + ${#N_LARGE[@]} * ${#AR_LARGE[@]} ))
-COUNT=0
-log "Local cohort: $TOTAL packings → $RESULTS_DIR"
-log "Env: CONDA_ENV=$CONDA_ENV  NMAX=$NMAX  MAX_ITERS=$MAX_ITERS"
+log "Local cohort: $TOTAL (N,AR) pairs  N_PACKINGS=$N_PACKINGS  → $RESULTS_DIR"
+log "Env: MAMBA_ENV=$MAMBA_ENV  NMAX=$NMAX  MAX_ITERS=$MAX_ITERS"
 
+log "Phase 1/2: entangle all packings"
 for N in "${N_MAIN[@]}"; do
-    for AR in "${AR_MAIN[@]}"; do
-        COUNT=$((COUNT+1)); log "[$COUNT/$TOTAL]"; run_packing "$N" "$AR"
-    done
+    for AR in "${AR_MAIN[@]}"; do run_entangle "$N" "$AR"; done
 done
 for N in "${N_LARGE[@]}"; do
-    for AR in "${AR_LARGE[@]}"; do
-        COUNT=$((COUNT+1)); log "[$COUNT/$TOTAL]"; run_packing "$N" "$AR"
-    done
+    for AR in "${AR_LARGE[@]}"; do run_entangle "$N" "$AR"; done
+done
+
+log "Phase 2/2: relax all generated packings"
+for N in "${N_MAIN[@]}"; do
+    for AR in "${AR_MAIN[@]}"; do run_relax_all "$N" "$AR"; done
+done
+for N in "${N_LARGE[@]}"; do
+    for AR in "${AR_LARGE[@]}"; do run_relax_all "$N" "$AR"; done
 done
 
 log "Done. Results in: $RESULTS_DIR"

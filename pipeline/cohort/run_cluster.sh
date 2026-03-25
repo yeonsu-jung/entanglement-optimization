@@ -62,14 +62,36 @@ submit_packing() {
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-user=${MAIL_USER}
 
-module load ${CUDA_MODULE}
-module load python
-mamba activate ${MAMBA_ENV}
-
 set -euo pipefail
 
+MAMBA_ENV="${MAMBA_ENV}"
+CUDA_MODULE="${CUDA_MODULE}"
+PYTHON_MODULE="${PYTHON_MODULE}"
+MAMBA_EXE="${MAMBA_EXE:-/n/sw/Miniforge3-25.3.1-0/bin/mamba}"
+MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$HOME/.local/share/mamba}"
+
+safe_module_load() {
+    local module_name="\$1"
+    if [[ -z "\$module_name" ]]; then
+        return 0
+    fi
+    if ! command -v module >/dev/null 2>&1; then
+        echo "WARNING: module command unavailable; skipping '\$module_name'" >&2
+        return 0
+    fi
+    if ! module load "\$module_name"; then
+        echo "WARNING: failed to load module '\$module_name'; continuing" >&2
+    fi
+}
+
+eval "\$("\$MAMBA_EXE" shell hook --shell bash --root-prefix "\$MAMBA_ROOT_PREFIX")"
+
+safe_module_load "\$CUDA_MODULE"
+safe_module_load "\$PYTHON_MODULE"
+mamba activate "\$MAMBA_ENV"
+
 # ── 1. Entangle ───────────────────────────────────────────────────────────────
-python "${pipeline_dir}/entangle.py" \\
+python "${pipeline_dir}/entangle.py" \
     --num-rods ${N} --AR ${AR} --Nmax ${NMAX} \\
     --out-dir  "${out_dir}" ${FORCE_FLAG}
 
@@ -81,7 +103,7 @@ if [[ -z "\$Q_PATH" ]]; then
 fi
 
 # ── 3. Relax ──────────────────────────────────────────────────────────────────
-python "${pipeline_dir}/relax.py" \\
+python "${pipeline_dir}/relax.py" \
     "\$Q_PATH" --AR-list ${AR} --max-iters ${MAX_ITERS} ${FORCE_FLAG}
 
 echo "Done: N=${N}  AR=${AR}"
@@ -91,7 +113,7 @@ SBATCH
         log "[dry-run] sbatch $job_script"
     else
         local job_id
-        job_id=$(sbatch --parsable "$job_script")
+        job_id=$(env -u BASH_ENV -u ENV sbatch --parsable "$job_script")
         log "Submitted $job_name → job $job_id"
     fi
 }
