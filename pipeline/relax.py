@@ -68,8 +68,8 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="Sequential multi-AR relaxation from a pre-entangled state."
     )
-    p.add_argument("q_path", type=str,
-                   help="Path to q_entangled.npy")
+    p.add_argument("q_paths", nargs="+", type=str,
+                   help="One or more paths to q_entangled.npy (same N; JIT shared).")
     p.add_argument("--AR-list", type=str,
                    default="1000,500,300,200,150,100,50,25,10",
                    help="Comma-separated AR values largest→smallest.")
@@ -193,38 +193,49 @@ def _relax_with_traj(q, f, df, dt, target_min_dist, max_iters, stride):
     return carry[0], snapshots
 
 
-# ── Main ───────────────────────────────────────────────────────────────────
+# ── JIT cache (keyed by eff_col_rad; reused across seeds with same N) ─────
 
-def main():
-    _print_device_info()
-    args = parse_args()
+_jit_fn_cache: dict[float, tuple] = {}
 
-    q_path = Path(args.q_path).resolve()
+def _get_fns(eff_col_rad: float, amp: float):
+    """Return (f, df) for this eff_col_rad, compiling df only once per value."""
+    if eff_col_rad not in _jit_fn_cache:
+        f  = physics.make_repulsion_potential(eff_col_rad, amp)
+        df = jit(grad(f))
+        _jit_fn_cache[eff_col_rad] = (f, df)
+    return _jit_fn_cache[eff_col_rad]
+
+
+# ── Per-file relaxation ────────────────────────────────────────────────────
+
+def _relax_file(q_path: Path, ar_list: list[int], args,
+                warmed_up_n: int | None) -> int:
+    """Relax one q_entangled.npy through the full AR sequence.
+
+    Returns num_rods so the caller knows whether the JIT warm-up is still valid
+    for the next file.
+    """
     if not q_path.exists():
-        sys.exit(f"File not found: {q_path}")
+        print(f"WARNING: file not found, skipping: {q_path}")
+        return warmed_up_n  # type: ignore[return-value]
 
     q_entangled = jnp.asarray(np.load(q_path), dtype=jnp.float64).flatten()
     num_rods    = q_entangled.size // 5
     print(f"\nLoaded {q_path}  ({num_rods} rods)")
 
-    ar_list = sorted(
-        [int(x.strip()) for x in args.AR_list.split(",") if x.strip()],
-        reverse=True,
-    )
-    print(f"AR sequence: {ar_list}")
-
-    ts        = datetime.datetime.now().strftime("%Y-%m-%d_%H")
-    run_dir   = q_path.parent / f"{ts}_Relaxed-N{num_rods}"
+    ts      = datetime.datetime.now().strftime("%Y-%m-%d_%H")
+    run_dir = q_path.parent / f"{ts}_Relaxed-N{num_rods}"
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"Output: {run_dir}\n")
 
-    # Warm-up: compile min_dist once
-    print("JIT warm-up…")
-    _dummy = jnp.zeros(num_rods * 5, dtype=jnp.float64)
-    _dummy_min_d = physics.make_min_dist_fn(1.0)
-    _ = _dummy_min_d(_dummy)
-    jax.block_until_ready(_)
-    print("  done\n")
+    # Warm-up min_dist only when N changes (first file or new N)
+    if warmed_up_n != num_rods:
+        print("JIT warm-up…")
+        _dummy     = jnp.zeros(num_rods * 5, dtype=jnp.float64)
+        _dummy_min = physics.make_min_dist_fn(1.0)
+        _r = _dummy_min(_dummy)
+        jax.block_until_ready(_r)
+        print("  done\n")
 
     q_current = q_entangled
 
@@ -245,13 +256,13 @@ def main():
             q_current = jnp.asarray(np.load(cache_path), dtype=jnp.float64).flatten()
             continue
 
-        # Build potential with effective (slightly enlarged) radius
-        f  = physics.make_repulsion_potential(eff_col_rad, args.amp)
-        df = jit(grad(f))
-
-        # Warm-up this potential (first compile per AR)
-        _ = f(q_current);  _ = df(q_current)
-        jax.block_until_ready(_)
+        # (f, df) cached by eff_col_rad — compiled once, reused for all seeds
+        needs_compile = eff_col_rad not in _jit_fn_cache
+        f, df = _get_fns(eff_col_rad, args.amp)
+        if needs_compile:
+            # Trigger JIT compilation before the timer starts
+            _ = f(q_current); _ = df(q_current)
+            jax.block_until_ready(_)
 
         t_start = time.time()
 
@@ -274,7 +285,6 @@ def main():
                         col_rad, AR, args.scale, t_relax)
 
         if snapshots is not None:
-            # (T, N, 6) endpoint trajectoryusing q_to_x on each snapshot
             traj = np.stack([
                 np.asarray(physics.q_to_x(jnp.asarray(snap)))
                 for snap in snapshots
@@ -286,6 +296,25 @@ def main():
         q_current = q_relaxed
 
     print(f"\nAll done. Outputs: {run_dir}")
+    return num_rods
+
+
+# ── Main ───────────────────────────────────────────────────────────────────
+
+def main():
+    _print_device_info()
+    args = parse_args()
+
+    ar_list = sorted(
+        [int(x.strip()) for x in args.AR_list.split(",") if x.strip()],
+        reverse=True,
+    )
+    print(f"AR sequence: {ar_list}")
+    print(f"Processing {len(args.q_paths)} file(s)…\n")
+
+    warmed_up_n: int | None = None
+    for q_path_str in args.q_paths:
+        warmed_up_n = _relax_file(Path(q_path_str).resolve(), ar_list, args, warmed_up_n)
 
 
 if __name__ == "__main__":

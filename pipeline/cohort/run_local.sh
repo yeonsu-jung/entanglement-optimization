@@ -62,6 +62,7 @@ run_relax_all() {
     local N=$1 AR=$2
     local out_dir="$RESULTS_DIR/N${N}/AR${AR}"
     local found=0
+    local q_paths=()
 
     if [[ ! -d "$out_dir" ]]; then
         log "Relax: skip missing directory $out_dir"; return
@@ -69,14 +70,17 @@ run_relax_all() {
 
     while IFS= read -r -d '' q_path; do
         found=1
-        log "Relax: N=$N  AR=$AR  q=$q_path"
-        python "$PIPELINE_DIR/relax.py" \
-            "$q_path" --AR-list "$AR" --max-iters "$MAX_ITERS" $FORCE_FLAG
+        q_paths+=("$q_path")
     done < <(find "$out_dir" -type f -name q_entangled.npy -print0 | sort -z)
 
     if [[ "$found" -eq 0 ]]; then
         log "Relax: no q_entangled.npy found under $out_dir"
+        return
     fi
+
+    log "Relax: N=$N  AR=$AR  seeds=${#q_paths[@]}"
+    python "$PIPELINE_DIR/relax.py" \
+        "${q_paths[@]}" --AR-list "$AR" --max-iters "$MAX_ITERS" $FORCE_FLAG
 }
 
 TOTAL=$(( ${#N_MAIN[@]} * ${#AR_MAIN[@]} + ${#N_LARGE[@]} * ${#AR_LARGE[@]} ))
