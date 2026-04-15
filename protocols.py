@@ -1,7 +1,7 @@
 # %%
 from jax import grad,random,jit
 import jax.numpy as jnp
-from optimization import optimize_fire2, optimize_fire_nonjax, optimize_fire_nonjax_individual, optimize_fire_nonjax_individual_with_constraint
+from optimization import optimize_fire2, optimize_fire_nonjax_individual, optimize_fire_nonjax_individual_with_constraint
 from optimization import optimize_fire_jax_individual
 
 from potentials import total_effective_potential,create_pairs,total_harmonic_line_with_gravity_floor, total_harmonic_line_with_hook,all_distances_between_curves2,all_pairwise_distances_xyz,total_harmonic_line,all_pairwise_distances, total_harmonic_line_relax
@@ -203,7 +203,12 @@ def create_nonintersecting_random_rods_gpu(num_rods, rod_diameter, max_attempts=
                 min_dist = _check_candidate_against_existing(
                     p_i, p_ii, existing_starts, existing_ends, i
                 )
-                intersect = bool(min_dist < rod_diameter)
+                if onp.isnan(min_dist):
+                    import warnings
+                    warnings.warn(f"NaN detected in min_dist at rod {i}, attempt {attempts}")
+                    intersect = True # Treat as intersection to retry
+                else:
+                    intersect = bool(min_dist < rod_diameter)
 
             if not intersect:
                 q[i] = onp.array([x, y, z, phi, theta])
@@ -907,38 +912,24 @@ def gpu_relax_collision(q, dt, params, max_iters=1000000, effective_diameter_fac
         q_pairs = create_pairs(q_mat)
         return jnp.min(all_pairwise_distances(q_pairs))
 
-    # ── JIT-compiled while loop ──────────────────────────────────────
-    # State: (q, iteration_count, min_dist)
-    @jit
-    def _relax_loop(q_init):
-        def cond_fn(state):
-            q, i, min_d = state
-            return (min_d < target_min_dist) & (i < max_iters)
-
-        def body_fn(state):
-            q, i, min_d = state
-            g = _grad(q)
-            q_new = q - dt * g
-            new_min_d = _min_dist(q_new)
-            return (q_new, i + 1, new_min_d)
-
-        init_min_d = _min_dist(q_init)
-        init_state = (q_init, jnp.int32(0), init_min_d)
-        final_state = lax.while_loop(cond_fn, body_fn, init_state)
-        return final_state
-
-    # Run it
+    # ── Per-DOF FIRE with distance-based termination ─────────────────
     print(f"Starting JIT-compiled GPU relaxation (max_iters={max_iters}, dt={dt})...")
     import time
     t0 = time.time()
 
-    q_final, n_iters, final_min_d = _relax_loop(q)
-    # Force completion
+    q_final, _, n_iters, _ = optimize_fire_jax_individual(
+        q, _potential, _grad,
+        Nmax=max_iters,
+        atol=1e-8,
+        dt=dt,
+        dist_fn=_min_dist,
+        target_dist=target_min_dist,
+    )
     jax.block_until_ready(q_final)
 
     t1 = time.time()
     n_iters = int(n_iters)
-    final_min_d = float(final_min_d)
+    final_min_d = float(_min_dist(q_final))
 
     print(f"GPU relaxation completed:")
     print(f"  Iterations: {n_iters}")
@@ -951,6 +942,99 @@ def gpu_relax_collision(q, dt, params, max_iters=1000000, effective_diameter_fac
     print(f"  Iters/sec: {n_iters / (t1 - t0):.0f}")
 
     return q_final
+
+
+def gpu_relax_collision_traj(q, dt, params, max_iters=1000000,
+                              effective_diameter_factor=1.005,
+                              snapshot_every=10000):
+    """Like gpu_relax_collision but returns trajectory snapshots.
+
+    Runs FIRE in Python-level chunks of *snapshot_every* iterations,
+    capturing the configuration after each chunk.  Slower than the
+    fully on-device version, but allows inspecting the relaxation path.
+
+    Returns
+    -------
+    q_final : jnp.ndarray
+        Final (N*5,) rod configuration.
+    snapshots : list[numpy.ndarray]
+        List of (N*5,) numpy arrays — one per completed chunk.
+        Convert to endpoints with q_to_x for visualisation.
+    """
+    from optimization import make_fire_runner, fire_init_carry
+
+    col_rad = params["col_rad"]
+    amp = params["amp"]
+    rod_diameter = 2.0 * col_rad
+    target_min_dist = rod_diameter
+    effective_col_rad = (rod_diameter * effective_diameter_factor) / 2.0
+    params_effective = params.copy()
+    params_effective["col_rad"] = effective_col_rad
+
+    # Check if already non-overlapping
+    q_pairs = create_pairs(q.reshape(-1, 5))
+    distances = all_pairwise_distances(q_pairs)
+    init_min_d = float(jnp.min(distances))
+    print(f"GPU traj relaxation: rod_diameter={rod_diameter:.6f}, "
+          f"effective_diameter={rod_diameter * effective_diameter_factor:.6f}, "
+          f"initial min_dist={init_min_d:.6e}")
+
+    if init_min_d >= target_min_dist:
+        print("Already non-overlapping, skipping relaxation.")
+        return q, [onp.asarray(q)]
+
+    @jit
+    def _potential(q_flat):
+        return total_harmonic_line(q_flat, params_effective)
+
+    _grad = jit(grad(_potential))
+
+    @jit
+    def _min_dist(q_flat):
+        q_mat = jnp.reshape(q_flat, (-1, 5))
+        qp = create_pairs(q_mat)
+        return jnp.min(all_pairwise_distances(qp))
+
+    run_chunk = make_fire_runner(_potential, _grad, dt)
+
+    carry = fire_init_carry(q, dt)
+    snapshots: list[onp.ndarray] = []
+    total_iters = 0
+
+    print(f"Starting chunked GPU relaxation "
+          f"(max_iters={max_iters}, chunk={snapshot_every}, dt={dt})...")
+    import time
+    t0 = time.time()
+
+    while total_iters < max_iters:
+        chunk = min(snapshot_every, max_iters - total_iters)
+        carry = run_chunk(carry, chunk)
+        jax.block_until_ready(carry[0])
+        total_iters += chunk
+
+        q_snap = carry[0]
+        snapshots.append(onp.asarray(q_snap))
+
+        error = float(carry[6])
+        min_dist = float(_min_dist(q_snap))
+
+        if total_iters % (snapshot_every * 10) == 0 or min_dist >= target_min_dist:
+            print(f"  iter={total_iters:>8d}  error={error:.3e}  "
+                  f"min_dist={min_dist:.6e}  snapshots={len(snapshots)}")
+
+        if min_dist >= target_min_dist:
+            print("  Converged: min_dist reached target.")
+            break
+        if error <= 1e-8:
+            print("  Converged: force tolerance reached.")
+            break
+
+    t1 = time.time()
+    print(f"Chunked relaxation done: {total_iters} iters, "
+          f"{len(snapshots)} snapshots, {t1-t0:.2f}s")
+
+    return carry[0], snapshots
+
 
 def relax_collision_with_hook(q,params,N_outer,Nmax):
     # params = {"col_rad": 0.01, "amp": 0.1, "sigma": 0.025}

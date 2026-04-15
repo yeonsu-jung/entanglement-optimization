@@ -18,208 +18,135 @@ def fixbound_nonjax(num):
         return 1
     return num
 
-
-def compute_distance(d1, d2, d12, t, u):
-    """Compute the distance for given parameters t and u."""
-    return jnp.linalg.norm(d1 * t - d2 * u - d12)
-
+@jit
 def fixbound(num):
     """Ensure the number is within the bounds [0, 1]."""
     return jnp.clip(num, 0, 1)
+
+@jit
+def safe_norm(x, axis=None, keepdims=False, eps=1e-14):
+    """Compute the norm of x safely for gradients at zero."""
+    return jnp.sqrt(jnp.sum(jnp.square(x), axis=axis, keepdims=keepdims) + eps)
+
+@jit
+def safe_normalize(x, eps=1e-14):
+    """Normalize x safely for gradients at zero."""
+    return x / safe_norm(x, eps=eps)
+
+@jit
+def _segment_segment_parameters(point1s, point1e, point2s, point2e):
+    """
+    Compute parameters t, u for the closest points on two segments.
+    Bulletproof against parallel and zero-length segments.
+    """
+    d1 = point1e - point1s
+    d2 = point2e - point2s
+    d12 = point2s - point1s
+
+    D1 = jnp.dot(d1, d1)
+    D2 = jnp.dot(d2, d2)
+    S1 = jnp.dot(d1, d12)
+    S2 = jnp.dot(d2, d12)
+    R = jnp.dot(d1, d2)
+
+    den = D1 * D2 - R**2
+    eps = 1e-10
+
+    # Standard case
+    den_safe = jnp.where(jnp.abs(den) > eps, den, 1.0)
+    t = fixbound(jnp.where(jnp.abs(den) > eps, (S1 * D2 - S2 * R) / den_safe, 0.))
+    
+    D2_safe = jnp.where(jnp.abs(D2) > eps, D2, 1.0)
+    u = jnp.where(jnp.abs(D2) > eps, (t * R - S2) / D2_safe, 0.)
+    
+    # Clip u and re-solve for t
+    uf = fixbound(u)
+    
+    def _recompute_t(new_u):
+        D1_safe = jnp.where(jnp.abs(D1) > eps, D1, 1.0)
+        return fixbound(jnp.where(jnp.abs(D1) > eps, (new_u * R + S1) / D1_safe, 0.))
+
+    t, u = lax.cond(uf != u,
+                    lambda _: (_recompute_t(uf), uf),
+                    lambda _: (t, u),
+                    None)
+    
+    # Degenerate case (parallel or one rod is a point)
+    def _degenerate():
+        # Fallback to t=0
+        D2_safe_deg = jnp.where(jnp.abs(D2) > eps, D2, 1.0)
+        u_fallback = fixbound(jnp.where(jnp.abs(D2) > eps, -S2 / D2_safe_deg, 0.))
+        return 0.0, u_fallback
+
+    t_final, u_final = lax.cond(jnp.abs(den) <= eps,
+                                lambda _: _degenerate(),
+                                lambda _: (t, u),
+                                None)
+    return t_final, u_final
+
+@jit
+def compute_distance(d1, d2, d12, t, u):
+    """Compute the distance for given parameters t and u."""
+    return safe_norm(d1 * t - d2 * u - d12)
+
+@jit
+def aabb_overlap_capsule(p1s, p1e, p2s, p2e, threshold):
+    """
+    Check if AABBs of two capsules overlap.
+    threshold should be r1 + r2.
+    """
+    return jnp.all((jnp.minimum(p1s, p1e) <= jnp.maximum(p2s, p2e) + threshold) & 
+                   (jnp.minimum(p2s, p2e) <= jnp.maximum(p1s, p1e) + threshold))
+
 ###########
 @jit
 def dist_lin_seg(point1s, point1e, point2s, point2e):
-    """Calculate the shortest distance between two line segments using JAX with cond."""
+    """Calculate the shortest distance between two line segments using JAX with safe divisions."""
+    t, u = _segment_segment_parameters(point1s, point1e, point2s, point2e)
     d1 = point1e - point1s
     d2 = point2e - point2s
     d12 = point2s - point1s
+    diff = d1 * t - d2 * u - d12
+    return safe_norm(diff)
 
-    D1 = jnp.dot(d1, d1)
-    D2 = jnp.dot(d2, d2)
-    S1 = jnp.dot(d1, d12)
-    S2 = jnp.dot(d2, d12)
-    R = jnp.dot(d1, d2)
-
-    den = D1 * D2 - R**2
-    
-    def case1():
-        (t,u) = lax.cond( D1 != 0. , 
-                    lambda _: (fixbound(S1/D1),0.),
-                    lambda _: lax.cond(D2 != 0.,
-                             lambda _: (0.,fixbound(-S2/D2)),
-                             lambda _: (0.,0.),
-                             None),
-                    None)        
-        return (t,u)
-    
-    def case2_1():
-        t = 0.
-        u = -S2/D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)
-    
-    def case2_2():
-        t = fixbound((S1 * D2 - S2 * R) / den)
-        u = (t * R - S2) / D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)        
-    
-    def case2():
-        (t,u) = lax.cond( den == 0. , 
-                    lambda _: case2_1(),                    
-                    lambda _: case2_2(),
-                    None)        
-        return (t,u)
-    
-    (t,u) = lax.cond( (D1 == 0.) & (D2 == 0.),
-                        lambda _: case1(),
-                        lambda _: case2(),
-                        None)
-    
-    dist = jnp.linalg.norm(d1 * t - d2 * u - d12)
-    
-    return dist
-
-
-
-
+@jit
 def dist_lin_seg_vector(point1s, point1e, point2s, point2e):
-    """Calculate the shortest distance between two line segments using JAX with cond."""
+    """Calculate the shortest distance between two line segments, returning params and contact points."""
+    t, u = _segment_segment_parameters(point1s, point1e, point2s, point2e)
     d1 = point1e - point1s
     d2 = point2e - point2s
-    d12 = point2s - point1s
-
-    D1 = jnp.dot(d1, d1)
-    D2 = jnp.dot(d2, d2)
-    S1 = jnp.dot(d1, d12)
-    S2 = jnp.dot(d2, d12)
-    R = jnp.dot(d1, d2)
-
-    den = D1 * D2 - R**2
-    
-    def case1():
-        (t,u) = lax.cond( D1 != 0. , 
-                    lambda _: (fixbound(S1/D1),0.),
-                    lambda _: lax.cond(D2 != 0.,
-                             lambda _: (0.,fixbound(-S2/D2)),
-                             lambda _: (0.,0.),
-                             None),
-                    None)        
-        return (t,u)
-    
-    def case2_1():
-        t = 0.
-        u = -S2/D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)
-    
-    def case2_2():
-        t = fixbound((S1 * D2 - S2 * R) / den)
-        u = (t * R - S2) / D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)        
-    
-    def case2():
-        (t,u) = lax.cond( den == 0. , 
-                    lambda _: case2_1(),                    
-                    lambda _: case2_2(),
-                    None)        
-        return (t,u)
-    
-    (t,u) = lax.cond( (D1 == 0.) & (D2 == 0.),
-                        lambda _: case1(),
-                        lambda _: case2(),
-                        None)
-    
-    # dist = jnp.linalg.norm(d1 * t - d2 * u - d12)    
     r1 = d1 * t + point1s
     r2 = d2 * u + point2s
-    return t,u,r1,r2, r1-r2, jnp.linalg.norm(r1 - r2)
-
+    return t, u, r1, r2, r1-r2, safe_norm(r1 - r2)
 
 @jit
 def minimum_image(delta, box):
-    """
-    Map componentwise displacement 'delta' into [-box/2, box/2].
-    'box' can be scalar () or a length-3 array.
-    """
+    """Map componentwise displacement 'delta' into [-box/2, box/2]."""
     return delta - box * jnp.round(delta / box)
 
-
-# ---------------------------
-# Periodic version (minimum-image on a torus)
-# ---------------------------
 @jit
 def dist_lin_seg_pbc(point1s, point1e, point2s, point2e, box):
-    """
-    Shortest distance between two line segments under periodic boundary conditions.
-
-    Arguments
-    ---------
-    point1s, point1e, point2s, point2e : (3,)
-        Segment endpoints.
-    box : () or (3,)
-        Periodic box length(s). Example: 1.5 or jnp.array([1.5, 1.5, 1.5]).
-
-    Notes
-    -----
-    We translate the *entire* second segment by a single lattice vector so that
-    the segment midpoints are in minimum-image displacement. This yields the
-    correct minimum provided the segments are not so long that they span more
-    than half the box in any direction (the standard MD assumption: segment
-    extents << box/2).
-    """
+    """Shortest distance between two line segments under periodic boundary conditions."""
     m1 = 0.5 * (point1s + point1e)
     m2 = 0.5 * (point2s + point2e)
-
-    # Minimum-image displacement between segment centers
-    d_mi = minimum_image(m2 - m1, box)        # in [-box/2, box/2]
-    shift = d_mi - (m2 - m1)                   # lattice vector to bring m2 near m1
-
-    # Shift both endpoints of segment 2 by the same lattice vector
+    d_mi = minimum_image(m2 - m1, box)
+    shift = d_mi - (m2 - m1)
     p2s_shift = point2s + shift
     p2e_shift = point2e + shift
-
-    # Now it's just Euclidean distance between the chosen images
     return dist_lin_seg(point1s, point1e, p2s_shift, p2e_shift)
-
 
 def dist_point_seg(point0, point1s, point1e):
     """Calculate the shortest distance between two line segments using JAX with cond."""
     pma = point0 - point1s
     
-    l = jnp.linalg.norm(point1e - point1s)
+    l = safe_norm(point1e - point1s)
     
     n = point1e - point1s
-    n = n/jnp.linalg.norm(n)
+    n = n/safe_norm(n)
     
     point1s + jnp.dot(pma,n)*n
     
-    dist = jnp.linalg.norm(pma - jnp.dot(pma,n)*n)
+    dist = safe_norm(pma - jnp.dot(pma,n)*n)
 
     # def case1(D1,D2,S1,S2,R):
     #     u = 0.
@@ -314,7 +241,7 @@ def dist_lin_seg_nonjax(point1s, point1e, point2s, point2e):
             u = uf
 
     # Compute distance
-    dist = onp.linalg.norm(d1 * t - d2 * u - d12)
+    dist = safe_norm(d1 * t - d2 * u - d12)
     # vec = , (point1s + d1 * t, point2s + d2 * u)
     return dist
 
@@ -362,18 +289,16 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     r_iij = p_ii - p_j
     r_iijj = p_ii - p_jj
 
-    tol = 1e-6
     n1 = jnp.cross(r_ij, r_ijj)
-    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n1 = safe_normalize(n1)
     n2 = jnp.cross(r_ijj, r_iijj)
-    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n2 = safe_normalize(n2)
     n3 = jnp.cross(r_iijj, r_iij)
-    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n3 = safe_normalize(n3)
     n4 = jnp.cross(r_iij, r_ij)
-    n4 = n4/(jnp.linalg.norm(n4)+tol)
+    n4 = safe_normalize(n4)
     
-    tol = 0.
-
+    tol = 1e-7
     return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
                                + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
@@ -383,38 +308,6 @@ def compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, 
     #                            + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
     #                            + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
     #                            + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
-
-def compute_linking_number_cartesian(p_i, p_ii, p_j, p_jj):
-    # p_i = jnp.array([x_i, y_i, z_i])
-    # p_j = jnp.array([x_j, y_j, z_j])
-    # u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
-
-    # p_ii = p_i + l*u_i
-    # p_jj = p_j + l*u_j
-
-    r_ij = p_i - p_j
-    r_ijj = p_i - p_jj
-    r_iij = p_ii - p_j
-    r_iijj = p_ii - p_jj
-
-    tol = 1e-6
-    n1 = jnp.cross(r_ij, r_ijj)
-    n1 = n1/(jnp.linalg.norm(n1)+tol)
-    n2 = jnp.cross(r_ijj, r_iijj)
-    n2 = n2/(jnp.linalg.norm(n2)+tol)
-    n3 = jnp.cross(r_iijj, r_iij)
-    n3 = n3/(jnp.linalg.norm(n3)+tol)
-    n4 = jnp.cross(r_iij, r_ij)
-    n4 = n4/(jnp.linalg.norm(n4)+tol)
-    
-    tol = 0.
-
-    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
-                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
-                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
-                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
-
 
 def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, l):
     p_i = jnp.array([x_i, y_i, z_i])
@@ -430,15 +323,14 @@ def compute_linking_number_with_6coord(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, 
     r_iij = p_ii - p_j
     r_iijj = p_ii - p_jj
 
-    tol = 1e-6
     n1 = jnp.cross(r_ij, r_ijj)
-    n1 = n1/(jnp.linalg.norm(n1)+tol)
+    n1 = safe_normalize(n1)
     n2 = jnp.cross(r_ijj, r_iijj)
-    n2 = n2/(jnp.linalg.norm(n2)+tol)
+    n2 = safe_normalize(n2)
     n3 = jnp.cross(r_iijj, r_iij)
-    n3 = n3/(jnp.linalg.norm(n3)+tol)
+    n3 = safe_normalize(n3)
     n4 = jnp.cross(r_iij, r_ij)
-    n4 = n4/(jnp.linalg.norm(n4)+tol)
+    n4 = safe_normalize(n4)
     
     tol = 0.
 
@@ -466,21 +358,45 @@ def compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, ph
     cross_da = jnp.cross(d, a)
 
     term1 = jnp.arctan2(jnp.dot(a, cross_bc),
-                    (jnp.linalg.norm(a) * jnp.linalg.norm(b) * jnp.linalg.norm(c) +
-                     jnp.dot(a, b) * jnp.linalg.norm(c) +
-                     jnp.dot(c, a) * jnp.linalg.norm(b) +
-                     jnp.dot(b, c) * jnp.linalg.norm(a)))
+                    (safe_norm(a) * safe_norm(b) * safe_norm(c) +
+                     jnp.dot(a, b) * safe_norm(c) +
+                     jnp.dot(c, a) * safe_norm(b) +
+                     jnp.dot(b, c) * safe_norm(a)))
     term1 = jnp.abs(term1)
 
     term2 = jnp.arctan2(jnp.dot(c, cross_da),
-                    (jnp.linalg.norm(c) * jnp.linalg.norm(d) * jnp.linalg.norm(a) +
-                     jnp.dot(c, d) * jnp.linalg.norm(a) +
-                     jnp.dot(a, c) * jnp.linalg.norm(d) +
-                     jnp.dot(d, a) * jnp.linalg.norm(c)))
+                    (safe_norm(c) * safe_norm(d) * safe_norm(a) +
+                     jnp.dot(c, d) * safe_norm(a) +
+                     jnp.dot(a, c) * safe_norm(d) +
+                     jnp.dot(d, a) * safe_norm(c)))
     term2 = jnp.abs(term2)
 
     lk_ij = -1 / (2 * jnp.pi) * (term1 + term2)
     return lk_ij
+
+@jit
+def compute_linking_number_cartesian(p_i, p_ii, p_j, p_jj):
+    """Compute linking number directly from Cartesian coordinates."""
+    r_ij = p_i - p_j
+    r_ijj = p_i - p_jj
+    r_iij = p_ii - p_j
+    r_iijj = p_ii - p_jj
+
+    tol = 1e-6
+    n1 = jnp.cross(r_ij, r_ijj)
+    n1 = n1/(safe_norm(n1)+tol)
+    n2 = jnp.cross(r_ijj, r_iijj)
+    n2 = n2/(safe_norm(n2)+tol)
+    n3 = jnp.cross(r_iijj, r_iij)
+    n3 = n3/(safe_norm(n3)+tol)
+    n4 = jnp.cross(r_iij, r_ij)
+    n4 = n4/(safe_norm(n4)+tol)
+    
+    tol = 1e-7 # Use small tol for arcsin robustness
+    return -1/4/jnp.pi*jnp.abs(jnp.arcsin(  jnp.clip(jnp.dot(n1,n2),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n2,n3),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n3,n4),-1.+tol,1.-tol))
+                               + jnp.arcsin(jnp.clip(jnp.dot(n4,n1),-1.+tol,1.-tol)))
 
     
 # def fast_effective_potential_all(w):
@@ -530,18 +446,39 @@ def linear_to_triangular(N, i, j):
     return i, j
 
 @jit
+def total_effective_potential_aabb(q, aabb_threshold=4.0):
+    """
+    Optimized version using nested vmap to avoid large memory allocations.
+    aabb_threshold: if > 0, use AABB pruning for Linking Number. 
+                   Set to -1.0 to disable pruning.
+    """
+    q_mat = jnp.reshape(q, (-1, 5))
+    N = q_mat.shape[0]
+
+    def _potential_one_pair(rod_i, rod_j):
+        return collision_penalized_entanglement_potential(jnp.concatenate([rod_i, rod_j]))
+
+    # Vectorize over all pairs
+    def _rod_i_to_all(rod_i_val):
+        return vmap(lambda rj: _potential_one_pair(rod_i_val, rj))(q_mat)
+    
+    pot_matrix = vmap(_rod_i_to_all)(q_mat)
+    
+    # Sum upper triangle
+    mask = jnp.triu(jnp.ones((N, N)), k=1)
+    return jnp.sum(pot_matrix * mask)
+
+@jit
 def total_effective_potential(q):
-    q = jnp.reshape(q, (-1, 5))
-    q_pairs = create_pairs(q)
-    
-    def body_fun(carry, q_pair):
-        # Increment carry 
-        # by the result of effective_potential applied to q_pair
-        return carry + collision_penalized_entanglement_potential(q_pair), None    
-    # Perform scan; initial carry value is 0
-    total, _ = lax.scan(body_fun, 0, q_pairs)
-    
-    return total    
+    """Sum -lk^2 over all unique rod pairs (no AABB pruning).
+
+    Matches the working entangle_only reference implementation.
+    Using plain vmap avoids the AABB guard that zeros out all
+    well-separated pairs and causes trivial convergence.
+    """
+    q_mat = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q_mat)
+    return jnp.sum(vmap(collision_penalized_entanglement_potential)(q_pairs))
 
 def total_effective_potential_ref(q):
     q = jnp.reshape(q, (-1, 5))
@@ -588,86 +525,37 @@ def nematic_tensor(q):
 
 @jit
 def compute_nematic_order(qq):
-    """Compute nematic order for a set of rods in 5D representation.
-
-    Inputs
-    ------
-    qq : (...,) or (N,5)
-        Flattened or shaped array where each rod is (cx, cy, cz, phi, theta).
-
-    Returns
-    -------
-    Q_avg : (3,3)
-        The average second-moment tensor <u u^T>.
-    Q : (3,3)
-        The traceless nematic tensor Q = (3/2)(Q_avg - I/3).
-    S : ()
-        Nematic order parameter (largest eigenvalue of Q).
-    evals : (3,)
-        Eigenvalues of Q in ascending order.
-    evecs : (3,3)
-        Corresponding eigenvectors as columns.
-    """
     qq = jnp.reshape(qq, (-1, 5))
-
+    
     def body_fun(carry, q):
+        # Increment carry by the result of effective_potential applied to q_pair
         return carry + nematic_tensor(q), None
-
-    total, _ = lax.scan(body_fun, jnp.zeros((3,3)), qq)
-    N = qq.shape[0]
-    Q_avg = total / (N + 1e-12)
-    I = jnp.eye(3)
-    Q = 1.5 * (Q_avg - (1.0/3.0) * I)
-
-    # Eigen-decomposition (symmetric)
-    evals, evecs = jnp.linalg.eigh(Q)
-    S = evals[-1]
-    return Q_avg, Q, S, evals, evecs
-
-def directors_from_q(qq):
-    """Return unit directors u for each rod from 5D representation qq.
-
-    qq: (...,) or (N,5) with (cx,cy,cz, phi, theta)
-    returns: (N,3) unit vectors.
-    """
-    qq = jnp.reshape(qq, (-1,5))
-    phi = qq[:,3]
-    theta = qq[:,4]
-    u = jnp.stack([
-        jnp.sin(phi)*jnp.cos(theta),
-        jnp.sin(phi)*jnp.sin(theta),
-        jnp.cos(phi)
-    ], axis=1)
-    return u
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, qq)
 
 
 
 @jit
 def pairwise_angle(q_pair):
-    """Minimal angle between two undirected rod axes.
+    x_i =     q_pair[0]
+    y_i =     q_pair[1]
+    z_i =     q_pair[2]
+    phi_i =   q_pair[3]
+    theta_i = q_pair[4]
+  
+    x_j =     q_pair[5]
+    y_j =     q_pair[6]
+    z_j =     q_pair[7]
+    phi_j =   q_pair[8]
+    theta_j = q_pair[9]
 
-    Rods are axis-like (u ~ -u), so only the smaller angle between directions matters.
-    We first compute θ in [0, π] via arctan2(||u_i × u_j||, u_i · u_j) and then map to
-    φ = min(θ, π - θ) giving φ ∈ [0, π/2]. For two random undirected axes, the isotropic
-    reference PDF becomes p(φ) = sin φ over [0, π/2].
-    """
-    x_i =     q_pair[0];  y_i =     q_pair[1];  z_i =     q_pair[2]
-    phi_i =   q_pair[3];  theta_i = q_pair[4]
-    x_j =     q_pair[5];  y_j =     q_pair[6];  z_j =     q_pair[7]
-    phi_j =   q_pair[8];  theta_j = q_pair[9]
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
 
-    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i),
-                     jnp.sin(phi_i)*jnp.sin(theta_i),
-                     jnp.cos(phi_i)])
-    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j),
-                     jnp.sin(phi_j)*jnp.sin(theta_j),
-                     jnp.cos(phi_j)])
-
-    cross_norm = jnp.linalg.norm(jnp.cross(u_i, u_j))
-    dot_val   = jnp.clip(jnp.dot(u_i, u_j), -1.0, 1.0)
-    theta = jnp.arctan2(cross_norm, dot_val)  # [0, π]
-    # map to minimal angle φ in [0, π/2]
-    return jnp.minimum(theta, jnp.pi - theta)
+    # return jnp.arctan2(safe_norm(jnp.cross(u_i, u_j)), jnp.dot(u_i, u_j))
+    return jnp.abs(jnp.arctan(safe_norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
 
 @jit
 def pairwise_skewness(q_pair):
@@ -786,59 +674,11 @@ def skewness_lin_seg(point1s, point1e, point2s, point2e):
     return t,u
 
 def contact_point_lin_seg(point1s, point1e, point2s, point2e):
-    """Calculate the shortest distance between two line segments using JAX with cond."""
-    d1 = point1e - point1s
-    d2 = point2e - point2s
-    d12 = point2s - point1s
-
-    D1 = jnp.dot(d1, d1)
-    D2 = jnp.dot(d2, d2)
-    S1 = jnp.dot(d1, d12)
-    S2 = jnp.dot(d2, d12)
-    R = jnp.dot(d1, d2)
-
-    den = D1 * D2 - R**2
-    
-    def case1():
-        (t,u) = lax.cond( D1 != 0. , 
-                    lambda _: (fixbound(S1/D1),0.),
-                    lambda _: lax.cond(D2 != 0.,
-                             lambda _: (0.,fixbound(-S2/D2)),
-                             lambda _: (0.,0.),
-                             None),
-                    None)        
-        return (t,u)
-    
-    def case2_1():
-        t = 0.
-        u = -S2/D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)
-    
-    def case2_2():
-        t = fixbound((S1 * D2 - S2 * R) / den)
-        u = (t * R - S2) / D2
-        uf = fixbound(u)
-        
-        (t,u) = lax.cond(uf != u, 
-                    lambda _: (fixbound((uf * R + S1) / D1), uf),
-                    lambda _: (t, u),
-                    None)
-        
-        return (t,u)        
-    
-    def case2():
-        (t,u) = lax.cond( den == 0. , 
-                    lambda _: case2_1(),                    
-                    lambda _: case2_2(),
-                    None)        
-        return (t,u)
+    """Calculate the midpoint between the two closest points on line segments."""
+    t, u = _segment_segment_parameters(point1s, point1e, point2s, point2e)
+    p1 = point1s + (point1e - point1s) * t
+    p2 = point2s + (point2e - point2s) * u
+    return (p1 + p2) / 2
     
     (t,u) = lax.cond((D1 == 0.) & (D2 == 0.),
                         lambda _: case1(),
@@ -869,22 +709,8 @@ def pairwise_distance_xyz(q_pair):
     return dist_lin_seg(p_i, p_ii, p_j, p_jj)
 
 @jit
-def pairwise_distance_xyz_pbc(q_pair, box):
-    p_i = jnp.array([q_pair[0], q_pair[1], q_pair[2]])
-    p_j = jnp.array([q_pair[6], q_pair[7], q_pair[8]])
-    p_ii = jnp.array([q_pair[3], q_pair[4], q_pair[5]])
-    p_jj = jnp.array([q_pair[9], q_pair[10], q_pair[11]])
-    return dist_lin_seg_pbc(p_i, p_ii, p_j, p_jj, box)
-
-@jit
-def all_pairwise_distances_xyz_pbc(q_pairs,box):
-    return vmap(lambda x: pairwise_distance_xyz_pbc(x,box))(q_pairs)
-
-@jit
 def all_pairwise_distances_xyz(q_pairs):
     return vmap(pairwise_distance_xyz)(q_pairs)
-
-
 
 @jit
 def all_pairwise_skewness(q_pairs):
@@ -892,18 +718,16 @@ def all_pairwise_skewness(q_pairs):
 
 @jit
 def dist_lin_seg_over_ij(r1, r2, i_indices, j_indices):
-    # vmap over the index pairs to compute the distance for each unique pair
     return vmap(lambda i, j: dist_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
 
 @jit
 def dist_lin_seg_pbc_over_ij(r1, r2, box, i_indices, j_indices):
-    # vmap over the index pairs to compute the distance for each unique pair
     return vmap(lambda i, j: dist_lin_seg_pbc(r1[i], r2[i], r1[j], r2[j], box))(i_indices, j_indices)
 
 def angle_r1_r2(point1s,point1e,point2s,point2e):
     u_i = point1e - point1s
     u_j = point2e - point2s
-    return jnp.abs(jnp.arctan(jnp.linalg.norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
+    return jnp.abs(jnp.arctan(safe_norm(jnp.cross(u_i, u_j))/jnp.dot(u_i, u_j)))
 
 @jit
 def angle_over_ij(r1,r2,i_indices,j_indices):
@@ -915,7 +739,6 @@ def acn_over_ij(r1, r2, i_indices, j_indices):
 
 @jit
 def skewness_over_ij(r1, r2, i_indices, j_indices):
-    # skewness_lin_seg
     return vmap(lambda i, j: skewness_lin_seg(r1[i], r2[i], r1[j], r2[j]))(i_indices, j_indices)
 
 def create_pair3(m,n):
@@ -959,6 +782,40 @@ def all_distances_between_curves2(pairs1,pairs2):
     # d = vmap(distance_between_two_curves)(pairs[:,:30], pairs[:,30:])
     d = vmap(distance_between_two_curves)(pairs1, pairs2)
     return d
+
+@jit
+def total_angle_repulsion(q):
+    q = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q)
+    angles = all_pairwise_angles(q_pairs)
+    return -jnp.min(angles)
+
+@jit
+def rod_floor_interaction(q):
+    rf_int = lax.cond(q < -1,
+                        lambda _: 1.*(q+1)**2,
+                        lambda _: -0.0000001*(q+1)**2,
+                        None)
+    return rf_int
+
+@jit
+def floor_potential(z_m):
+    def body_fun(carry, z):
+        return carry + rod_floor_interaction(z), None
+    total, _ = lax.scan(body_fun, 0., z_m)
+    return total
+
+@jit
+def pairwise_distance_xyz_pbc(q_pair, box):
+    p_i = jnp.array([q_pair[0], q_pair[1], q_pair[2]])
+    p_j = jnp.array([q_pair[6], q_pair[7], q_pair[8]])
+    p_ii = jnp.array([q_pair[3], q_pair[4], q_pair[5]])
+    p_jj = jnp.array([q_pair[9], q_pair[10], q_pair[11]])
+    return dist_lin_seg_pbc(p_i, p_ii, p_j, p_jj, box)
+
+@jit
+def all_pairwise_distances_xyz_pbc(q_pairs,box):
+    return vmap(lambda x: pairwise_distance_xyz_pbc(x,box))(q_pairs)
     
 
 def entanglement_potential(q):
@@ -1030,19 +887,16 @@ def dist_penalty(dist, min_dist, epsilon=1.e-5):
                         lambda _: jnp.inf, # decrease to get more contacts
                         None)
 
+
 @jit
 def collision_penalized_entanglement_potential(q):
-    x_i = q[0]
-    y_i = q[1]
-    z_i = q[2]
-    phi_i = q[3]
-    theta_i = q[4]
+    """Per-pair potential: collision penalty + negated squared linking number.
 
-    x_j = q[5]
-    y_j = q[6]
-    z_j = q[7]
-    phi_j = q[8]
-    theta_j = q[9]
+    Minimising this objective maximises Σ lk_ij^2 (entanglement)
+    while penalising rods closer than collision_radius.
+    """
+    x_i = q[0];  y_i = q[1];  z_i = q[2];  phi_i = q[3];  theta_i = q[4]
+    x_j = q[5];  y_j = q[6];  z_j = q[7];  phi_j = q[8];  theta_j = q[9]
 
     p_i = jnp.array([x_i, y_i, z_i])
     p_j = jnp.array([x_j, y_j, z_j])
@@ -1050,100 +904,69 @@ def collision_penalized_entanglement_potential(q):
     u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
 
     l = 1
-    p_ii = p_i + l*u_i
-    p_jj = p_j + l*u_j
+    p_ii = p_i + l * u_i
+    p_jj = p_j + l * u_j
+
+    # Collision penalty: penalise rods closer than collision_radius
     dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
-    # Minimum distance constraint
-    # min_dist = 0.02
-    # barrier = dist_penalty(dist, min_dist)
-    # min_dist = 0.02
-    # boundary_regularization = 1e12 * (1.0/(dist - min_dist)) ** 2
-       
-    # eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1) + 1.*(dist-0.001)**2
-    eff_pot = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
-    return eff_pot
+    # Entanglement objective: MINIMISE lk
+    lk = compute_linking_number(x_i, y_i, z_i, phi_i, theta_i,
+                                x_j, y_j, z_j, phi_j, theta_j, 1)
+    return lk
+
 
 @jit
 def collision_penalized_entanglement_potential_sq(q):
-    x_i = q[0]
-    y_i = q[1]
-    z_i = q[2]
-    phi_i = q[3]
-    theta_i = q[4]
+    """Per-pair potential: collision penalty + negated squared linking number.
 
-    x_j = q[5]
-    y_j = q[6]
-    z_j = q[7]
-    phi_j = q[8]
-    theta_j = q[9]
+    Minimising this objective maximises Σ lk_ij^2 (entanglement)
+    while penalising rods closer than collision_radius.
+    """
+    x_i = q[0];  y_i = q[1];  z_i = q[2];  phi_i = q[3];  theta_i = q[4]
+    x_j = q[5];  y_j = q[6];  z_j = q[7];  phi_j = q[8];  theta_j = q[9]
 
-    # Use Arai linking number and return negative square
-    lk = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i, x_j, y_j, z_j, phi_j, theta_j, 1)
+    p_i = jnp.array([x_i, y_i, z_i])
+    p_j = jnp.array([x_j, y_j, z_j])
+    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
+    u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
+
+    l = 1
+    p_ii = p_i + l * u_i
+    p_jj = p_j + l * u_j
+
+    # Entanglement objective: MINIMISE lk^2
+    lk = compute_linking_number_arai(x_i, y_i, z_i, phi_i, theta_i,
+                                     x_j, y_j, z_j, phi_j, theta_j, 1)
     return -(lk ** 2)
 
 @jit
 def total_entanglement_potential_sq(q):
-    q = jnp.reshape(q, (-1, 5))
-    q_pairs = create_pairs(q)
-    
-    def body_fun(carry, q_pair):
-        return carry + collision_penalized_entanglement_potential_sq(q_pair), None
-    
-    total, _ = lax.scan(body_fun, 0, q_pairs)
-    return total
-
+    q_mat = jnp.reshape(q, (-1, 5))
+    q_pairs = create_pairs(q_mat)
+    return jnp.sum(vmap(collision_penalized_entanglement_potential_sq)(q_pairs))
+ 
+@jit
 def seg_seg_distance(q):
-    # assumming seg-seg contacts (not point-seg contacts)
-    x_i = q[0]
-    y_i = q[1]
-    z_i = q[2]
-    phi_i = q[3]
-    theta_i = q[4]
-
-    x_j = q[5]
-    y_j = q[6]
-    z_j = q[7]
-    phi_j = q[8]
-    theta_j = q[9]
+    q_mat = jnp.reshape(q, (2, 5))
+    x_i, y_i, z_i, phi_i, theta_i = q_mat[0]
+    x_j, y_j, z_j, phi_j, theta_j = q_mat[1]
 
     p_i = jnp.array([x_i, y_i, z_i])
     p_j = jnp.array([x_j, y_j, z_j])
     u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
     u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
-    
-    l = 1
-    p_ii = p_i + l*u_i
-    p_jj = p_j + l*u_j
-    
-    d1 = l*u_i # p_ii - p_i
-    d2 = l*u_j # p_jj - p_j
-    d12 = p_j - p_i
 
-    D1 = jnp.dot(d1, d1)
-    D2 = jnp.dot(d2, d2)
-    S1 = jnp.dot(d1, d12)
-    S2 = jnp.dot(d2, d12)
-    R = jnp.dot(d1, d2)
-    den = D1 * D2 - R**2    
-    t = fixbound((S1 * D2 - S2 * R) / den)
-    u = fixbound((t * R - S2) / D2)
-    uf = fixbound(u)
-    t, u = lax.cond(uf != u, lambda _: (fixbound((uf * R + S1) / D1), uf), lambda _: (t, u), None)
-    return compute_distance(d1, d2, d12, t, u)
+    p_ii = p_i + u_i
+    p_jj = p_j + u_j
+
+    return dist_lin_seg(p_i, p_ii, p_j, p_jj)
     
 @jit
 def total_harmonic_line(q,params):
     q = jnp.reshape(q, (-1, 5))
     q_pairs = create_pairs(q)
-    
-    def body_fun(carry, q_pair):
-        # Increment carry by the result of effective_potential applied to q_pair
-        return carry + simple_harmonic_line_jump(q_pair,params), None
-    # Perform scan; initial carry value is 0
-    total, _ = lax.scan(body_fun, 0, q_pairs)
-    
-    return total
+    return jnp.sum(vmap(lambda qp: simple_harmonic_line_jump(qp, params))(q_pairs))
 
 @jit
 def total_harmonic_line_relax(q,params):
@@ -1162,43 +985,47 @@ def total_harmonic_line_relax(q,params):
 
     return total
 
-@jit
-def simple_harmonic_line_xyz(q,params):
-    col_rad = params["col_rad"]
-    amp = params["amp"]
-    x_i = q[0]
-    y_i = q[1]
-    z_i = q[2]
-    phi_i = q[3]
-    theta_i = q[4]
-
-    x_j = q[5]
-    y_j = q[6]
-    z_j = q[7]
-    x_jj = q[8]
-    y_jj = q[9]
-    z_jj = q[10]
-
-    p_i = jnp.array([x_i, y_i, z_i])
-    p_j = jnp.array([x_j, y_j, z_j])
-    
-    u_i = jnp.array([jnp.sin(phi_i)*jnp.cos(theta_i), jnp.sin(phi_i)*jnp.sin(theta_i), jnp.cos(phi_i)])
-    # u_j = jnp.array([jnp.sin(phi_j)*jnp.cos(theta_j), jnp.sin(phi_j)*jnp.sin(theta_j), jnp.cos(phi_j)])
-
-    l = 1
-    p_ii = p_i + l*u_i
-    p_jj = jnp.array([x_jj, y_jj, z_jj])
-
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
-    
-    
-    dist_cont = lax.cond(dist < (col_rad*2)*(1+1e-6),
-                         lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -1.e-4*amp*(dist-col_rad*2)**2, # decrease to get more contacts
-                         None)
-    
-    
     return dist_cont
+
+@jit
+def total_harmonic_line_with_hook(q,params):
+    q = jnp.reshape(q, (-1, 5))
+    pairwise_sum = total_harmonic_line(q,params)
+    
+    half_side = 0.05
+    h1 = jnp.array([-half_side,0,half_side,-half_side,0,-half_side])
+    h2 = jnp.array([-half_side,0,-half_side,half_side,0,-half_side])
+    h3 = jnp.array([half_side,0,-half_side,half_side,0,half_side])
+    h4 = jnp.array([half_side,0,half_side,-half_side,0,half_side])
+    h5 = jnp.array([0,0,half_side,0,0,5*half_side])
+        
+    q = jnp.reshape(q, (-1, 5))    
+    N = q.shape[0]
+    
+    # repeat h1, h2, h3, h4, h5 N times
+    h1 = jnp.tile(h1, (N,1))
+    h2 = jnp.tile(h2, (N,1))
+    h3 = jnp.tile(h3, (N,1))
+    h4 = jnp.tile(h4, (N,1))
+    h5 = jnp.tile(h5, (N,1))
+    
+    qh1 = jnp.concatenate([q,h1],axis=1)
+    qh2 = jnp.concatenate([q,h2],axis=1)
+    qh3 = jnp.concatenate([q,h3],axis=1)
+    qh4 = jnp.concatenate([q,h4],axis=1)
+    qh5 = jnp.concatenate([q,h5],axis=1)
+    
+    total_qh = jnp.concatenate([qh1,qh2,qh3,qh4,qh5],axis=0)
+    
+    params["col_rad"] = params["col_rad"]/2+params["col_rad"]*0.00001
+    
+    # TO DO: only contacting rods........
+    def body_fun(carry, qh):
+        return carry + simple_harmonic_line_xyz(qh,params), None
+    # Perform scan; initial carry value is 0
+    total, _ = lax.scan(body_fun, 0, total_qh)
+    
+    return total + pairwise_sum
 
 @jit
 def total_harmonic_line_with_hook(q,params):
@@ -1334,12 +1161,28 @@ def simple_harmonic_line(q,params):
     p_ii = p_i + l*u_i
     p_jj = p_j + l*u_j
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    threshold = col_rad * 2.0
 
-    return lax.cond(dist < (col_rad*2),
-                         lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: -1.e-4*amp*(dist-col_rad*2)**2, # decrease to get more contacts
-                         None)
+    def _compute_full():
+        dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+        return lax.cond(dist < threshold,
+                             lambda _: amp*(dist-threshold)**2,
+                             lambda _: -1.e-4*amp*(dist-threshold)**2, # decrease to get more contacts
+                             None)
+
+    return lax.cond(aabb_overlap_capsule(p_i, p_ii, p_j, p_jj, threshold),
+                    lambda _: _compute_full(),
+                    lambda _: -1.e-4*amp*(threshold)**2, # Approximate value for far field? 
+                    # Wait, the original code had: lambda _: -1.e-4*amp*(dist-col_rad*2)**2
+                    # If AABB doesn't overlap, dist > threshold.
+                    # But if we want the same functional form, we need 'dist'.
+                    # If we use AABB, we are trying to AVOID computing 'dist'.
+                    # For simple_harmonic_line_jump, it returned 0, which was easy.
+                    # For simple_harmonic_line, it has this tiny attraction -1e-4*amp*(dist-2*col_rad)**2.
+                    # If this attraction is important for stability, we might STILL need dist.
+                    # BUT, usually this attraction is just a numerical trick to keep things together.
+                    # For large N, we probably only care about near-contacts.
+                    None)
     
 
 @jit
@@ -1367,18 +1210,19 @@ def simple_harmonic_line_jump(q,params):
     p_ii = p_i + l*u_i
     p_jj = p_j + l*u_j
 
-    dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+    threshold = col_rad * 2.0
     
-    dist_cont = lax.cond(dist < (col_rad*2),
-                         lambda _: amp*(dist-col_rad*2)**2,
-                         lambda _: 0., # decrease to get more contacts
-                         
-                         None)
-    return dist_cont
+    def _compute_full_dist():
+        dist = dist_lin_seg(p_i, p_ii, p_j, p_jj)
+        return lax.cond(dist < threshold,
+                        lambda _: amp*(dist-threshold)**2,
+                        lambda _: 0.,
+                        None)
 
-def gravity_potential(q,params):
-    return -9.8*q[2]
-
+    return lax.cond(aabb_overlap_capsule(p_i, p_ii, p_j, p_jj, threshold),
+                    lambda _: _compute_full_dist(),
+                    lambda _: 0.,
+                    None)
 @jit
 def total_gaussian_line(q,params):
     q = jnp.reshape(q, (-1, 5))
@@ -1500,9 +1344,9 @@ def check_arai_formula():
     q2 = jnp.array([0.,0.5,z],dtype=jnp.float64)
     
     u1 = p2 - p1
-    u1 /= jnp.linalg.norm(u1)
+    u1 /= safe_norm(u1)
     u2 = q2 - q1
-    u2 /= jnp.linalg.norm(u2)
+    u2 /= safe_norm(u2)
     
     a = p1 - q1
     b = p1 - q2
@@ -1712,110 +1556,63 @@ def test_contact_point():
     print(contact_point)
 
 def test_dist_lin_seg_periodic():
-
-    # use case
     d12 = 0.2
     L = 0.01
-    box = 1.5  # same as your earlier example; can also pass jnp.array([1.5,1.5,1.5])
-
+    box = 1.5
     offset = jnp.array([10.,0.,0.])
     r1 = jnp.array([0., 0., -d12/2]) + offset
     r2 = jnp.array([0., 0.,  d12/2])
-
     p1s = r1 - jnp.array([L/2, 0., 0.])
     p1e = r1 + jnp.array([L/2, 0., 0.])
     p2s = r2 - jnp.array([0., L/2, 0.])
     p2e = r2 + jnp.array([0., L/2, 0.])
-
     d_no_pbc  = dist_lin_seg(p1s, p1e, p2s, p2e)
     d_with_pbc = dist_lin_seg_pbc(p1s, p1e, p2s, p2e, box)
-
     print("Euclidean distance:", d_no_pbc)
     print("PBC distance     :", d_with_pbc)
 
-# ---------------------------------------------------------------------------
-# Infinite line distance utilities (skew line distance ignoring segment bounds)
-# ---------------------------------------------------------------------------
-# For lines L1: p1s + t u1, L2: p2s + s u2. If not parallel, distance = |(p2s-p1s)·(u1×u2)| / ||u1×u2||.
-# If parallel (u1×u2 ~ 0), use distance from p2s to L1: || (p2s-p1s) - ((p2s-p1s)·u1) u1 / ||u1||^2 ||.
-
-from jax import jit as _jit_infinite
-
-@_jit_infinite
+@jit
 def dist_infinite_lines(p1s, p1e, p2s, p2e):
-    """Distance between the two infinite lines defined by the segment endpoints.
-    Rigid-motion invariant; ignores endpoints (no clamping) so softer derivative structure.
-    """
     u1 = p1e - p1s
     u2 = p2e - p2s
     v = p2s - p1s
     n = jnp.cross(u1, u2)
-    n_norm = jnp.linalg.norm(n)
-    # Parallel case fallback
+    n_norm = safe_norm(n)
     def _parallel_case():
         u1_norm2 = jnp.dot(u1, u1) + 1e-12
         proj = v - (jnp.dot(v, u1) / u1_norm2) * u1
-        return jnp.linalg.norm(proj)
+        return safe_norm(proj)
     def _skew_case():
         return jnp.abs(jnp.dot(v, n)) / (n_norm + 1e-12)
     return lax.cond(n_norm < 1e-12, lambda _: _parallel_case(), lambda _: _skew_case(), operand=None)
 
-@_jit_infinite
+@jit
 def dist_infinite_lines_over_ij(r1, r2, i_indices, j_indices):
-    """Vectorized infinite-line distances over index pairs.
-    r1, r2: (N,3) start/endpoints per rod; returns (num_pairs,) distances.
-    """
-    p1s = r1[i_indices]
-    p1e = r2[i_indices]
-    p2s = r1[j_indices]
-    p2e = r2[j_indices]
-    u1 = p1e - p1s
-    u2 = p2e - p2s
+    p1s = r1[i_indices]; p1e = r2[i_indices]
+    p2s = r1[j_indices]; p2e = r2[j_indices]
+    u1 = p1e - p1s; u2 = p2e - p2s
     v = p2s - p1s
     n = jnp.cross(u1, u2)
-    n_norm = jnp.linalg.norm(n, axis=1)
-    # Skew distances
+    n_norm = safe_norm(n, axis=1)
     skew_dist = jnp.abs(jnp.einsum('ij,ij->i', v, n)) / (n_norm + 1e-12)
-    # Parallel fallback distances
     u1_norm2 = jnp.einsum('ij,ij->i', u1, u1) + 1e-12
     proj = v - (jnp.einsum('ij,ij->i', v, u1) / u1_norm2)[:, None] * u1
-    par_dist = jnp.linalg.norm(proj, axis=1)
+    par_dist = safe_norm(proj, axis=1)
     return jnp.where(n_norm < 1e-12, par_dist, skew_dist)
 
-# ---------------------------------------------------------------------------
-# Convenience: segment distances directly from q (center + spherical angles)
-# ---------------------------------------------------------------------------
-@_jit_infinite
+@jit
 def dist_lin_seg_over_ij_q(q, i_indices, j_indices, length=1.0):
-        """Pairwise segment distances from 5D representation q = (cx,cy,cz,theta,phi).
-
-        Each rod endpoint pair is reconstructed as:
-            center = q[:,:3]
-            u = sph2cart(theta, phi)  (already defined in transforms)
-            r1 = center - 0.5*length*u
-            r2 = center + 0.5*length*u
-
-        Returns vector of distances over provided (i,j) index arrays.
-        """
-        from transforms import sph2cart  # local import to avoid circular issues at module load
-        q = q.reshape(-1,5)
-        center = q[:, :3]
-        u = sph2cart(q[:,3], q[:,4])  # (N,3)
-        r1 = center - 0.5*length*u
-        r2 = center + 0.5*length*u
-        p1s = r1[i_indices]; p1e = r2[i_indices]
-        p2s = r1[j_indices]; p2e = r2[j_indices]
-        # Reuse existing dist_lin_seg logic per pair via vmap for efficiency
-        # Vectorized minimal segment distance (bounded) rather than infinite-line distance.
-        def _pair_distance(a1,a2,b1,b2):
-                return dist_lin_seg(a1,a2,b1,b2)
-        from jax import vmap as _vmap
-        vfn = _vmap(_pair_distance, in_axes=(0,0,0,0))
-        return vfn(p1s, p1e, p2s, p2e)
+    from transforms import sph2cart
+    q = q.reshape(-1,5)
+    center = q[:, :3]
+    u = vmap(lambda p: sph2cart(p[0], p[1]))(q[:,3:])
+    r1 = center - 0.5*length*u
+    r2 = center + 0.5*length*u
+    p1s = r1[i_indices]; p1e = r2[i_indices]
+    p2s = r1[j_indices]; p2e = r2[j_indices]
+    return vmap(dist_lin_seg)(p1s, p1e, p2s, p2e)
 
 if __name__ == "__main__":
     # test_skewness()
-    # test_contact_point()
-
-
+    test_contact_point()
     test_dist_lin_seg_periodic()
