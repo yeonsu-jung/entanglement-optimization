@@ -56,3 +56,4 @@ notebooks/*
 
 *.out
 *.err
+entangle_only/*
