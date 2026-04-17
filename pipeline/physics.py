@@ -1,10 +1,11 @@
 """Minimal physics library for rod entanglement and relaxation.
 
 Rod state q: flattened (N*5,) or shaped (N,5)
-  q[i] = [x, y, z, theta, phi]
-  where (theta, phi) are spherical angles giving the rod direction:
+  q[i] = [cx, cy, cz, theta, phi]
+  where (cx, cy, cz) is the rod centroid and
+  (theta, phi) are spherical angles giving the rod direction:
     u = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
-  Rod occupies [start, start + u], length = 1.
+  Rod occupies [centroid - u/2, centroid + u/2], length = 1.
 
 Endpoints x: shaped (N,6) = [x0, y0, z0, x1, y1, z1]
 """
@@ -113,8 +114,10 @@ def sph2cart(theta, phi):
 def q_to_x(q):
     """q (N*5,) or (N,5) -> endpoints (N,6) = [start | end]."""
     q = jnp.reshape(q, (-1, 5))
-    starts = q[:, :3]
-    ends   = starts + sph2cart(q[:, 3], q[:, 4])
+    centroids = q[:, :3]
+    half_u = 0.5 * sph2cart(q[:, 3], q[:, 4])
+    starts = centroids - half_u
+    ends   = centroids + half_u
     return jnp.concatenate([starts, ends], axis=1)
 
 
@@ -122,10 +125,11 @@ def q_to_x(q):
 
 def _lk_pair(rod_i, rod_j):
     """Signed linking number for a single pair (vectorisable)."""
-    p_i = rod_i[:3];  p_j = rod_j[:3]
+    c_i = rod_i[:3];  c_j = rod_j[:3]
     u_i = sph2cart(rod_i[3], rod_i[4])
     u_j = sph2cart(rod_j[3], rod_j[4])
-    p_ii = p_i + u_i;  p_jj = p_j + u_j
+    p_i  = c_i - 0.5 * u_i;  p_j  = c_j - 0.5 * u_j
+    p_ii = c_i + 0.5 * u_i;  p_jj = c_j + 0.5 * u_j
 
     r_ij   = p_i  - p_j
     r_ijj  = p_i  - p_jj
@@ -156,9 +160,9 @@ def create_pairs(q_mat):
 
 @jit
 def _pair_distance(q_pair):
-    ri = q_pair[:3];  ui = sph2cart(q_pair[3], q_pair[4])
-    rj = q_pair[5:8]; uj = sph2cart(q_pair[8], q_pair[9])
-    return dist_lin_seg(ri, ri + ui, rj, rj + uj)
+    ci = q_pair[:3];  ui = sph2cart(q_pair[3], q_pair[4])
+    cj = q_pair[5:8]; uj = sph2cart(q_pair[8], q_pair[9])
+    return dist_lin_seg(ci - 0.5*ui, ci + 0.5*ui, cj - 0.5*uj, cj + 0.5*uj)
 
 
 @jit
@@ -208,10 +212,10 @@ def make_entangle_potential(num_rods: int):
 @jit
 def _repulsion_pair(q_pair, col_rad, amp):
     """AABB-pruned harmonic repulsion for a single rod pair."""
-    ri = q_pair[:3];  ui = sph2cart(q_pair[3], q_pair[4])
-    rj = q_pair[5:8]; uj = sph2cart(q_pair[8], q_pair[9])
-    p1s = ri;  p1e = ri + ui
-    p2s = rj;  p2e = rj + uj
+    ci = q_pair[:3];  ui = sph2cart(q_pair[3], q_pair[4])
+    cj = q_pair[5:8]; uj = sph2cart(q_pair[8], q_pair[9])
+    p1s = ci - 0.5*ui;  p1e = ci + 0.5*ui
+    p2s = cj - 0.5*uj;  p2e = cj + 0.5*uj
     threshold = col_rad * 2.0
 
     def _full():

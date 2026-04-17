@@ -10,11 +10,12 @@
 #
 # Usage:
 #   cd pipeline/cohort
-#   bash run_cluster_single.sh [--dry-run] [--force] [--n-packings K]
+#   bash run_cluster_single.sh [--dry-run] [--force] [--n-packings K] [--cohort-name NAME]
 #
 #   --dry-run         print sbatch command without submitting
 #   --force           recompute existing outputs
 #   --n-packings K    number of random seeds per (N,AR), default 1
+#   --cohort-name     output subfolder under results/ (default: timestamp)
 
 set -euo pipefail
 
@@ -29,13 +30,17 @@ if [[ ! -f "$CLUSTER_ENV" ]]; then
 fi
 source "$CLUSTER_ENV"
 
-RESULTS_DIR="$COHORT_DIR/results"
+RESULTS_ROOT="$COHORT_DIR/results"
 JOBS_DIR="$COHORT_DIR/jobs"
-mkdir -p "$RESULTS_DIR" "$JOBS_DIR"
+mkdir -p "$RESULTS_ROOT" "$JOBS_DIR"
+
+MAIN_INITIAL_SPREAD="${MAIN_INITIAL_SPREAD:-0.3}"
+LARGE_INITIAL_SPREAD="${LARGE_INITIAL_SPREAD:-0.3}"
 
 DRY_RUN=0
 FORCE_FLAG=""
 N_PACKINGS=1
+COHORT_NAME=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -55,16 +60,45 @@ while [[ $# -gt 0 ]]; do
             N_PACKINGS="$2"
             shift 2
             ;;
+        --cohort-name)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --cohort-name requires a value."
+                exit 1
+            fi
+            COHORT_NAME="$2"
+            shift 2
+            ;;
         *)
             echo "ERROR: unknown option: $1"
-            echo "Usage: bash run_cluster_single.sh [--dry-run] [--force] [--n-packings K]"
+            echo "Usage: bash run_cluster_single.sh [--dry-run] [--force] [--n-packings K] [--cohort-name NAME]"
             exit 1
             ;;
     esac
 done
 
+if [[ -z "$COHORT_NAME" ]]; then
+    COHORT_NAME="$(date '+%Y-%m-%d_%H-%M-%S')"
+fi
+if [[ ! "$COHORT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: --cohort-name may only contain letters, numbers, dot, underscore, and dash"
+    exit 1
+fi
+
+RESULTS_DIR="$RESULTS_ROOT/$COHORT_NAME"
+mkdir -p "$RESULTS_DIR"
+
 if ! [[ "$N_PACKINGS" =~ ^[1-9][0-9]*$ ]]; then
     echo "ERROR: --n-packings must be a positive integer (got: $N_PACKINGS)"
+    exit 1
+fi
+
+if ! [[ "$MAIN_INITIAL_SPREAD" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+    echo "ERROR: MAIN_INITIAL_SPREAD must be a positive number (got: $MAIN_INITIAL_SPREAD)"
+    exit 1
+fi
+
+if ! [[ "$LARGE_INITIAL_SPREAD" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+    echo "ERROR: LARGE_INITIAL_SPREAD must be a positive number (got: $LARGE_INITIAL_SPREAD)"
     exit 1
 fi
 
@@ -118,6 +152,8 @@ NMAX="${NMAX}"
 MAX_ITERS="${MAX_ITERS}"
 N_PACKINGS="${N_PACKINGS}"
 FORCE_FLAG="${FORCE_FLAG}"
+MAIN_INITIAL_SPREAD="${MAIN_INITIAL_SPREAD}"
+LARGE_INITIAL_SPREAD="${LARGE_INITIAL_SPREAD}"
 
 N_MAIN=(${N_MAIN[*]})
 AR_MAIN=(${AR_MAIN[*]})
@@ -127,15 +163,15 @@ AR_LARGE=(${AR_LARGE[*]})
 log() { echo "[\$(date '+%H:%M:%S')] \$*"; }
 
 run_entangle() {
-    local N="\$1" AR="\$2"
+    local N="\$1" AR="\$2" SPREAD="\$3"
     local out_dir="\${RESULTS_DIR}/N\${N}/AR\${AR}"
     mkdir -p "\$out_dir"
 
     log "Entangle: N=\$N AR=\$AR N_PACKINGS=\$N_PACKINGS"
     python "${pipeline_dir}/entangle.py" \
-        --num-rods "\$N" --AR "\$AR" --Nmax "\$NMAX" \
+        --num-rods "\$N" --AR "\$AR" --Nmax "\$NMAX" --initial-spread "\$SPREAD" \
         --N-packings "\$N_PACKINGS" \
-        --out-dir "\$out_dir" \$FORCE_FLAG
+        --out-dir "\$out_dir" \$FORCE_FLAG        
 }
 
 run_relax_N() {
@@ -166,12 +202,12 @@ run_relax_N() {
 log "Phase 1/2: entangle all packings"
 for N in "\${N_MAIN[@]}"; do
     for AR in "\${AR_MAIN[@]}"; do
-        run_entangle "\$N" "\$AR"
+        run_entangle "\$N" "\$AR" "\$MAIN_INITIAL_SPREAD"
     done
 done
 for N in "\${N_LARGE[@]}"; do
     for AR in "\${AR_LARGE[@]}"; do
-        run_entangle "\$N" "\$AR"
+        run_entangle "\$N" "\$AR" "\$LARGE_INITIAL_SPREAD"
     done
 done
 
@@ -187,11 +223,21 @@ log "Done: full sequential cohort run complete"
 SBATCH
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "[dry-run] MAIN_INITIAL_SPREAD=$MAIN_INITIAL_SPREAD LARGE_INITIAL_SPREAD=$LARGE_INITIAL_SPREAD"
+    echo "[dry-run] COHORT_NAME=$COHORT_NAME"
+    echo "[dry-run] RESULTS_DIR=$RESULTS_DIR"
     echo "[dry-run] sbatch $job_script"
 else
+    SNAPSHOT_DIR="$RESULTS_DIR/cohort_submit_snapshot"
+    mkdir -p "$SNAPSHOT_DIR"
+    cp -f "$COHORT_DIR/run_cluster_single.sh" "$SNAPSHOT_DIR/"
+    cp -f "$COHORT_DIR/cohort_def.sh" "$SNAPSHOT_DIR/"
+    cp -f "$COHORT_DIR/cluster.env" "$SNAPSHOT_DIR/"
+
     job_id=$(env -u BASH_ENV -u ENV sbatch --parsable "$job_script")
     final_script="$JOBS_DIR/${job_name}_${job_id}.sh"
     mv "$job_script" "$final_script"
     echo "Submitted ${job_name} -> job $job_id"
     echo "Script: $final_script"
+    echo "Snapshot: $SNAPSHOT_DIR"
 fi

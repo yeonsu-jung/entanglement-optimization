@@ -7,10 +7,11 @@
 #
 # Usage (from the cluster login node):
 #   cd pipeline/cohort
-#   bash run_cluster.sh [--dry-run] [--force]
+#   bash run_cluster.sh [--dry-run] [--force] [--cohort-name NAME]
 #
 #   --dry-run   print sbatch commands without submitting
 #   --force     pass --force to entangle.py and relax.py (recompute existing)
+#   --cohort-name output subfolder under results/ (default: timestamp)
 
 set -euo pipefail
 
@@ -26,18 +27,59 @@ if [[ ! -f "$CLUSTER_ENV" ]]; then
 fi
 source "$CLUSTER_ENV"
 
-RESULTS_DIR="$COHORT_DIR/results"
+RESULTS_ROOT="$COHORT_DIR/results"
 JOBS_DIR="$COHORT_DIR/jobs"          # generated sbatch scripts land here
-mkdir -p "$JOBS_DIR"
+mkdir -p "$RESULTS_ROOT" "$JOBS_DIR"
 
 DRY_RUN=0
 FORCE_FLAG=""
-for arg in "$@"; do
-    [[ "$arg" == "--dry-run" ]] && DRY_RUN=1
-    [[ "$arg" == "--force"   ]] && FORCE_FLAG="--force"
+COHORT_NAME=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)
+            DRY_RUN=1
+            shift
+            ;;
+        --force)
+            FORCE_FLAG="--force"
+            shift
+            ;;
+        --cohort-name)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --cohort-name requires a value"
+                exit 1
+            fi
+            COHORT_NAME="$2"
+            shift 2
+            ;;
+        *)
+            echo "ERROR: unknown option: $1"
+            echo "Usage: bash run_cluster.sh [--dry-run] [--force] [--cohort-name NAME]"
+            exit 1
+            ;;
+    esac
 done
 
+if [[ -z "$COHORT_NAME" ]]; then
+    COHORT_NAME="$(date '+%Y-%m-%d_%H-%M-%S')"
+fi
+if [[ ! "$COHORT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: --cohort-name may only contain letters, numbers, dot, underscore, and dash"
+    exit 1
+fi
+
+RESULTS_DIR="$RESULTS_ROOT/$COHORT_NAME"
+mkdir -p "$RESULTS_DIR"
+
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
+
+if [[ "$DRY_RUN" -eq 0 ]]; then
+    SNAPSHOT_DIR="$RESULTS_DIR/cohort_submit_snapshot"
+    mkdir -p "$SNAPSHOT_DIR"
+    cp -f "$COHORT_DIR/run_cluster.sh" "$SNAPSHOT_DIR/"
+    cp -f "$COHORT_DIR/cohort_def.sh" "$SNAPSHOT_DIR/"
+    cp -f "$COHORT_DIR/cluster.env" "$SNAPSHOT_DIR/"
+fi
 
 # ── generate + submit one job ─────────────────────────────────────────────────
 submit_packing() {
@@ -121,6 +163,11 @@ SBATCH
 # ── submit cohort ─────────────────────────────────────────────────────────────
 TOTAL=$(( ${#N_MAIN[@]} * ${#AR_MAIN[@]} + ${#N_LARGE[@]} * ${#AR_LARGE[@]} ))
 log "Cluster cohort: $TOTAL jobs  partition=$PARTITION  dry_run=$DRY_RUN"
+log "Cohort name: $COHORT_NAME"
+log "Results dir: $RESULTS_DIR"
+if [[ "$DRY_RUN" -eq 0 ]]; then
+    log "Snapshot dir: $SNAPSHOT_DIR"
+fi
 
 for N in "${N_MAIN[@]}"; do
     for AR in "${AR_MAIN[@]}"; do submit_packing "$N" "$AR"; done

@@ -10,7 +10,7 @@
 #
 # Usage:
 #   cd pipeline/cohort
-#   bash run_local.sh [--force] [--n-packings K] 2>&1 | tee run_local.log
+#   bash run_local.sh [--force] [--n-packings K] [--cohort-name NAME] 2>&1 | tee run_local.log
 #
 # Tunables via env vars:
 #   MAMBA_ENV   mamba environment name   (default: simdata-analysis)
@@ -21,7 +21,7 @@ set -euo pipefail
 
 COHORT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_DIR="$(dirname "$COHORT_DIR")"
-RESULTS_DIR="$COHORT_DIR/results"
+RESULTS_ROOT="$COHORT_DIR/results"
 
 source "$COHORT_DIR/cohort_def.sh"
 
@@ -31,13 +31,33 @@ MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-$HOME/.local/share/mamba}"
 
 FORCE_FLAG=""
 N_PACKINGS=1
+COHORT_NAME=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --force)      FORCE_FLAG="--force"; shift ;;
         --n-packings) N_PACKINGS="$2"; shift 2 ;;
+        --cohort-name)
+            if [[ $# -lt 2 ]]; then
+                echo "ERROR: --cohort-name requires a value"
+                exit 1
+            fi
+            COHORT_NAME="$2"
+            shift 2
+            ;;
         *) echo "ERROR: unknown option: $1"; exit 1 ;;
     esac
 done
+
+if [[ -z "$COHORT_NAME" ]]; then
+    COHORT_NAME="$(date '+%Y-%m-%d_%H-%M-%S')"
+fi
+if [[ ! "$COHORT_NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: --cohort-name may only contain letters, numbers, dot, underscore, and dash"
+    exit 1
+fi
+
+RESULTS_DIR="$RESULTS_ROOT/$COHORT_NAME"
+mkdir -p "$RESULTS_DIR"
 
 # Activate mamba without depending on module/lmod
 eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
@@ -87,6 +107,7 @@ run_relax_N() {
 
 TOTAL=$(( ${#N_MAIN[@]} * ${#AR_MAIN[@]} + ${#N_LARGE[@]} * ${#AR_LARGE[@]} ))
 log "Local cohort: $TOTAL (N,AR) pairs  N_PACKINGS=$N_PACKINGS  → $RESULTS_DIR"
+log "Cohort name: $COHORT_NAME"
 log "Env: MAMBA_ENV=$MAMBA_ENV  NMAX=$NMAX  MAX_ITERS=$MAX_ITERS"
 
 log "Phase 1/2: entangle all packings"

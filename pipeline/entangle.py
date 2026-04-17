@@ -59,18 +59,18 @@ def parse_args() -> argparse.Namespace:
         description="Entangle rods by maximising pairwise linking numbers."
     )
     p.add_argument("--num-rods",   type=int,   default=200)
-    p.add_argument("--AR",         type=int,   default=1000,
+    p.add_argument("--AR",         type=int,   default=100000,
                    help="Aspect ratio (rod length / rod diameter). "
                         "Sets initial-placement diameter.")
     p.add_argument("--N-packings", type=int,   default=1,
                    help="Number of independent packings to produce.")
-    p.add_argument("--Nmax",       type=int,   default=10_000,
+    p.add_argument("--Nmax",       type=int,   default=3000,
                    help="Max FIRE iterations per outer loop.")
     p.add_argument("--N-outer",    type=int,   default=1,
                    help="Outer iterations (halves atol each time).")
-    p.add_argument("--atol",       type=float, default=1e-8,
+    p.add_argument("--atol",       type=float, default=0,
                    help="Relative force tolerance (scaled by initial force).")
-    p.add_argument("--dt",            type=float, default=1e-2)
+    p.add_argument("--dt",            type=float, default=5e-3)
     p.add_argument("--dtmax-factor",  type=float, default=1.0,
                    help="Max dt = dtmax_factor * dt. Default 1.0 (fixed dt, matches "
                         "benchmark). Use 10.0 to enable adaptive dt growth.")
@@ -81,6 +81,8 @@ def parse_args() -> argparse.Namespace:
                    help="Export endpoint snapshots during entanglement optimisation.")
     p.add_argument("--stride",     type=int,   default=500,
                    help="FIRE iterations between snapshots (--save-traj only).")
+    p.add_argument("--initial-spread",     type=float,   default=0.1,
+                   help="Initial spread.")
     return p.parse_args()
 
 
@@ -161,7 +163,7 @@ def main():
 
         # Initialise
         t_init = time.time()
-        q0_np = init_mod.create_nonintersecting_rods_gpu(num_rods, rod_diameter)
+        q0_np = init_mod.create_nonintersecting_rods_gpu(num_rods, rod_diameter, args.initial_spread)
         q0 = jnp.array(q0_np, dtype=jnp.float64).flatten()
         print(f"  init: {time.time()-t_init:.1f}s")
 
@@ -187,12 +189,27 @@ def main():
 
         print(f"  f_initial={float(f_ent(q0)):.4f}  f_final={float(f_val):.4f}")
         print(f"  error={float(error):.2e}  iters={int(n_iters)}  time={t_opt:.1f}s")
+        
+        # ball of centroids
+        
+        x = physics.q_to_x(q)
+        centroids = (x[:,:3] + x[:,3:])/2 # (N,3)
+        packing_center = jnp.mean(centroids,axis=0) # (3,)
+        center_spread = jnp.sqrt( jnp.mean( jnp.sum( (centroids - packing_center)**2, axis = 1) ) )
+        
+        bounding_box_size = jnp.max(x,axis=0) - jnp.min(x,axis=0) # (3,)
+        
 
         # Save
         q_np  = np.asarray(q)
         x_np  = np.asarray(physics.q_to_x(jnp.asarray(q_np)))
         np.save(packing_dir / "q_entangled.npy", q_np)
         np.save(packing_dir / "x_entangled.npy", x_np)
+        
+        # save txt
+        
+        np.savetxt(packing_dir / "x_entangled.txt", x_np)
+        
 
         if args.save_traj and all_snapshots:
             traj = np.stack([
@@ -211,11 +228,15 @@ def main():
             f"rod_diameter: {rod_diameter}\n"
             f"f_initial: {float(f_ent(q0)):.6f}\n"
             f"f_final: {float(f_val):.6f}\n"
+            f"f_initial_normalized: {float(f_ent(q0))/(num_rods*(num_rods-1)/2):.6f}\n"
+            f"f_final_normalized: {float(f_val)/(num_rods*(num_rods-1)/2):.6f}\n"
             f"error: {float(error):.4e}\n"
             f"iterations: {int(n_iters)}\n"
             f"time_s: {t_opt:.2f}\n"
             f"min_dist: {float(jnp.min(d_all)):.8f}\n"
             f"median_dist: {float(jnp.median(d_all)):.8f}\n"
+            f"center_spread: {float(center_spread):.8f}\n"
+            f"bounding_box_size: {float(bounding_box_size[0]):.4f}, {float(bounding_box_size[1]):.4f}, {float(bounding_box_size[2]):.4f}\n"
             f"backend: {jax.default_backend()}\n"
         )
         (packing_dir / "log.txt").write_text(log)

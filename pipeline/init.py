@@ -1,7 +1,7 @@
 """Non-intersecting rod placement.
 
 create_nonintersecting_rods_gpu(num_rods, rod_diameter)
-  -> (num_rods, 5) numpy array, q-coordinates, centred at origin.
+  -> (num_rods, 5) numpy array, q-coordinates (centroid + angles), centred at origin.
 
 The outer placement loop is sequential (each rod depends on all prior),
 but the distance check uses vmap over existing rods for GPU speed.
@@ -24,7 +24,7 @@ def _min_dist_to_existing(p_i, p_ii, starts, ends, n):
     return jnp.min(jnp.where(mask, dists, jnp.inf))
 
 
-def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float,
+def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float, initial_spread: float,
                                      max_attempts: int = 10_000) -> np.ndarray:
     """Place num_rods non-intersecting rods using GPU-batched distance checks.
 
@@ -41,16 +41,17 @@ def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float,
         attempts = 0
 
         while not created and attempts < max_attempts:
-            x     = np.random.uniform(-.2, .2)
-            y     = np.random.uniform(-.2, .2)
-            z     = np.random.uniform(-.2, .2)
+            x     = np.random.uniform(-initial_spread, initial_spread)
+            y     = np.random.uniform(-initial_spread, initial_spread)
+            z     = np.random.uniform(-initial_spread, initial_spread)
             theta = np.arccos(np.random.uniform(-1.0, 1.0))
             phi   = np.random.uniform(0.0, 2.0 * np.pi)
 
-            p_i  = jnp.array([x, y, z])
+            c_i  = jnp.array([x, y, z])
             u_i  = jnp.array([np.sin(theta) * np.cos(phi),
                                np.sin(theta) * np.sin(phi),
                                np.cos(theta)])
+            p_i = c_i - 0.5 * u_i
             p_ii = p_i + u_i
 
             if i == 0:
@@ -61,7 +62,8 @@ def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float,
                 intersect = bool(min_d < rod_diameter)
 
             if not intersect:
-                q[i] = [x, y, z, theta, phi]
+                q[i, :3] = [x, y, z]
+                q[i, 3:] = [theta, phi]
                 existing_starts = existing_starts.at[i].set(p_i)
                 existing_ends   = existing_ends.at[i].set(p_ii)
                 created = True
@@ -77,10 +79,8 @@ def create_nonintersecting_rods_gpu(num_rods: int, rod_diameter: float,
         if i % 200 == 0:
             print(f"  placed {i}/{num_rods}")
 
-    # Centre at origin
-    q_jnp  = jnp.array(q, dtype=jnp.float64)
-    x_ends = q_to_x(q_jnp)
-    centre = np.mean(np.asarray((x_ends[:, :3] + x_ends[:, 3:]) / 2), axis=0)
+    # Centre centroids at origin
+    centre = np.mean(q[:, :3], axis=0)
     q[:, :3] -= centre
 
     print(f"  done ({num_rods} rods placed)")
