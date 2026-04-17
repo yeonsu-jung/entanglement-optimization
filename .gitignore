@@ -47,6 +47,16 @@ scripts/
 tests/
 notebooks/
 
+# Legacy top-level modules — superseded by pipeline/, archived in archive/pre-cleanup-2026-04-16
+/old_optimization.py
+/old_potentials.py
+/optimization.py
+/potentials.py
+/protocols.py
+/transforms.py
+/utils.py
+/visualizations.py
+
 # Cohort: machine-specific env and generated job scripts
 pipeline/cohort/cluster.env
 pipeline/cohort/jobs/
