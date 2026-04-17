@@ -25,6 +25,13 @@ __pycache__/
 .DS_Store
 .env
 
+# Machine-specific conda/mamba env files (kept on disk, untracked)
+/env.yml
+/env_blender.yml
+
+# Transient planning/notes
+/ent_opt_cleanup_plan_apr16.md
+
 # Python build/packaging
 build/
 dist/
@@ -66,3 +73,9 @@ examples/cohort/results/
 /transforms.py
 /utils.py
 /visualizations.py
+
+
+# ============================================================
+# Writing
+# ============================================================
+/writing/
