@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# pipeline/cohort/run_cluster.sh
+# examples/cohort/run_cluster.sh
 #
 # Submit one SLURM job per (N, AR) packing to the Harvard RC cluster.
 # Grid is defined in cohort_def.sh.
 # Machine settings are read from cluster.env (gitignored; copy from cluster.env.template).
 #
 # Usage (from the cluster login node):
-#   cd pipeline/cohort
+#   cd examples/cohort
 #   bash run_cluster.sh [--dry-run] [--force] [--cohort-name NAME]
 #
 #   --dry-run   print sbatch commands without submitting
@@ -86,7 +86,6 @@ submit_packing() {
     local N=$1 AR=$2
     local job_name="ent_N${N}_AR${AR}"
     local out_dir="$RESULTS_DIR/N${N}/AR${AR}"
-    local pipeline_dir="$REPO_ROOT/pipeline"
     local job_script="$JOBS_DIR/${job_name}.sh"
 
     mkdir -p "$out_dir"
@@ -133,7 +132,7 @@ safe_module_load "\$PYTHON_MODULE"
 mamba activate "\$MAMBA_ENV"
 
 # ── 1. Entangle ───────────────────────────────────────────────────────────────
-python "${pipeline_dir}/entangle.py" \
+eo-entangle \
     --num-rods ${N} --AR ${AR} --Nmax ${NMAX} \\
     --out-dir  "${out_dir}" ${FORCE_FLAG}
 
@@ -145,7 +144,7 @@ if [[ -z "\$Q_PATH" ]]; then
 fi
 
 # ── 3. Relax ──────────────────────────────────────────────────────────────────
-python "${pipeline_dir}/relax.py" \
+eo-relax \
     "\$Q_PATH" --AR-list ${AR} --max-iters ${MAX_ITERS} ${FORCE_FLAG}
 
 echo "Done: N=${N}  AR=${AR}"

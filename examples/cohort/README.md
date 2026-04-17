@@ -3,7 +3,7 @@
 Produces 68 independent (N, AR) entangled + relaxed packings.
 
 ```
-pipeline/cohort/
+examples/cohort/
   cohort_def.sh          ← edit this to change the grid
   run_local.sh           ← local execution (one GPU, sequential)
   run_cluster.sh         ← Harvard RC: one SLURM job per packing
@@ -24,8 +24,8 @@ cd ~/Github/entanglement-optimization
 git pull
 
 # 2. Create your cluster.env from the template
-cp pipeline/cohort/cluster.env.template pipeline/cohort/cluster.env
-nano pipeline/cohort/cluster.env          # fill in the values below
+cp examples/cohort/cluster.env.template examples/cohort/cluster.env
+nano examples/cohort/cluster.env          # fill in the values below
 ```
 
 **`cluster.env` fields:**
@@ -46,7 +46,7 @@ nano pipeline/cohort/cluster.env          # fill in the values below
 ## Running the cohort
 
 ```bash
-cd ~/Github/entanglement-optimization/pipeline/cohort
+cd ~/Github/entanglement-optimization/examples/cohort
 
 # Dry run first — prints sbatch commands, submits nothing
 bash run_cluster.sh --dry-run

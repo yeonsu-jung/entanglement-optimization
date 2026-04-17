@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pipeline/cohort/run_local.sh
+# examples/cohort/run_local.sh
 #
 # Run the full cohort locally (sequential, one GPU) in two phases:
 #   Phase 1: entangle all (N, AR) pairs  — JAX compiles once per N, reused for
@@ -9,7 +9,7 @@
 # Grid is defined in cohort_def.sh — edit that, not this file.
 #
 # Usage:
-#   cd pipeline/cohort
+#   cd examples/cohort
 #   bash run_local.sh [--force] [--n-packings K] [--cohort-name NAME] 2>&1 | tee run_local.log
 #
 # Tunables via env vars:
@@ -20,7 +20,6 @@
 set -euo pipefail
 
 COHORT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PIPELINE_DIR="$(dirname "$COHORT_DIR")"
 RESULTS_ROOT="$COHORT_DIR/results"
 
 source "$COHORT_DIR/cohort_def.sh"
@@ -71,7 +70,7 @@ run_entangle() {
     local out_dir="$RESULTS_DIR/N${N}/AR${AR}"
     mkdir -p "$out_dir"
     log "Entangle: N=$N  AR=$AR  N_PACKINGS=$N_PACKINGS"
-    python "$PIPELINE_DIR/entangle.py" \
+    eo-entangle \
         --num-rods "$N" --AR "$AR" --Nmax "$NMAX" \
         --N-packings "$N_PACKINGS" \
         --out-dir  "$out_dir" $FORCE_FLAG
@@ -101,7 +100,7 @@ run_relax_N() {
     fi
 
     log "Relax: N=$N  ARs=${ars[*]}  total_seeds=${#q_paths[@]}"
-    python "$PIPELINE_DIR/relax.py" \
+    eo-relax \
         "${q_paths[@]}" --AR-list auto --max-iters "$MAX_ITERS" $FORCE_FLAG
 }
 
