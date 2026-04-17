@@ -3,25 +3,23 @@
 
 Steps
 -----
-1. entangle.py  – maximise linking number at thin AR, save trajectory
-2. relax.py     – inflate rods step by step, save trajectory snapshots
-3. perturb.py   – identify tightest/loosest rods, run 3 dynamics cases
-4. export_web.py– embed all trajectories into a self-contained index.html
+1. eo-entangle   – maximise linking number at thin AR, save trajectory
+2. eo-relax      – inflate rods step by step, save trajectory snapshots
+3. eo-perturb    – identify tightest/loosest rods, run 3 dynamics cases
+4. web_export    – embed all trajectories into a self-contained index.html
 
 Usage
 -----
 # Full run from scratch
-python pipeline/pipeline_for_video.py --num-rods 200 --out-dir results/my_run \\
+eo-make-video --num-rods 200 --out-dir results/my_run \\
     --dynamics-binary /path/to/rigidbody_viewer_3d
 
 # Skip entanglement (use an existing q_entangled.npy)
-python pipeline/pipeline_for_video.py \\
-    --q-path results/my_run/entangled/.../q_entangled.npy \\
+eo-make-video --q-path results/my_run/entangled/.../q_entangled.npy \\
     --dynamics-binary /path/to/rigidbody_viewer_3d
 
 # Skip all computation, only re-export the web viewer
-python pipeline/pipeline_for_video.py \\
-    --q-path .../q_entangled.npy --skip-perturb --skip-perturb
+eo-make-video --q-path .../q_entangled.npy --skip-perturb
 
 Stride knobs (all adjustable here)
 ------------------------------------
@@ -132,8 +130,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    here = Path(__file__).parent      # pipeline/ directory
-    out  = Path(args.out_dir).resolve()
+    out = Path(args.out_dir).resolve()
     out.mkdir(parents=True, exist_ok=True)
 
     # ── Step 1: Entangle ──────────────────────────────────────────────────
@@ -152,7 +149,7 @@ def main() -> None:
             # The resulting q is discarded; only trajectory.npy is kept.
             entangle_dir = out / "entangled"
             cmd = [
-                sys.executable, here / "entangle.py",
+                sys.executable, "-m", "entanglement_optimization.cli.entangle",
                 "--num-rods",  str(args.num_rods),
                 "--AR",        "1000",
                 "--Nmax",      str(args.entangle_Nmax),
@@ -185,7 +182,7 @@ def main() -> None:
 
     # ── Step 2: Relax ─────────────────────────────────────────────────────
     relax_cmd = [
-        sys.executable, here / "relax.py",
+        sys.executable, "-m", "entanglement_optimization.cli.relax",
         str(q_path),
         "--AR-list",   args.AR_list,
         "--max-iters", str(args.relax_max_iters),
@@ -202,7 +199,7 @@ def main() -> None:
     # ── Step 3: Perturb ───────────────────────────────────────────────────
     if not args.skip_perturb:
         perturb_cmd = [
-            sys.executable, here / "perturb.py",
+            sys.executable, "-m", "entanglement_optimization.cli.perturb",
             str(run_dir),
             "--steps",   str(args.perturb_steps),
             "--dt",      str(args.perturb_dt),
@@ -223,7 +220,7 @@ def main() -> None:
 
     # ── Step 4: Export web viewer ─────────────────────────────────────────
     export_cmd = [
-        sys.executable, here / "export_web.py",
+        sys.executable, "-m", "entanglement_optimization.viz.web_export",
         str(run_dir),
         "--every",           str(args.every),
         "--entangle-frames", str(args.entangle_frames),

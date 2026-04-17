@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 from jax import jit, vmap
 
-from physics import dist_lin_seg, sph2cart, q_to_x
+from entanglement_optimization.core.physics import dist_lin_seg, sph2cart, q_to_x
 
 
 @jit

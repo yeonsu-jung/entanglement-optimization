@@ -7,7 +7,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description="simple distance check."
     )
-    p.add_argument("filepath", type=str, help="trajectory data path", default="/home/yjung/Github/entanglement-optimization/pipeline/results/entangled/286,541,529/2026-03-19_01_Relaxed-N200/AR1000/trajectory.npy")
+    p.add_argument("filepath", type=str, help="trajectory data path")
     p.add_argument("--out-dir", type=str, help="output png parent dir")
     return p.parse_args()
 

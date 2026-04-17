@@ -15,7 +15,7 @@ Requires:
 
 Usage
 -----
-python pipeline/perturb.py <run_dir> [--binary /path/to/rigidbody_viewer_3d]
+eo-perturb <run_dir> [--binary /path/to/rigidbody_viewer_3d]
 
 Output layout
 -------------

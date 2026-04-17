@@ -6,12 +6,12 @@ embedded as base64 — open it directly in any browser, no server needed.
 
 Usage
 -----
-python pipeline/export_web.py <run_dir> [--output <dir>] [--every N]
+python -m entanglement_optimization.viz.web_export <run_dir> [--output <dir>] [--every N]
 
 Examples
 --------
-python pipeline/export_web.py pipeline/results/examples/N200/2026-03-19_19_Relaxed-N200
-python pipeline/export_web.py .../run_dir --output ~/Desktop/viewer --every 2
+python -m entanglement_optimization.viz.web_export results/N200/2026-03-19_19_Relaxed-N200
+python -m entanglement_optimization.viz.web_export .../run_dir --output ~/Desktop/viewer --every 2
 """
 import base64
 import json

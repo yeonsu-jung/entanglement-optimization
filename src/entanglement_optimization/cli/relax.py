@@ -46,8 +46,8 @@ import jax.numpy as jnp
 import numpy as np
 from jax import grad, jit, lax
 
-import physics
-import fire as fire_mod
+from entanglement_optimization.core import physics
+from entanglement_optimization.core import fire as fire_mod
 
 
 # ── Device info ────────────────────────────────────────────────────────────

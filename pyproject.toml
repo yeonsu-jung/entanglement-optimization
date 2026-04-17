@@ -4,26 +4,33 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "entanglement-optimization"
-version = "0.1.0"
-description = "Readable, reusable tools for rod packing and entanglement simulations"
-authors = [{ name = "Yeonsu" }]
+version = "0.2.0"
+description = "JAX-based optimization of entangled rod packings"
+authors = [{ name = "Yeonsu Jung" }]
 readme = "README.md"
 requires-python = ">=3.9"
+license = { text = "MIT" }
 dependencies = [
   "numpy>=1.22",
-  "numba>=0.56",
-  "matplotlib>=3.6",
+  "jax>=0.4",
 ]
-license = { text = "MIT" }
+
+[project.optional-dependencies]
+gpu  = ["jax[cuda12]>=0.4"]
+viz  = ["polyscope", "imageio"]
+dev  = ["pytest>=7"]
 
 [project.urls]
-Homepage = "https://github.com/yeonsu/entanglement-optimization"
+Homepage = "https://github.com/yeonsu-jung/entanglement-optimization"
 
 [project.scripts]
-entangle-pack-npbc = "core.fast_packing:main"
+eo-entangle    = "entanglement_optimization.cli.entangle:main"
+eo-relax       = "entanglement_optimization.cli.relax:main"
+eo-perturb     = "entanglement_optimization.cli.perturb:main"
+eo-make-video  = "entanglement_optimization.cli.make_video:main"
 
-[tool.setuptools]
-packages = ["core"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.black]
 line-length = 100
