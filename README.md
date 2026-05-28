@@ -1,7 +1,7 @@
 # entanglement-optimization
 
 JAX-based optimization of entangled rod packings. Generates configurations where
-$N$ flexible rods are driven into a knotted state at high aspect ratio and then
+$N$ rigid rods are driven into an entangled state at high aspect ratio and then
 sequentially relaxed as the rods inflate, producing dense non-overlapping
 packings.
 
